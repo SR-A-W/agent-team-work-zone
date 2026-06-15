@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_start_check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/teammate_idle_checkpoint.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_end_final_checkpoint.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

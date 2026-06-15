@@ -1,0 +1,3 @@
+# Upgrade staging area: filled in temporarily by the user only during an upgrade; not committed.
+.upgrade/*
+!.upgrade/README.md

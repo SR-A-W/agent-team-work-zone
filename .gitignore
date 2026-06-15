@@ -1,0 +1,13 @@
+# Live workspace (not part of template)
+/_agent_team_work_zone/
+
+# .claude runtime state — bootstrap rebuilds from source
+.claude/
+
+# Hook debug logs
+hook_debug.log
+*_hook.log
+
+# .upgrade staging contents (preserve README.md)
+_agent_team_work_zone/.upgrade/*
+!_agent_team_work_zone/.upgrade/README.md

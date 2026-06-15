@@ -1,0 +1,3 @@
+# 升级暂存区：仅在升级时由用户临时填充，不入仓库
+.upgrade/*
+!.upgrade/README.md
