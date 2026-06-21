@@ -42,7 +42,7 @@ Consult:
 ```
 ## New teammate proposal
 
-- **Nickname**: <name>
+- **name**: <slug>-<role> (**must** be `<slug>-<role>` format: slug = this team's workstation name minus `_team`, a single token with no hyphen; role may contain hyphens. E.g. `architect-reviewer`. Globally unique)
 - **Role source**: <subagent name / role_archetype path / original>
 - **Model**: <haiku / sonnet / opus>
 - **Plan-mode gating**: <YES / NO>

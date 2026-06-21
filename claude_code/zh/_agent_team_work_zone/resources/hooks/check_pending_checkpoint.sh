@@ -7,7 +7,7 @@
 #
 # 退役原因（读写不对称的死结）：这条"读侧"链路对 in-process teammate 从不工作——
 #   UserPromptSubmit 的 payload 不带 teammate 身份；in-process 下 teammate 与 lead 共用
-#   进程、cwd 都是项目根，认不出当前是 lead 还是哪个 teammate（详见 developer_manual §5）。
+#   进程、cwd 都是项目根，认不出当前是 lead 还是哪个 teammate。
 #
 # v0.2.3 起，自动 checkpoint 改由 teammate_idle_checkpoint.sh 单边完成：在带身份的
 #   "写侧"(TeammateIdle) 用 working-context.md mtime 闸门 + exit 2，把提醒的 stderr 直接喂给

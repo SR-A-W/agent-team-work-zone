@@ -73,7 +73,7 @@ fi
 SRC_VERSION_FILE="$UPGRADE_DIR/VERSION"
 if [ ! -f "$SRC_VERSION_FILE" ]; then
     print_error "Staged .upgrade/ has no VERSION file: $SRC_VERSION_FILE"
-    print_error "Copy the new-version template (from agent-work-zone repo) into .upgrade/ first."
+    print_error "Copy the new-version template (from agent-team-work-zone repo) into .upgrade/ first."
     print_error "See: $UPGRADE_DIR/README.md"
     exit 1
 fi

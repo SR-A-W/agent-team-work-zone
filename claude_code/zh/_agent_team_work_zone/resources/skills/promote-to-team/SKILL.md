@@ -49,6 +49,8 @@ Agent 在对话中用自然语言说明升级原因，请用户确认：
 
 ## Phase 2: 重命名工位目录
 
+> ⚠️ **`<english_name>` 必须是单 token（无连字符、无下划线）**——它将成为本 team 的 **slug**（工位名去 `_team` 即得）。日后 spawn 的 teammate 名为 `<slug>-<role>`，idle hook 靠 `${name%%-*}_team` 反推工位；slug 若含连字符，hook 会切错。如当前扁平工位名带连字符，借本次重命名一并改为单 token。
+
 使用 `git mv`（若在 git repo 中）或 `mv`：
 
 ```bash

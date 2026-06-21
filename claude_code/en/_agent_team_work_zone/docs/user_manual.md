@@ -33,7 +33,7 @@
 ```bash
 # Clone the repo
 git clone <repo-url>
-cd agent-work-zone
+cd agent-team-work-zone
 
 # Copy the Chinese team template into your own project root
 cp -r claude_code/zh/_agent_team_work_zone /path/to/your/project/
@@ -45,8 +45,10 @@ bash _agent_team_work_zone/resources/scripts/bootstrap.sh
 
 > The English version will be generated later by the Translator.
 
+> **⚠️ Claude Code version requirement (this template)**: This template is adapted for **Claude Code 2.1.178**'s agent-teams API (session-level auto team, `TeamCreate`/`TeamDelete` removed, the `Agent` tool's `team_name` ignored) and requires **CC ≥ 2.1.178**. If your Claude Code is ≤ 2.1.177, use **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)** instead (targets the old API).
+
 Bootstrap will:
-- Check the Claude Code version (>= v2.1.32)
+- Check the Claude Code version (>= v2.1.178); if it doesn't meet the floor, exit directly and point to release v0.1.0
 - Check for tmux (**strongly recommended, not required** — see the note below; without it, in-process mode is the fallback)
 - Sync skills + agents to `.claude/`
 - Create or merge `.claude/settings.json` to enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
@@ -271,7 +273,6 @@ jq '.members[] | {name, tmuxPaneId, backendType}' \
 - **Long tasks (> 6 days)**: every epoch, spawn a fresh tracker — don't try to renew indefinitely
 - **Don't** write an auto-renewal daemon — manual control is safer than invisible automation
 
-For the underlying mechanism, see `developer_manual.md` "Cross-session persistence limits".
 
 ### Role Archetypes (`resources/role_archetypes/`)
 
@@ -302,7 +303,7 @@ For the underlying mechanism, see `developer_manual.md` "Cross-session persisten
 > For macOS / Windows see `resources/agents/tracker.md` "Option 2: macOS / Windows local — Desktop Scheduled Tasks".
 
 ```
-User: Architect, I kicked off SFT for Qwen2.5-72B; I want to keep an eye on it
+User: Architect, I kicked off a long-running training run; I want to keep an eye on it
 Architect: OK. This is a training task. I'll bring tracker into the team via
           /spawn-team; it will run /loop 12h in its own tmux pane, polling
           state every 12 hours and writing reports to architect_team/roundtable/.
@@ -317,7 +318,7 @@ User: OK
  including "On startup execute /loop 12h <polling task>"]
 [tracker teammate starts in a new tmux pane → issues /loop itself → enters polling]
 Architect: Tracker teammate spawned (pane %12). Watchlist:
-          squeue + ./runs/sft_qwen72b/status + tail of train.log.
+          squeue + ./runs/exp_42/status + tail of train.log.
           /loop will auto-expire in 7 days; I'll have it re-issue at that point.
           To stop, I can SendMessage it "/cron-list" + "/cron-delete <id>".
 ```
@@ -432,7 +433,4 @@ Those are **runtime derived copies** and will be overwritten by the next bootstr
 
 ## Further Reading
 
-- `developer_manual.md` — how to add skills / agents / archetypes; source rules; release process
 - `agent-teams.md` — design doc for the new architecture (why & how)
-- `design_history.md` — decision history of this refactor
-- `roadmap/autonomous_team_mode.md` — reserved plan for terminal form (autonomous mode)

@@ -4,13 +4,13 @@
 
 ## 用途
 
-当你要把 `_agent_team_work_zone/` 升级到 `agent-work-zone` repo 的新版本时：
+当你要把 `_agent_team_work_zone/` 升级到 `agent-team-work-zone` repo 的新版本时：
 
-1. 从 `agent-work-zone` repo `git pull` 到目标版本
+1. 从 `agent-team-work-zone` repo `git pull` 到目标版本
 2. 把该 repo 的 `claude_code/zh/_agent_team_work_zone/` **整个目录的内容**复制到本目录下：
    ```bash
-   # 在用户项目根目录执行，假设 agent-work-zone 已在 ~/Projects/agent-work-zone
-   cp -r ~/Projects/agent-work-zone/claude_code/zh/_agent_team_work_zone/. \
+   # 在用户项目根目录执行，假设 agent-team-work-zone 已在 ~/Projects/agent-team-work-zone
+   cp -r ~/Projects/agent-team-work-zone/claude_code/zh/_agent_team_work_zone/. \
          _agent_team_work_zone/.upgrade/
    ```
    复制后本目录应该长这样：
@@ -40,7 +40,7 @@
    ```
    （或直接 `rm -rf .upgrade/` 再由下次升级重建——内容都会由 repo 提供。）
 
-## 为什么不直接从 `agent-work-zone` repo 运行？
+## 为什么不直接从 `agent-team-work-zone` repo 运行？
 
 把新版暂存在项目本地的 `.upgrade/` 里有几个好处：
 

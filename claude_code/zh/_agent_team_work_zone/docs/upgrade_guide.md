@@ -1,6 +1,6 @@
 # 升级指南
 
-本指南说明如何把已安装在项目中的 `_agent_team_work_zone/` 升级到 `agent-work-zone` repo 的新版本。
+本指南说明如何把已安装在项目中的 `_agent_team_work_zone/` 升级到 `agent-team-work-zone` repo 的新版本。
 
 > **快速版**：在你的项目根目录下跑 `bash _agent_team_work_zone/upgrade.sh`——一条命令搞定。
 > 详细说明见下文。
@@ -17,7 +17,7 @@ cat _agent_team_work_zone/VERSION
 - **MINOR (Y)**：新增功能（新 skill / agent / hook），向后兼容
 - **PATCH (Z)**：文档修订、bug 修复，完全向后兼容
 
-升级前对照 `CHANGELOG.md` 了解本次改动范围。详细的版本管理约定见 `VERSIONING.md`。
+升级前对照 `CHANGELOG.md` 了解本次改动范围。
 
 ## 框架文件所有权清单
 
@@ -90,10 +90,10 @@ bash _agent_team_work_zone/upgrade.sh
 
 ### Fork 用户
 
-如果你跑的是 `agent-work-zone` 的 fork，可以通过环境变量覆盖下载来源：
+如果你跑的是 `agent-team-work-zone` 的 fork，可以通过环境变量覆盖下载来源：
 
 ```bash
-export UPGRADE_REPO_URL="https://github.com/<your-fork>/agent-work-zone/archive/refs/heads/main.tar.gz"
+export UPGRADE_REPO_URL="https://github.com/<your-fork>/agent-team-work-zone/archive/refs/heads/main.tar.gz"
 bash _agent_team_work_zone/upgrade.sh
 ```
 
@@ -102,11 +102,11 @@ bash _agent_team_work_zone/upgrade.sh
 v0.5.0 起，**手动 4 步流程不再推荐**。但 `resources/scripts/upgrade.sh`（migration chain dispatcher）继续保留，新一键脚本只是它的自动化包装层。如果你出于调试或定制需求需要手动跑：
 
 ```bash
-# 1. 在本地 clone 一份 agent-work-zone repo
-git clone https://github.com/SR-A-W/agent-work-zone.git /tmp/agent-work-zone
+# 1. 在本地 clone 一份 agent-team-work-zone repo
+git clone https://github.com/SR-A-W/agent-team-work-zone.git /tmp/agent-team-work-zone
 
 # 2. 把模板内容 cp 到你项目的 .upgrade/ 暂存区
-cp -r /tmp/agent-work-zone/claude_code/zh/_agent_team_work_zone/. \
+cp -r /tmp/agent-team-work-zone/claude_code/zh/_agent_team_work_zone/. \
       _agent_team_work_zone/.upgrade/
 
 # 3. 跑 dispatcher（和一键脚本调用的是同一个 dispatcher）
@@ -169,4 +169,3 @@ git checkout HEAD -- _agent_team_work_zone/
 **行为变更须知**：（向后兼容但要知晓的）
 ```
 
-完整的版本管理 / Release commit / git tag / migration 脚本约定见 `VERSIONING.md`。

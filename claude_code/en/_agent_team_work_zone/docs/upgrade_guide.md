@@ -1,6 +1,6 @@
 # Upgrade Guide
 
-This guide explains how to upgrade your project's installed `_agent_team_work_zone/` to a new version of the `agent-work-zone` repo.
+This guide explains how to upgrade your project's installed `_agent_team_work_zone/` to a new version of the `agent-team-work-zone` repo.
 
 > **Quick version**: in your project root, run `bash _agent_team_work_zone/upgrade.sh` — one command does it all.
 > See below for details.
@@ -17,7 +17,7 @@ Version numbers follow SemVer `vMAJOR.MINOR.PATCH`:
 - **MINOR (Y)**: new features (new skills / agents / hooks), backward compatible
 - **PATCH (Z)**: documentation revisions, bug fixes, fully backward compatible
 
-Before upgrading, review the `CHANGELOG.md` to understand the scope of changes. For detailed versioning conventions, see `VERSIONING.md`.
+Before upgrading, review the `CHANGELOG.md` to understand the scope of changes.
 
 ## Framework-file ownership inventory
 
@@ -90,10 +90,10 @@ The script will:
 
 ### Fork users
 
-If you're running a fork of `agent-work-zone`, override the download source with an env var:
+If you're running a fork of `agent-team-work-zone`, override the download source with an env var:
 
 ```bash
-export UPGRADE_REPO_URL="https://github.com/<your-fork>/agent-work-zone/archive/refs/heads/main.tar.gz"
+export UPGRADE_REPO_URL="https://github.com/<your-fork>/agent-team-work-zone/archive/refs/heads/main.tar.gz"
 bash _agent_team_work_zone/upgrade.sh
 ```
 
@@ -102,11 +102,11 @@ bash _agent_team_work_zone/upgrade.sh
 From v0.5.0 onward, the **manual 4-step flow is no longer recommended**. But `resources/scripts/upgrade.sh` (the migration-chain dispatcher) is preserved — the new one-button script is just its automation wrapper. If you need to run it manually for debugging or customization:
 
 ```bash
-# 1. Clone agent-work-zone repo locally
-git clone https://github.com/SR-A-W/agent-work-zone.git /tmp/agent-work-zone
+# 1. Clone agent-team-work-zone repo locally
+git clone https://github.com/SR-A-W/agent-team-work-zone.git /tmp/agent-team-work-zone
 
 # 2. Copy template into your project's .upgrade/ staging area
-cp -r /tmp/agent-work-zone/claude_code/zh/_agent_team_work_zone/. \
+cp -r /tmp/agent-team-work-zone/claude_code/zh/_agent_team_work_zone/. \
       _agent_team_work_zone/.upgrade/
 
 # 3. Run the dispatcher (same one the one-button script invokes)
@@ -169,4 +169,3 @@ One-sentence release summary.
 **Behavioral changes to know**: (backward-compatible but worth knowing)
 ```
 
-For the full versioning / Release commit / git tag / migration-script conventions, see `VERSIONING.md`.

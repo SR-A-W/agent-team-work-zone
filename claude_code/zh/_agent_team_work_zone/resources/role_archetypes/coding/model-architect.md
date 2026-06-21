@@ -34,7 +34,7 @@
 
 ## Lead 在 spawn prompt 中要补充的字段
 
-- **具体文件**：完整路径清单（`src/models/llama/modeling_llama.py` 等）
+- **具体文件**：完整路径清单（`src/models/core/modeling_core.py` 等）
 - **改动目标**：精确到要做什么（"给 forward 加 RoPE scaling 支持，默认 linear scaling factor=1.0"）
 - **保持的接口**：哪些 signature / 行为不能变
 - **兼容性要求**：是否要和 HuggingFace Hub 的既有 checkpoint 兼容

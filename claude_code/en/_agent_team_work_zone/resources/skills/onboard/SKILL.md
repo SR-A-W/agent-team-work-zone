@@ -133,6 +133,8 @@ _agent_team_work_zone/<english_name>_team/
 
 **Initialize TEAMMATE_INFO.json** (must be created for every new team lead workstation, so subsequent `/spawn-team` / `/add-teammate` / `/reactivate-team` can read/write it):
 
+> ⚠️ `<english_name>` must be a single token (no hyphen) — it is this team's **slug**, and later teammate names `<slug>-<role>` plus the idle hook's `${name%%-*}_team` workstation derivation both depend on it having no hyphen.
+
 ```json
 {
   "schema_version": 1,

@@ -6,7 +6,7 @@
 
 ## 背景
 
-`agent-work-zone` 是一个多 agent 协作模板，源自 PL-MoE 研究项目的 `_agent_tasks/` 经验。早期版本是**扁平结构**：所有 agent 对等，通过一个共享的 `meeting_room/` 做异步文件通讯。
+`agent-team-work-zone` 是一个多 agent 协作模板，源自在共享文件工作区中协调多 agent 任务的实践经验。早期版本是**扁平结构**：所有 agent 对等，通过一个共享的 `meeting_room/` 做异步文件通讯。
 
 随着项目规模扩大，扁平结构暴露了三个问题：
 1. **无上下级关系** — 无法表达"tracker 向 lead 汇报"
@@ -24,11 +24,11 @@
 - **Inter-teammate Mailbox**：teammate 之间可以直接通讯
 - **Per-teammate Plan Mode Gating**：可以要求某些 teammate 先提方案待 lead 批准再实施
 - **Display Modes**：支持 tmux split panes 或 in-process
-- **Runtime 状态**：存放在 `~/.claude/teams/{team-name}/config.json`（**用户级**，自动生成，不可手编辑）
+- **Runtime 状态**：存放在 `~/.claude/teams/{team-name}/config.json`（**用户级**，自动生成，不可手编辑）。CC ≥2.1.178 起 `{team-name}` 是 **`session-<id>`**——每个 session 自动建唯一会话级 team、退出时自动清理，磁盘**不再**累积死成员 ghost 条目。
 
 **关键约束**：
 - **没有** project-level team config file（像 `.claude/teams/teams.json` 这种）
-- Team 是 runtime 的：用自然语言 spawn，用完即散
+- Team 是 runtime 的：每 session 自动建一个会话级 team，`Agent(name=…)` 自动并入；`team_name` 参数已被忽略，`TeamCreate`/`TeamDelete` 工具已删除；session 退出即自动清散
 - Custom subagents (`.claude/agents/*.md`) 可以作为 teammate 的 role template 使用
 - `skills` 和 `mcpServers` frontmatter 字段**不会**传递给 teammate
 - 推荐 team size：3~5 人，超过 5 人协调成本增加
@@ -151,7 +151,6 @@ Tracker 的物理存在是一个 subagent 定义（`resources/agents/tracker.md`
 
 `/spawn-team` 的 frontmatter 留有 `mode: interactive | autonomous` 字段，目前只实现 `interactive`。将来通过 `/loop` + hook 机制实现端到端自动化，届时在同一个 skill 里扩展。
 
-详见 `roadmap/autonomous_team_mode.md`。
 
 ## 与 hierarchy.md 的关系
 
@@ -183,4 +182,3 @@ Tracker 的物理存在是一个 subagent 定义（`resources/agents/tracker.md`
 - Claude Code 官方文档：agent-teams
 - Claude Code 官方文档：sub-agents
 - `design/hierarchy.md`（历史参考）
-- 本目录下的 `design_history.md`（本次重构的决策过程）

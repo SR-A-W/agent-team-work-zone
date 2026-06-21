@@ -6,7 +6,7 @@
 
 ## Background
 
-`agent-work-zone` is a multi-agent collaboration template, originating from the `_agent_tasks/` experience of the PL-MoE research project. Early versions had a **flat structure**: all agents were peers, communicating asynchronously through a shared `meeting_room/` via files.
+`agent-team-work-zone` is a multi-agent collaboration template that grew out of practical experience coordinating agent tasks in a shared file-based workspace. Early versions had a **flat structure**: all agents were peers, communicating asynchronously through a shared `meeting_room/` via files.
 
 As the project scaled, the flat structure exposed three problems:
 1. **No super-subordinate relations** — cannot express "tracker reports to the lead"
@@ -24,11 +24,11 @@ In 2025, Claude Code introduced the **experimental Agent Teams** feature (requir
 - **Inter-teammate mailbox**: teammates can communicate directly
 - **Per-teammate plan-mode gating**: certain teammates can be required to propose a plan for the lead's approval before implementation
 - **Display modes**: supports tmux split panes or in-process
-- **Runtime state**: stored at `~/.claude/teams/{team-name}/config.json` (**user-level**, auto-generated, not hand-editable)
+- **Runtime state**: stored at `~/.claude/teams/{team-name}/config.json` (**user-level**, auto-generated, not hand-editable). As of CC ≥2.1.178, `{team-name}` is **`session-<id>`** — each session auto-creates a unique session-level team and auto-cleans it on exit; the disk **no longer** accumulates dead-member ghost entries.
 
 **Key constraints**:
 - **There is no** project-level team config file (like `.claude/teams/teams.json`)
-- A team is runtime: spawned in natural language, created and disposed on demand
+- A team is runtime: each session auto-creates a session-level team and `Agent(name=…)` auto-joins it; the `team_name` parameter is now ignored, the `TeamCreate`/`TeamDelete` tools have been removed, and the team is auto-disposed when the session exits
 - Custom subagents (`.claude/agents/*.md`) can be used as role templates for teammates
 - The `skills` and `mcpServers` frontmatter fields are **not** propagated to teammates
 - Recommended team size: 3–5 people; coordination cost increases beyond 5
@@ -151,7 +151,6 @@ The physical existence of the tracker is a subagent definition (`resources/agent
 
 The frontmatter of `/spawn-team` reserves a `mode: interactive | autonomous` field; currently only `interactive` is implemented. In the future, end-to-end automation will be implemented through the `/loop` + hook mechanism, extending within the same skill.
 
-See `roadmap/autonomous_team_mode.md` for details.
 
 ## Relationship to hierarchy.md
 
@@ -183,4 +182,3 @@ This architectural change involves:
 - Claude Code official documentation: agent-teams
 - Claude Code official documentation: sub-agents
 - `design/hierarchy.md` (historical reference)
-- `design_history.md` in this directory (decision process of this refactor)

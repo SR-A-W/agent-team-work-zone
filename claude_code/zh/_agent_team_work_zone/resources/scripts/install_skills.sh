@@ -12,8 +12,8 @@
 #   cd /path/to/your/project
 #   bash _agent_team_work_zone/resources/scripts/install_skills.sh
 #
-# 开发环境（在 agent-work-zone 仓库内 dogfood）:
-#   cd /path/to/agent-work-zone
+# 开发环境（在 agent-team-work-zone 仓库内 dogfood）:
+#   cd /path/to/agent-team-work-zone
 #   bash claude_code/zh/_agent_team_work_zone/resources/scripts/install_skills.sh
 #
 # 通常由 bootstrap.sh 调用，不需要直接运行。

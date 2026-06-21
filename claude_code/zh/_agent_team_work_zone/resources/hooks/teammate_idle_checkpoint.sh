@@ -16,7 +16,7 @@
 #   本 hook 全程只在【写侧】(TeammateIdle，payload 带 teammate 身份) 动作；exit 2 的 stderr
 #   由 Claude Code 直接投递给【正在 idle 的那个 teammate】，不经过【读侧】(UserPromptSubmit，
 #   payload 不带身份、in-process 下 cwd=项目根、根本认不出是谁)。所以彻底绕开了旧链路那个
-#   "读侧认不出 in-process teammate"的死结。详见 developer_manual §5。
+#   "读侧认不出 in-process teammate"的死结。
 #
 # 安全铁律：
 #   - 绝不输出非法 JSON：TeammateIdle 不支持 hookSpecificOutput/additionalContext（输出会
@@ -26,8 +26,9 @@
 #   - 硬安全帽：连续 nudge 上限（防 teammate 持续无视提醒 → mtime 一直旧 → 无限 exit 2 死循环）。
 #
 # 输入（stdin JSON）：session_id / cwd / teammate_name / team_name / ...
-#   （实测 2026-06-13：TeammateIdle payload 确实带 team_name，值形如 "architect_team"、
-#    已含 _team 后缀；用它精确定址工位，避免跨 team 同名 teammate 被字母序 glob 误判。）
+#   （CC ≥2.1.178 起，每个 session 自动建唯一会话级 team，payload 的 team_name 形如
+#    "session-<前8位>"，已**不再**对应磁盘工位名 "architect_team"；故工位定址改用
+#    "由 teammate_name 派生" 为主路径，详见下方三级定址。）
 # 输出：stdout 空；stderr 仅在 nudge 时写；exit 0（放行）或 exit 2（逼 checkpoint）。
 # 配置位置：`.claude/settings.json` 的 hooks.TeammateIdle
 #
@@ -68,25 +69,45 @@ if [ -z "$project_root" ] || [ ! -d "$project_root/_agent_team_work_zone" ]; the
 fi
 [ -d "$project_root/_agent_team_work_zone" ] || exit 0
 
-# 定位该 teammate 的工位目录。
-# 优先用 payload 的 team_name 精确定址（实测 2026-06-13：payload 带 team_name，值已含 _team
-#   后缀如 "architect_team"）——彻底消除"跨 team 同名 teammate"被字母序 glob 误判的老 bug
-#   （upgrader 的 reviewer idle 却读到 architect 的 reviewer mtime → 误发 nudge）。
-# 取不到 team_name（旧版 Claude Code 未带该字段）→ 退回原 glob 兜底（有同名歧义，best-effort）。
+# 定位该 teammate 的工位目录 —— 三级定址（CC ≥2.1.178 适配）：
+#   T1（兼容兜底）：payload team_name 给定且其下工位真存在 → 用之。
+#       CC ≥2.1.178 的 team_name 是 "session-<id>"、磁盘无此工位 → 落空到 T2；保留 T1 仅为
+#       兼容旧版（旧版 team_name="architect_team" 时仍能精确命中）。
+#   T2（新版主路径）：由 teammate_name 派生工位名 "${name%%-*}_team"。新命名约定 teammate 名为
+#       "<slug>-<role>"，slug = 工位名去 _team、单 token（无连字符）；故 "${name%%-*}" 取回 slug，
+#       "${slug}_team" 即其工位。例 "architect-reviewer" → "architect_team"。
+#       （旧式无连字符名如 "Fixer"：派生 "Fixer_team" 多半不存在 → 落空到 T3，无害。）
+#   T3（旧名兜底）：glob 所有 *_team/ 收集含该 teammate 的工位。
+#       命中恰好 1 个 → 用之；命中 0 或 >1 个 → exit 0 不猜（修掉"跨 team 同名 teammate 被
+#       字母序 glob 首个命中误判"的老 bug：upgrader 的 reviewer idle 误读 architect 的 reviewer mtime）。
 team_name=$(echo "$payload" | jq -r '.team_name // empty' 2>/dev/null)
 teammate_ws=""
+# T1：payload team_name 精确命中（兼容旧版）
 if [ -n "$team_name" ] && [ -d "$project_root/_agent_team_work_zone/${team_name}/teammates/${teammate_name}" ]; then
     teammate_ws="$project_root/_agent_team_work_zone/${team_name}/teammates/${teammate_name}"
-else
+fi
+# T2：由 name 派生工位（新版主路径）
+if [ -z "$teammate_ws" ]; then
+    derived_team="${teammate_name%%-*}_team"
+    if [ -d "$project_root/_agent_team_work_zone/${derived_team}/teammates/${teammate_name}" ]; then
+        teammate_ws="$project_root/_agent_team_work_zone/${derived_team}/teammates/${teammate_name}"
+    fi
+fi
+# T3：glob 兜底，仅当唯一命中才用（>1 歧义 → 不猜）
+if [ -z "$teammate_ws" ]; then
+    match_count=0
+    glob_ws=""
     for team_dir in "$project_root"/_agent_team_work_zone/*_team/; do
         [ -d "$team_dir" ] || continue
         if [ -d "${team_dir}teammates/${teammate_name}" ]; then
-            teammate_ws="${team_dir}teammates/${teammate_name}"
-            break
+            glob_ws="${team_dir}teammates/${teammate_name}"
+            match_count=$((match_count + 1))
         fi
     done
+    # 唯一命中才采纳；0 或 >1（跨 team 同名歧义）→ 放行不猜
+    [ "$match_count" -eq 1 ] && teammate_ws="$glob_ws"
 fi
-# 找不到工位 → 放行
+# 找不到工位（或歧义）→ 放行
 [ -n "$teammate_ws" ] || exit 0
 
 wc_file="$teammate_ws/working-context.md"

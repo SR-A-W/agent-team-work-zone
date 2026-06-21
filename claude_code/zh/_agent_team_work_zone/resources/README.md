@@ -58,4 +58,3 @@ resources/
 3. 重启 Claude Code session 或用 `/agents` 刷新让它加载新版本
 4. 测试
 
-详见 `../docs/developer_manual.md`。

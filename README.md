@@ -82,6 +82,8 @@ For any project with real complexity, we **strongly recommend team mode**. A tea
 
 ## Quick Start
 
+> **Claude Code version**: this release (**v0.2.0**) requires **Claude Code ≥ 2.1.178** — it adapts to the 2.1.178 agent-teams API (auto session-scoped teams; `TeamCreate`/`TeamDelete` removed). If your Claude Code is **≤ 2.1.177**, use **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)** instead (it targets the old agent-teams API). The installer also enforces this floor.
+
 > **Platform support**: currently supported on **Linux** and **macOS**. The install/upgrade scripts and runtime hooks are bash-based; **Windows is not yet supported** (native Windows has no bash — native support is on the roadmap, planned for the next major release). Windows users can run it via WSL for now.
 
 ### 1. Get the template
@@ -133,7 +135,7 @@ Usually the team lead forms the team during `/onboard`, per your decision. Just 
 
 > **Rare case**: if `/onboard` didn't create a team, just tell the team lead "form a team to do X" and it'll invoke `/spawn-team` (you can call it yourself too, but you usually don't need to).
 
-> **Tip**: in agent team mode, run Claude Code in **"auto mode"** (auto-approve) — teammates trigger a lot of per-action permission prompts, and auto mode spares you from approving them one by one.
+> **Tip**: in agent team mode, run Claude Code in **"auto mode"** (auto-approve) — teammates trigger a lot of per-action permission prompts, and auto mode spares you from approving them one by one. The installer offers to set this as the default (`permissions.defaultMode:"auto"`, recommended); you can also toggle it anytime with `Shift+Tab`.
 
 **About checkpoints — you don't manage them.** Teammates don't need you to trigger any saving by hand: this ops layer uses a hook to ensure **every teammate automatically writes a checkpoint before going idle** (default interval 15 minutes). A checkpoint captures that teammate's "current-state snapshot + recent work journal" — what it's doing, how far it got, what it agreed with whom, and what it still owes. **It's exactly these auto-persisted checkpoints that let a team be restored after a session is interrupted.**
 

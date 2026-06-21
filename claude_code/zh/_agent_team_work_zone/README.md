@@ -1,18 +1,14 @@
 <!-- FRAMEWORK:START -->
 # _agent_team_work_zone/ — 多 Agent 协作工作区（Team 版）
 
-> 本目录是一套**支持 Claude Code 内置 Agent Teams 特性**的多 agent 协作模板。每个 Claude Code 对话承担一个特定角色；简单任务用扁平工位单兵作战，复杂任务用 **team lead + team 办公室** 的组织结构，借助 Claude Code 的 `/schedule`、agent-team spawn 等内置能力完成端到端协作。
+> 本目录是一套**支持 Claude Code 内置 Agent Teams 特性**的多 agent 协作模板。每个 Claude Code 对话承担一个特定角色；简单任务用扁平工位单兵作战，复杂任务用 **team lead + team 办公室** 的组织结构，借助 Claude Code 的 agent-team spawn 等内置能力完成端到端协作。
 
-## 与扁平版 (`_agent_work_zone/`) 的关系
-
-- **扁平版**（`claude_code/zh/_agent_work_zone/`）：适合小型项目、单兵任务，每个对话是一个独立角色
-- **Team 版**（本目录）：在扁平版之上叠加 **team lead / team 办公室 / spawn-team / promote-to-team** 等能力，同时**完全兼容**扁平工位——简单角色仍然以扁平方式工作，只有复杂角色才组建 team
-- Team 版最终会取代扁平版，扁平版保留一段时间作为向后兼容
+> **本模板适配 Claude Code 2.1.178**（会话级自动 team、`TeamCreate`/`TeamDelete` 已删、`Agent` 的 `team_name` 被忽略），要求 **CC ≥ 2.1.178**。如果你的 Claude Code ≤ 2.1.177，请改用 **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)**（针对旧 API）。
 
 ## 环境要求
 
-- **Claude Code** ≥ v2.1.32（支持 experimental Agent Teams）
-- **tmux** ≥ 3.2（可选，用于 split panes 显示模式）
+- **Claude Code** ≥ v2.1.178（适配 2.1.178 agent-teams API；旧版用 release v0.1.0）
+- **tmux** ≥ 3.2（强烈推荐：split-pane 显示 + 抗 SSH 断连；非必需，不装则 in-process 兜底）
 - **jq**（可选，用于 bootstrap 合并 settings.json）
 
 ---
@@ -125,12 +121,10 @@ _agent_team_work_zone/
 │   └── hooks/                 ← 预留，供 terminal-form 自动化模式启用
 │
 └── docs/                      ← 文档
-    ├── user_manual.md
-    ├── developer_manual.md
-    ├── design_history.md
     ├── agent-teams.md         ← 新架构设计文档
-    └── roadmap/
-        └── autonomous_team_mode.md
+    ├── teammate_info_schema.md
+    ├── upgrade_guide.md
+    └── user_manual.md
 ```
 
 ### 工位命名约定
@@ -340,7 +334,7 @@ date: 2026-04-11 15:30
 
 - 你的工位下 5 个文件（`README.md` / `working-context.md` / `completed.md` / `TODO.md` / `commitments.md`）**只有你自己维护**。Lead 只读不改（rule #1）
 - 每次任务完成、每次进入 idle 前、收到"run /checkpoint"提醒时、或 lead 要求时，必须调用 `/checkpoint` 更新 `working-context.md`
-- **自动提醒（v0.2.3 起对 in-process 也生效）**：你距上次落盘超过 15 分钟还想 idle 时，`TeammateIdle` hook 会用 `exit 2` 拦住你、把"先跑 /checkpoint"的提醒直接喂给你，逼你落盘后再 idle。这条路绕开了旧链路认不出 in-process 身份的死结（详见 developer_manual §5），所以**对 in-process 和 tmux 模式都有效**
+- **自动提醒（v0.2.3 起对 in-process 也生效）**：你距上次落盘超过 15 分钟还想 idle 时，`TeammateIdle` hook 会用 `exit 2` 拦住你、把"先跑 /checkpoint"的提醒直接喂给你，逼你落盘后再 idle。这条路绕开了旧链路认不出 in-process 身份的死结，所以**对 in-process 和 tmux 模式都有效**
 - ⚠️ 但**别把自动提醒当唯一保险**：它最多每 15 分钟拦你一次，意外退出仍可能丢最多 ~15 分钟的活。checkpoint 仍是你的**主动义务**——重要进展做完就自觉写，别只等被拦
 - `working-context.md` 是你**对未来自己（下一次 spawn 的你）**的交接文档。写得不好 → 下次的你恢复不了状态
 - `commitments.md` 是你对别人的承诺。这里未完成的事，哪怕 `/checkpoint` 没写到 working-context，下一次的你也要看这个文件接手
@@ -434,7 +428,7 @@ date: 2026-04-11 15:30
 
 ## Troubleshooting
 
-- **Claude Code 版本太旧**：`bootstrap.sh` 会报错退出。升级到 ≥ v2.1.32
+- **Claude Code 版本太旧**：`bootstrap.sh` 会报错退出。升级到 ≥ v2.1.178（或改用 [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)）
 - **`.claude/skills/` 下找不到某个 skill**：重新运行 `bootstrap.sh`；确认源文件在 `resources/skills/<name>/SKILL.md`
 - **skill 修改后不生效**：Claude Code 在 session 启动时加载 skills。重启 session 或用 `/agents` 命令刷新
 - **切勿直接编辑 `.claude/skills/` 或 `.claude/agents/`**：这些是运行时派生物，下次 bootstrap 会被覆盖。**源在 `resources/`，只编辑源**

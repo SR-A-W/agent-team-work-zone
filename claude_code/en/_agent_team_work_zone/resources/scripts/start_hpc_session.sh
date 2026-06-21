@@ -16,7 +16,7 @@
 #   # Custom session name:
 #   SESSION_NAME=my_session bash _agent_team_work_zone/resources/scripts/start_hpc_session.sh
 #
-# Dev environment (dogfood inside the agent-work-zone repo):
+# Dev environment (dogfood inside the agent-team-work-zone repo):
 #   bash claude_code/en/_agent_team_work_zone/resources/scripts/start_hpc_session.sh
 #
 

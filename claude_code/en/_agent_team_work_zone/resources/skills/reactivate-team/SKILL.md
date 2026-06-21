@@ -2,7 +2,7 @@
 name: reactivate-team
 description: >
   Team lead invokes after session restart: reads TEAMMATE_INFO.json to rebuild the team by
-  using the Agent tool to spawn fresh sessions for each active teammate (passing team_name + name),
+  using the Agent tool to spawn fresh sessions for each active teammate (name must be <slug>-<role>; permission mode inherits the lead, not set per-teammate at spawn),
   guiding each to read its workstation's working-context.md (Part A snapshot + Part B work journal)
   to self-recover state. No-arg invocation wakes only active/idle and **skips benched** (temporarily
   offline); `/reactivate-team <name>` wakes back one specified (usually benched) teammate. This is the
@@ -36,7 +36,7 @@ This skill has two invocations:
 
 - **`/reactivate-team` (no arg)** — the standard full restore after a session restart: wakes all teammates with `status ∈ {active, idle}`, **skipping `benched`** (temporarily offline). This is the default.
 - **`/reactivate-team <name>` — wake back one specified teammate** (typically to bring a `benched` one back, or to force a single rebuild of an active one): spawn just that one name (Step 3). On success, if it was `benched`, flip it back to `active` and clear `benched_at` / `bench_reason` (see Step 4).
-  - **About Step 0 (important)**: if team registration **already exists** in this session (other active teammates remain, or a no-arg reactivate already ran this session) — **skip Step 0's `TeamDelete` / `TeamCreate`** and spawn directly. Otherwise `TeamDelete` would wipe the still-live other teammates' registration, and `TeamCreate` would hit "team already exists". Only when this session has **no team registration yet** (e.g. a fresh restart going straight to a named wake with no other active teammates) do you first `TeamCreate` (and best-effort `TeamDelete` if needed).
+  - **No team-registration preprocessing (CC ≥2.1.178)**: just spawn directly. The session-level team is auto-managed by Claude Code; there is no need (and no way) to `TeamCreate`/`TeamDelete` — waking one named teammate won't disturb the other still-live teammates in this session.
 
 > **Who decides to wake a benched one**: deciding whether to wake a benched teammate is the **team lead's standing management judgment** (see the README work rules) — at any point (especially when assigning work / before starting a task) where the lead finds it needs a benched specialty, it proposes to the user, and after consent (or the user naming it directly) executes via `/reactivate-team <name>`. **The no-arg invocation never auto-wakes benched, and never has the user pick from a list** — the status table is a black box to the user.
 
@@ -52,8 +52,8 @@ Reframe the judgment from "let me check a file to see if it's alive" into a time
 
 The following are **all invalid** and cannot be used to infer that a teammate is alive:
 
-1. **A member entry for it exists in `config.json`** → ✗
-   The `config.json` **file persists on disk**, and its members array permanently keeps ghost entries for dead processes (`tmuxPaneId:"in-process"` is never updated) — it records historical registration, not whether any process is alive. (Note: what is truly session-bound is the **in-memory runtime registration**, not this disk file — which is also why Step 0 must "first `TeamDelete` to clear the on-disk zombies, then `TeamCreate` to rebuild the runtime registration". See the developer manual "1. Two layers of team state".)
+1. **A member entry for it exists in `config.json` / any on-disk team file** → ✗
+   An on-disk team file records historical registration, not whether any process is alive. (CC ≥2.1.178: the session-level team is auto-created and auto-cleaned by Claude Code and is not retained across sessions — but you still **cannot** infer liveness from any disk file; the only authoritative signal is a SendMessage receipt within the same session.)
 
 2. **Its message is in the inbox (read or unread)** → ✗
    `inboxes/` are disk-residue files, not cleaned per session; a dead team's messages can linger for days. Reading an old message **does not mean it just replied** — this is the biggest misjudgment trap.
@@ -87,32 +87,7 @@ In practice it's almost never "the user mis-invoked `/reactivate-team`" — it's
 
 ## Flow
 
-### Step 0: Rebuild team registration (clear zombies first, then rebuild; timing: AFTER Step 2 user confirmation, BEFORE Step 3 spawn)
-
-**Why this step is mandatory** (two-layer model, read before editing this skill):
-
-Claude Code's team state has two layers with **different** cross-session behavior; failing to handle either makes reactivate fail:
-
-| Layer | Cross-session | Consequence if unhandled |
-|---|---|---|
-| in-memory runtime team registration | ❌ session-bound, `/resume` does **not** restore | any subsequent `Agent(team_name=…)` spawn fails outright with `Team "X" does not exist. Call spawnTeam first` — all teammate spawns fail |
-| on-disk `~/.claude/teams/<team>/config.json` | ✅ **persists** (the file stays on disk, and keeps ghost entries for dead in-process members) | spawning with the original name collides with leftover ghosts → Claude Code auto-adds `-2/-3` suffixes (tested behavior) → name drift, `SendMessage` can't find them |
-
-These two layers share one root (team registration is inconsistent across sessions); cure both with **one step**: first `TeamDelete` to clear leftover ghosts, then `TeamCreate` to rebuild a clean registration.
-
-> Why ghosts are untrustworthy and why to clear them: see this skill's opening "Premise: how to judge whether a teammate is alive", trap #1.
-
-**Timing**: this step is numbered Step 0 (conceptually a precondition of spawn), but its **actual execution** is placed **after** Step 1 (already confirmed there ARE active teammates) + Step 2 (user confirmation), **before** the Step 3 spawn loop — so that if Step 1 early-exits (no teammates to restore), no registration is wastefully built for an empty team. The core constraint is unchanged: **before any spawn, and not affecting the Step 3.1/3.3 receipt judgment**.
-
-**Actions** (run once before any spawn):
-
-1. Call `TeamDelete` (a **parameterless** tool that acts on "the current session's team context").
-   - It is **best-effort cleanup**: a just-restarted lead usually has no team context, so `TeamDelete` gracefully no-ops (returns `{"success":true,"message":"No team name found, nothing to clean up"}`) — **this is normal, not an error**.
-   - If it reports "no team" / "active members" / "team does not exist", etc. → **swallow it all and continue** (we wanted it gone/cleared anyway). Do **not** abort the flow because of any `TeamDelete` return.
-2. Call `TeamCreate(team_name="<your_team>")` to rebuild registration. **This step is load-bearing**: it makes subsequent spawns stop reporting "Team does not exist"; and because the registration is freshly created and clean, spawns get the original names back, no `-2` suffix.
-   - Only if `TeamCreate` **itself** fails (rare) → this is a failure mode **earlier** than the Step 3.3 receipt judgment: report it to the user and **abort** reactivate, do not enter the Step 3 spawn loop. Do not conflate it with Step 3.3's "receipt judgment".
-
-> Tested note: `TeamDelete` actually clears something mainly when **reactivating repeatedly within the same session** (config.json has accumulated ghosts in this session); in a **pure restart** scenario the runtime registration is already invalid and the on-disk ghosts get overwritten by `TeamCreate`'s new registration, so `TeamCreate` alone is clean. Both cases "Delete then Create" — no need to distinguish yourself.
+> **No more Step 0 (CC ≥2.1.178)**: the old version needed to first `TeamDelete` → `TeamCreate` to rebuild team registration and clear leftover ghosts; those two tools have been **removed** in 2.1.178. The new version **automatically** creates a unique session-level team (named like `session-<id>`) when each session starts, and **automatically cleans up** teammates on exit, so the disk no longer accumulates dead-member ghosts. Reactivate therefore **starts directly at Step 1** — read `TEAMMATE_INFO.json`, confirm, and spawn each one via `Agent(...)`, with no team-registration preprocessing at all. When spawning, **do not pass `team_name`** (it is ignored); the teammate is auto-joined into the current session-level team by `Agent`.
 
 ### Step 1: Read TEAMMATE_INFO.json
 
@@ -204,10 +179,11 @@ Agent(
     description="Reactivate <name>",
     subagent_type="<determined from role_source>",   # e.g., "general-purpose" / "tracker" / etc.
     model="<model from TEAMMATE_INFO.json>",
-    team_name="<team_name>",                         # critical: makes it actually join the team
-    name="<teammate-name>",                          # critical: its name within the team
+    name="<slug>-<role>",                            # critical: its name within the team (reuse the original name; must be <slug>-<role>)
     prompt="<the self-recovery spawn prompt above>"
 )
+# Note (CC ≥2.1.178): no longer pass team_name — it is ignored; the teammate is auto-joined into the current session-level team by Agent.
+# Also do not pass mode: a teammate's permission mode can't be set per-teammate at spawn; it inherits the lead's current mode (for auto, put the lead in auto / set permissions.defaultMode:"auto").
 ```
 
 **subagent_type selection rules**:
@@ -270,15 +246,13 @@ Next steps:
 
 ## Special cases
 
-### Ghost collision (dead member names lingering) — already rooted out by Step 0
+### Ghost collision (dead member names lingering) — no longer happens on CC ≥2.1.178
 
-`~/.claude/teams/<team_name>/config.json`'s `members` array keeps dead in-process member (ghost) entries from the previous session. **Tested behavior** (no longer future work): when spawning with the original name, Claude Code **auto-adds a suffix** — `Fixer-2`, then `-3`, `-4`, accumulating each reactivate; it does **not** refuse, and does **not** overwrite. Side effect: name drift — `SendMessage to: Fixer` fails (it's now `Fixer-2`), and TEAMMATE_INFO.json's name must be updated to match.
+Old version (CC ≤2.1.177): the on-disk `config.json`'s `members` array kept dead in-process member (ghost) entries from the previous session, and spawning with the original name got auto-suffixed `-2/-3`, causing name drift and `SendMessage` failing to find the teammate — the old version rooted this out with Step 0's `TeamDelete`→`TeamCreate` cleanup.
 
-**This skill already roots it out**: Step 0's `TeamDelete` → `TeamCreate` clears the leftover ghosts and rebuilds a clean registration before spawning, so under the normal flow spawns get the original names back, no `-2`.
+**CC ≥2.1.178 no longer has this problem**: each session's session-level team is **auto-cleaned** on exit, so the disk no longer accumulates ghosts; a new session spawning with the original name won't collide with leftovers and won't get suffixed. The skill has therefore **dropped Step 0**, and under the normal flow spawns get the original names back directly.
 
-> Design decision (settled, 2026-05~06): do **not** build a separate `/cleanup-stale-members` skill, and do **not** add a `--clean` flag. Cleanup and "rebuild registration" (Step 0 fixing `Team does not exist`) share one root, so fold them into the same step; spinning off a separate skill is splitting what should be cohesive.
-
-Degraded case: if some `TeamDelete` doesn't fully clear and the spawn still gets suffixed → mark that teammate `failed_to_reactivate` and inform the user; or accept the `-2` name and **update that member's name in TEAMMATE_INFO.json accordingly** (otherwise later `SendMessage` won't find it).
+> If a name still occasionally gets suffixed (rare, e.g. spawning the same name twice within one session) → mark that teammate `failed_to_reactivate` and inform the user; or accept the new name and **update that member's name in TEAMMATE_INFO.json accordingly** (otherwise later `SendMessage` won't find it).
 
 ### If working-context.md is corrupted
 

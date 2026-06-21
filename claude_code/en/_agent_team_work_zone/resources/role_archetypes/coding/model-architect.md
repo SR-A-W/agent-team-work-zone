@@ -34,7 +34,7 @@ Owns **Transformers + PyTorch** model architecture specifically:
 
 ## Fields the lead must fill in the spawn prompt
 
-- **Specific files**: full path list (`src/models/llama/modeling_llama.py`, etc.)
+- **Specific files**: full path list (`src/models/core/modeling_core.py`, etc.)
 - **Change target**: exactly what to do ("add RoPE scaling support to forward, default linear scaling factor=1.0")
 - **Preserved interfaces**: which signatures / behaviors must not change
 - **Compatibility requirements**: whether it must remain compatible with existing checkpoints on the HuggingFace Hub

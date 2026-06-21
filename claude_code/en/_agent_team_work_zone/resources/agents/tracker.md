@@ -134,7 +134,7 @@ Sidebar `Routines` → `New routine` → `Local`, fill in:
 
 Paste a description like the following into any Desktop session (substitute as needed):
 
-> Create a scheduled task named `tracker-myproject-training`, working folder `/Users/me/code/myproject`, run every 12 hours, model haiku, permission mode auto, worktree off. For Instructions use the prompt body of `_agent_team_work_zone/resources/desktop_task_skill_template.md`, replacing `<EXP_NAME>` with `sft_qwen72b` and `<DEPT_NAME>` with `architect_team`.
+> Create a scheduled task named `tracker-myproject-training`, working folder `/Users/me/code/myproject`, run every 12 hours, model haiku, permission mode auto, worktree off. For Instructions use the prompt body of `_agent_team_work_zone/resources/desktop_task_skill_template.md`, replacing `<EXP_NAME>` with `exp_42` and `<DEPT_NAME>` with `architect_team`.
 
 Desktop parses this and creates the task directly, skipping the GUI form.
 

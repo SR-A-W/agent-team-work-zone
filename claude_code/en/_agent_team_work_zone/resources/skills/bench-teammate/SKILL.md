@@ -83,9 +83,9 @@ Checkpoint received. You are now benched — shutting down your session. You wil
 woken later via /reactivate-team if needed. Thank you.
 ```
 
-> After shutdown it may leave a ghost entry in the runtime registration — harmless: a later `/reactivate-team <name>` handles it (see that skill's "Invocation forms" note on Step 0: when the team has other live members, do **not** run TeamDelete/TeamCreate — spawn directly).
+> Shutdown just ends that teammate's session. Under CC ≥2.1.178 the session-level team auto-cleans, so it **no longer leaves a ghost entry**; a later `/reactivate-team <name>` simply spawns it directly (no `TeamCreate`/`TeamDelete` preprocessing — those two tools have been removed).
 >
-> **Do not** hard-delete it from the team registration or treat it as a permanent remove — bench only ends the session; the record and membership are preserved.
+> **Do not** hard-delete it from `TEAMMATE_INFO.json` or treat it as a permanent remove — bench only ends the session; the record and membership are preserved.
 
 ## Step 4: Update TEAMMATE_INFO.json
 

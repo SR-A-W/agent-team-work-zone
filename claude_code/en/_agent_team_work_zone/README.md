@@ -1,18 +1,14 @@
 <!-- FRAMEWORK:START -->
 # _agent_team_work_zone/ — Multi-Agent Collaboration Workspace (Team Edition)
 
-> This directory is a multi-agent collaboration template **that supports Claude Code's built-in Agent Teams feature**. Each Claude Code conversation takes on a specific role; simple tasks use a flat workstation for solo work, while complex tasks use the **team lead + team office** organizational structure, leveraging Claude Code's built-in capabilities such as `/schedule` and agent-team spawn to complete end-to-end collaboration.
+> This directory is a multi-agent collaboration template **that supports Claude Code's built-in Agent Teams feature**. Each Claude Code conversation takes on a specific role; simple tasks use a flat workstation for solo work, while complex tasks use the **team lead + team office** organizational structure, leveraging Claude Code's built-in capabilities such as agent-team spawn to complete end-to-end collaboration.
 
-## Relationship to the Flat Edition (`_agent_work_zone/`)
-
-- **Flat edition** (`claude_code/zh/_agent_work_zone/`): suitable for small projects and solo tasks; each conversation is an independent role
-- **Team edition** (this directory): layers capabilities such as **team lead / team office / spawn-team / promote-to-team** on top of the flat edition, while remaining **fully compatible** with flat workstations — simple roles still work in flat mode, and only complex roles form a team
-- The team edition will eventually replace the flat edition; the flat edition is retained for a period for backward compatibility
+> **This template is adapted for Claude Code 2.1.178** (session-level auto team, `TeamCreate`/`TeamDelete` removed, the `Agent` tool's `team_name` ignored) and requires **CC ≥ 2.1.178**. If your Claude Code is ≤ 2.1.177, use **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)** instead (targets the old API).
 
 ## Environment Requirements
 
-- **Claude Code** ≥ v2.1.32 (supports experimental Agent Teams)
-- **tmux** ≥ 3.2 (optional, for split panes display mode)
+- **Claude Code** ≥ v2.1.178 (adapted for the 2.1.178 agent-teams API; older versions use release v0.1.0)
+- **tmux** ≥ 3.2 (strongly recommended: split-pane display + survives SSH disconnects; not required — falls back to in-process if absent)
 - **jq** (optional, for bootstrap to merge settings.json)
 
 ---
@@ -125,12 +121,10 @@ _agent_team_work_zone/
 │   └── hooks/                 ← reserved, to be enabled by terminal-form automation mode
 │
 └── docs/                      ← documentation
-    ├── user_manual.md
-    ├── developer_manual.md
-    ├── design_history.md
     ├── agent-teams.md         ← new architecture design doc
-    └── roadmap/
-        └── autonomous_team_mode.md
+    ├── teammate_info_schema.md
+    ├── upgrade_guide.md
+    └── user_manual.md
 ```
 
 ### Workstation Naming Conventions
@@ -340,7 +334,7 @@ When receiving a task that requires hands-on work, first judge:
 
 - The 5 files in your workstation (`README.md` / `working-context.md` / `completed.md` / `TODO.md` / `commitments.md`) are **maintained only by you**. Lead reads but does not modify (rule #1).
 - After each task completion, before going idle, when you receive a "run /checkpoint" reminder, or when the lead asks, you **must** invoke `/checkpoint` to update `working-context.md`.
-- **Automatic reminder (works for in-process too, as of v0.2.3)**: when you've gone more than 15 minutes since your last save and try to go idle, the `TeammateIdle` hook blocks you with `exit 2` and feeds the "run /checkpoint first" reminder straight to you, forcing a save before idle. This path sidesteps the old chain's inability to identify in-process teammates (see developer_manual §5), so it works in **both** in-process and tmux modes.
+- **Automatic reminder (works for in-process too, as of v0.2.3)**: when you've gone more than 15 minutes since your last save and try to go idle, the `TeammateIdle` hook blocks you with `exit 2` and feeds the "run /checkpoint first" reminder straight to you, forcing a save before idle. This path sidesteps the old chain's inability to identify in-process teammates, so it works in **both** in-process and tmux modes.
 - ⚠️ But **do not treat the auto-reminder as your only safety net**: it catches you at most once every 15 minutes, so an unexpected exit can still lose up to ~15 minutes of work. Checkpointing remains your **proactive duty** — write one as soon as you finish meaningful progress, don't just wait to be blocked.
 - `working-context.md` is your **handoff document to your future self (the next spawn of you)**. Poorly written → next-you cannot recover state.
 - `commitments.md` records promises you made to others. Anything unfinished here must be picked up by next-you even if `/checkpoint` didn't capture it in working-context.
@@ -434,7 +428,7 @@ The default path is Tier 1 — this keeps `.claude/agents/` always clean, contai
 
 ## Troubleshooting
 
-- **Claude Code version too old**: `bootstrap.sh` will error out. Upgrade to ≥ v2.1.32
+- **Claude Code version too old**: `bootstrap.sh` will error out. Upgrade to ≥ v2.1.178 (or use [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0))
 - **A skill is missing under `.claude/skills/`**: rerun `bootstrap.sh`; confirm that the source file exists at `resources/skills/<name>/SKILL.md`
 - **Skill modifications don't take effect**: Claude Code loads skills when a session starts. Restart the session or refresh via the `/agents` command
 - **Never edit `.claude/skills/` or `.claude/agents/` directly**: these are runtime derived copies and will be overwritten by the next bootstrap. **The source is in `resources/`; edit only the source**

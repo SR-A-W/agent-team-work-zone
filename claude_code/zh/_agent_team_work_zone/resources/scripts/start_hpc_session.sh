@@ -15,7 +15,7 @@
 #   # 自定义 session 名:
 #   SESSION_NAME=my_session bash _agent_team_work_zone/resources/scripts/start_hpc_session.sh
 #
-# 开发环境（在 agent-work-zone 仓库内 dogfood）:
+# 开发环境（在 agent-team-work-zone 仓库内 dogfood）:
 #   bash claude_code/zh/_agent_team_work_zone/resources/scripts/start_hpc_session.sh
 #
 

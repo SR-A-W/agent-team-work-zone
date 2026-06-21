@@ -20,7 +20,7 @@
 # directly to the idling teammate — it never touches the READ side (UserPromptSubmit,
 # whose payload carries no identity, and where in-process cwd = project root so you
 # cannot tell who is who). That sidesteps the old "read side can't identify the
-# in-process teammate" dead end entirely. See developer_manual §5.
+# in-process teammate" dead end entirely.
 #
 # Safety rules:
 #   - NEVER emit invalid JSON: TeammateIdle does not support hookSpecificOutput/
@@ -32,9 +32,10 @@
 #     the reminder — mtime stays old → endless exit 2 — does not get wedged).
 #
 # Input (stdin JSON): session_id / cwd / teammate_name / team_name / ...
-#   (Verified 2026-06-13: the TeammateIdle payload does carry team_name, value like
-#    "architect_team" — already with the _team suffix; use it to pin the exact workstation
-#    and avoid a same-name teammate across teams being misresolved by the alphabetical glob.)
+#   (On CC >= 2.1.178 each session auto-creates a unique session-level team, so the payload's
+#    team_name looks like "session-<id>" and NO LONGER maps to a disk workstation like
+#    "architect_team"; workstation addressing therefore derives from teammate_name — see the
+#    three-tier addressing below.)
 # Output: empty stdout; stderr only when nudging; exit 0 (pass) or exit 2 (force checkpoint).
 # Wired in: hooks.TeammateIdle of .claude/settings.json
 #
@@ -77,27 +78,46 @@ if [ -z "$project_root" ] || [ ! -d "$project_root/_agent_team_work_zone" ]; the
 fi
 [ -d "$project_root/_agent_team_work_zone" ] || exit 0
 
-# Locate the teammate's workstation.
-# Prefer pinning it exactly via the payload's team_name (verified 2026-06-13: the payload
-#   carries team_name, value already with the _team suffix like "architect_team") — this
-#   eliminates the old bug where a same-name teammate across teams was misresolved by the
-#   alphabetical glob (upgrader's reviewer idle reading architect's reviewer mtime → false nudge).
-# If team_name is absent (older Claude Code without the field) → fall back to the original glob
-#   (best-effort, with the same-name ambiguity).
+# Locate the teammate's workstation — three-tier addressing (CC >= 2.1.178 adaptation):
+#   T1 (compat fallback): if the payload team_name is given and its workstation actually
+#       exists → use it. On CC >= 2.1.178 team_name is "session-<id>" with no such workstation
+#       → falls through to T2; T1 is kept only for older CC (team_name="architect_team" pins exactly).
+#   T2 (new primary path): derive the workstation name "${name%%-*}_team" from teammate_name.
+#       The new naming convention is "<slug>-<role>" where slug = workstation name minus _team,
+#       a single token (no hyphen); so "${name%%-*}" recovers the slug and "${slug}_team" is its
+#       workstation. e.g. "architect-reviewer" → "architect_team".
+#       (Old hyphen-less names like "Fixer": derived "Fixer_team" usually does not exist → T3.)
+#   T3 (legacy-name fallback): glob all *_team/ workstations that contain this teammate.
+#       Exactly 1 match → use it; 0 or >1 → exit 0, do NOT guess (fixes the old bug where a
+#       same-name teammate across teams was misresolved by taking the alphabetical-first glob hit).
 team_name=$(echo "$payload" | jq -r '.team_name // empty' 2>/dev/null)
 teammate_ws=""
+# T1: exact hit via payload team_name (older CC compat)
 if [ -n "$team_name" ] && [ -d "$project_root/_agent_team_work_zone/${team_name}/teammates/${teammate_name}" ]; then
     teammate_ws="$project_root/_agent_team_work_zone/${team_name}/teammates/${teammate_name}"
-else
+fi
+# T2: derive workstation from name (new primary path)
+if [ -z "$teammate_ws" ]; then
+    derived_team="${teammate_name%%-*}_team"
+    if [ -d "$project_root/_agent_team_work_zone/${derived_team}/teammates/${teammate_name}" ]; then
+        teammate_ws="$project_root/_agent_team_work_zone/${derived_team}/teammates/${teammate_name}"
+    fi
+fi
+# T3: glob fallback, only adopt a UNIQUE hit (>1 ambiguity → don't guess)
+if [ -z "$teammate_ws" ]; then
+    match_count=0
+    glob_ws=""
     for team_dir in "$project_root"/_agent_team_work_zone/*_team/; do
         [ -d "$team_dir" ] || continue
         if [ -d "${team_dir}teammates/${teammate_name}" ]; then
-            teammate_ws="${team_dir}teammates/${teammate_name}"
-            break
+            glob_ws="${team_dir}teammates/${teammate_name}"
+            match_count=$((match_count + 1))
         fi
     done
+    # adopt only on a unique hit; 0 or >1 (cross-team same-name ambiguity) → pass
+    [ "$match_count" -eq 1 ] && teammate_ws="$glob_ws"
 fi
-# No workstation found → pass
+# No workstation found (or ambiguous) → pass
 [ -n "$teammate_ws" ] || exit 0
 
 wc_file="$teammate_ws/working-context.md"

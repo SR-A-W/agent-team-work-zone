@@ -21,8 +21,8 @@
 #   cd /path/to/your/project
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh
 #
-# Development environment (dogfooding inside the agent-work-zone repo):
-#   cd /path/to/agent-work-zone
+# Development environment (dogfooding inside the agent-team-work-zone repo):
+#   cd /path/to/agent-team-work-zone
 #   bash claude_code/en/_agent_team_work_zone/resources/scripts/bootstrap.sh
 #
 
@@ -40,7 +40,11 @@ echo "Project:  $PROJECT_ROOT"
 echo ""
 
 # --- 1. Claude Code version check ---
-REQUIRED_VERSION="2.1.32"
+# This is the NEW-version template (claude_code/), adapted to the 2.1.178 agent-teams
+# API (auto session-level team, TeamCreate/TeamDelete removed, Agent team_name ignored).
+# It REQUIRES CC >= 2.1.178. Users on CC <= 2.1.177 must use public release v0.1.0 instead:
+#   https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0
+REQUIRED_VERSION="2.1.178"
 
 version_ge() {
     # return 0 if $1 >= $2 (using sort -V)
@@ -56,11 +60,15 @@ fi
 CC_VERSION="$(claude --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")"
 
 if version_ge "$CC_VERSION" "$REQUIRED_VERSION"; then
-    echo "✓ Claude Code v$CC_VERSION (>= $REQUIRED_VERSION required for Agent Teams)"
+    echo "✓ Claude Code v$CC_VERSION (>= $REQUIRED_VERSION required for the 2.1.178 agent-teams API)"
 else
-    echo "✗ Claude Code v$CC_VERSION < $REQUIRED_VERSION required"
-    echo "  The Agent Teams feature (used by /spawn-team etc.) requires v$REQUIRED_VERSION or later."
-    echo "  Upgrade: https://docs.claude.com/claude-code"
+    echo "✗ Claude Code v$CC_VERSION < $REQUIRED_VERSION required by THIS (new) template."
+    echo ""
+    echo "  This template is adapted to the Claude Code 2.1.178 agent-teams API."
+    echo "  Your Claude Code is older. You have two options:"
+    echo "    1. Upgrade Claude Code to >= $REQUIRED_VERSION:  https://docs.claude.com/claude-code"
+    echo "    2. Use public release v0.1.0 for older Claude Code:"
+    echo "         https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0"
     exit 1
 fi
 
@@ -130,6 +138,9 @@ if command -v tmux >/dev/null 2>&1; then
         fi
 
         echo "✓ tmux $TMUX_VERSION inside session, PATH/socket consistent (>= $TMUX_MIN)"
+        echo "  → Recommended: keep \"teammateMode\":\"auto\"/\"split-pane\" for one pane per"
+        echo "    teammate (idle/stuck teammates stay visible). Step 6 below can switch to"
+        echo "    in-process if you prefer a single pane."
     else
         # Not inside tmux: tmux is only a latent prereq for split-pane view.
         if version_ge "$TMUX_VERSION_NUM" "$TMUX_MIN"; then
@@ -286,6 +297,65 @@ if [ -t 0 ]; then
     esac
 else
     echo "  (non-interactive shell — skipped; keeping default \"auto\")"
+fi
+echo ""
+
+# --- 7. (interactive) enable auto permission mode (RECOMMENDED) ---
+# Teammates INHERIT the lead's permission mode at spawn — per-teammate modes
+# cannot be set at spawn (Claude Code docs). Setting permissions.defaultMode="auto"
+# makes the lead start in auto, so every teammate it spawns inherits auto and
+# does not stall on permission prompts in panes you aren't watching.
+echo "--- Auto permission mode (recommended for agent teams) ---"
+echo ""
+echo "Teammates INHERIT the lead's permission mode at spawn — there is no way to"
+echo "set a teammate's mode individually. Setting \"permissions.defaultMode\":\"auto\""
+echo "makes the lead (and every teammate it spawns) start in auto mode, so teammates"
+echo "don't stall on permission prompts in panes you aren't watching."
+echo ""
+echo "STRONGLY RECOMMENDED for agent-team use. auto mode auto-approves tool calls"
+echo "with background safety checks; you can still switch modes anytime with Shift+Tab."
+echo ""
+
+if [ -t 0 ]; then
+    printf 'Enable auto permission mode by default ("permissions.defaultMode":"auto")? [Y/n] '
+    read -r AUTO_ANS || AUTO_ANS=""
+    case "$AUTO_ANS" in
+        [Nn]|[Nn][Oo])
+            echo "  ↳ leaving permission mode unset. Teammates inherit whatever mode the"
+            echo "    lead is in; switch the lead to auto with Shift+Tab before spawning."
+            ;;
+        *)
+            printf 'Scope — [P]roject-local .claude/settings.json (recommended) or [g]lobal ~/.claude/settings.json? [P/g] '
+            read -r AMSCOPE_ANS || AMSCOPE_ANS=""
+            case "$AMSCOPE_ANS" in
+                [Gg]|[Gg][Ll][Oo][Bb][Aa][Ll])
+                    AM_TARGET="$HOME/.claude/settings.json"
+                    AM_LABEL="global (~/.claude/settings.json)"
+                    ;;
+                *)
+                    AM_TARGET="$SETTINGS_JSON"
+                    AM_LABEL="project-local (.claude/settings.json)"
+                    ;;
+            esac
+            mkdir -p "$(dirname "$AM_TARGET")"
+            if [ "$HAS_JQ" -eq 1 ]; then
+                if [ -f "$AM_TARGET" ]; then
+                    TMP="$(mktemp)"
+                    jq '.permissions.defaultMode = "auto"' "$AM_TARGET" >"$TMP" && mv "$TMP" "$AM_TARGET"
+                else
+                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$AM_TARGET"
+                fi
+                echo "  ✓ set \"permissions.defaultMode\":\"auto\" in $AM_LABEL"
+                echo "    revert anytime: delete that key, or use Shift+Tab per session."
+            else
+                echo "  ⚠ jq unavailable — cannot safely merge JSON."
+                echo "    To enable manually, add  \"permissions\": { \"defaultMode\": \"auto\" }"
+                echo "    to $AM_TARGET"
+            fi
+            ;;
+    esac
+else
+    echo "  (non-interactive shell — skipped; permission mode left unset)"
 fi
 echo ""
 

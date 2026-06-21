@@ -134,7 +134,7 @@ Plan A 用 tmux 解决的**只是 SSH 网络断开**：HPC 服务器上 tmux dae
 
 在任意 Desktop session 里粘贴下面这种描述（按需替换）：
 
-> 创建一个 scheduled task，名字 `tracker-myproject-training`，工作目录 `/Users/me/code/myproject`，每 12 小时跑一次，模型 haiku，permission mode auto，worktree 关闭。Instructions 用 `_agent_team_work_zone/resources/desktop_task_skill_template.md` 的 prompt body 内容，把里面的 `<EXP_NAME>` 替换为 `sft_qwen72b`，`<DEPT_NAME>` 替换为 `architect_team`。
+> 创建一个 scheduled task，名字 `tracker-myproject-training`，工作目录 `/Users/me/code/myproject`，每 12 小时跑一次，模型 haiku，permission mode auto，worktree 关闭。Instructions 用 `_agent_team_work_zone/resources/desktop_task_skill_template.md` 的 prompt body 内容，把里面的 `<EXP_NAME>` 替换为 `exp_42`，`<DEPT_NAME>` 替换为 `architect_team`。
 
 Desktop 会解析这条指令并直接创建任务，跳过 GUI 表单。
 

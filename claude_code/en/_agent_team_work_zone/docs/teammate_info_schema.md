@@ -38,7 +38,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
   "updated_at": "2026-04-18T22:30:00Z",
   "active_teammates": [
     {
-      "name": "Fixer",
+      "name": "architect-fixer",
       "role_source": {
         "type": "archetype",
         "path": "resources/role_archetypes/coding/bash-scripter.md"
@@ -54,7 +54,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
   ],
   "offboarded_teammates": [
     {
-      "name": "OldTracker",
+      "name": "architect-oldtracker",
       "offboarded_at": "2026-04-17T10:00:00Z",
       "reason": "task completed"
     }
@@ -79,7 +79,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `name` | string | Teammate's unique name within the team (no duplicates within a team) |
+| `name` | string | Teammate's globally unique name, **which must be of the form `<slug>-<role>`**: `slug` = the team workstation name minus `_team`, a single token (no hyphen); `role` may contain hyphens. E.g. `architect-reviewer`, `architect-plan-a-author`. The idle checkpoint hook derives the workstation back from the name via `${name%%-*}_team`, so the slug must have no hyphen. Legacy names (e.g. `Fixer`) are tolerated; new ones must always use `<slug>-<role>` |
 | `role_source` | object | Role definition source; see below |
 | `model` | string | Model used: `sonnet` / `haiku` / `opus` or specific ID |
 | `plan_mode_gating` | boolean | Whether plan-mode gating was enabled at spawn |

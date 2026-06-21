@@ -26,7 +26,8 @@ spawn 时引导新 teammate 读这两段恢复状态。
 - **绝对不要调 `/compact`** 或任何会修改当前 context window 的命令。本 skill 是**非破坏性**的——只从 live context 读取信息后写入 `working-context.md`。当前 session 的 context 必须保持完整。
 - **working-context.md 是两段式**：**Part A — 当前态快照**（9 节，**每次覆写重生**，可借此纠错）+ **Part B — 工作日志**（append-only，**每次追加一条**带时间戳条目，形成连续 work history）。
 - **必须先 Read 现有的 `working-context.md` 再写**（与旧版相反）：Part B 是追加，你要读到已有日志末尾才能在其后 append；Part A 仍从当前对话状态重新生成、整段覆写。**不要重写或删除 Part B 的历史条目**——纠错靠追加新条目说明，或仅在明显写错时覆写那一条。**唯一例外**：写新条目时把**上一条**的"最近 3-4 轮逐字原文"降级为纪要（见 Step 3B 增长治理）。首次写新格式时：把既有的 9 节包进 Part A、新建空 Part B 开始追加。
-- 写入路径是 `_agent_team_work_zone/<team_name>/teammates/<self_name>/working-context.md`。从对话 context 里知道自己的 team_name 和 name（spawn prompt 里有，不依赖环境变量）。
+- 写入路径是 `_agent_team_work_zone/<team_name>/teammates/<self_name>/working-context.md`。从对话 context 里知道自己的 name（spawn prompt 里有，不依赖环境变量）。
+  - 这里的 `<team_name>` 指**工位目录名**（形如 `architect_team`），不是 `Agent` 的 `team_name` 参数（CC ≥2.1.178 已忽略后者）。新命名下你的 name 形如 `<slug>-<role>`，工位目录 = `${name%%-*}_team`（name 第一个连字符前的 slug 加 `_team`）；spawn prompt 里若仍带 team_name 只是冗余，以你的 name 派生为准。
 
 ## 身份前置检查
 

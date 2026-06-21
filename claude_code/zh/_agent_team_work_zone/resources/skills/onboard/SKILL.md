@@ -125,6 +125,8 @@ _agent_team_work_zone/<english_name>_team/
 
 **初始化 TEAMMATE_INFO.json**（team lead 新工位必建，为后续 `/spawn-team` / `/add-teammate` / `/reactivate-team` 读写做准备）：
 
+> ⚠️ `<english_name>` 必须单 token（无连字符）——它是本 team 的 **slug**，日后 teammate 名 `<slug>-<role>` 与 idle hook 的 `${name%%-*}_team` 工位反推都依赖它无连字符。
+
 ```json
 {
   "schema_version": 1,

@@ -38,7 +38,7 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
   "updated_at": "2026-04-18T22:30:00Z",
   "active_teammates": [
     {
-      "name": "Fixer",
+      "name": "architect-fixer",
       "role_source": {
         "type": "archetype",
         "path": "resources/role_archetypes/coding/bash-scripter.md"
@@ -54,7 +54,7 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
   ],
   "offboarded_teammates": [
     {
-      "name": "OldTracker",
+      "name": "architect-oldtracker",
       "offboarded_at": "2026-04-17T10:00:00Z",
       "reason": "task completed"
     }
@@ -79,7 +79,7 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
 
 | 字段 | 类型 | 含义 |
 |---|---|---|
-| `name` | string | Teammate 在 team 内的唯一名字（同一 team 下不可重名） |
+| `name` | string | Teammate 的全局唯一名字，**必须形如 `<slug>-<role>`**：`slug` = team 工位名去 `_team`、单 token（无连字符），`role` 可含连字符。例 `architect-reviewer`、`architect-plan-a-author`。idle checkpoint hook 靠 `${name%%-*}_team` 从 name 反推工位，故 slug 必须无连字符。存量旧名（如 `Fixer`）容忍，新建一律用 `<slug>-<role>` |
 | `role_source` | object | 角色定义来源，见下方 |
 | `model` | string | 使用的模型：`sonnet` / `haiku` / `opus` 或具体 ID |
 | `plan_mode_gating` | boolean | Spawn 时是否启用 plan-mode gating |

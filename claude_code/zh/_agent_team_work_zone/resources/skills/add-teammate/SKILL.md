@@ -41,7 +41,7 @@ allowed-tools: Read Write Edit Glob Grep
 ```
 ## 新 teammate 提案
 
-- **昵称**: <name>
+- **name**: <slug>-<role>（**必须** `<slug>-<role>` 格式：slug = 本 team 工位名去 `_team`、单 token 无连字符；role 可含连字符。例 `architect-reviewer`。全局唯一）
 - **角色来源**: <subagent 名 / role_archetype 路径 / 原创>
 - **模型**: <haiku / sonnet / opus>
 - **Plan-mode gating**: <YES / NO>

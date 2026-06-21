@@ -82,6 +82,8 @@ Agent Team Work Zone 把这些 agent 当作**真实的员工**来对待。在这
 
 ## Quick Start
 
+> **Claude Code 版本**：本发行版(**v0.2.0**)要求 **Claude Code ≥ 2.1.178**——它适配 2.1.178 的 agent-teams API(自动会话级 team;`TeamCreate`/`TeamDelete` 已移除)。若你的 Claude Code **≤ 2.1.177**，请改用 **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)**(针对旧 agent-teams API)。安装脚本也会强制这条下限。
+
 > **平台支持**：目前支持 **Linux** 和 **macOS**。安装/升级脚本和运行时 hook 基于 bash;**Windows 暂不支持**(原生 Windows 无 bash，原生化在 roadmap 上、计划于下一个大版本提供)。Windows 用户当前可借助 WSL 运行。
 
 ### 1. 获取模板
@@ -133,7 +135,7 @@ claude
 
 > **极少数情况**：如果 `/onboard` 没建 team，你只要对 team lead 说一句"建个团队来做 X"，它就会调用 `/spawn-team`(你也可以自己调，但一般不需要)。
 
-> **省心提示**：在 agent team 模式下，建议把 Claude Code 切到 **"auto mode"(自动批准)** 运行——teammate 干活会频繁触发逐条 permission 确认，auto mode 能免去这一大堆批准。
+> **省心提示**：在 agent team 模式下，建议把 Claude Code 切到 **"auto mode"(自动批准)** 运行——teammate 干活会频繁触发逐条 permission 确认，auto mode 能免去这一大堆批准。安装脚本会问你是否把它设为默认(`permissions.defaultMode:"auto"`，默认开、强烈推荐);你也可随时用 `Shift+Tab` 切换。
 
 **关于检查点——你不用管。** teammate 不需要你手动操作落盘：本操作层用 hook 保证**每个 teammate 在进入 idle 前自动写检查点**(默认间隔 15 分钟)。检查点记录的是这个 teammate 的"当前态快照 + 近期工作日志"——它在做什么、做到哪、和谁达成了什么、还欠什么。**正是这些自动落盘的检查点，让团队在 session 中断后还能被恢复。**
 

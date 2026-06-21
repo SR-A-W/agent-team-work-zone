@@ -4,13 +4,13 @@ This directory is a **staging area used only by the upgrade flow**. Under normal
 
 ## Purpose
 
-When you want to upgrade an installed `_agent_team_work_zone/` to a newer version from the `agent-work-zone` repo:
+When you want to upgrade an installed `_agent_team_work_zone/` to a newer version from the `agent-team-work-zone` repo:
 
-1. `git pull` the `agent-work-zone` repo to the target version.
+1. `git pull` the `agent-team-work-zone` repo to the target version.
 2. Copy the **entire contents** of that repo's `claude_code/en/_agent_team_work_zone/` directory into this directory:
    ```bash
-   # Run from your project root, assuming agent-work-zone is at ~/Projects/agent-work-zone
-   cp -r ~/Projects/agent-work-zone/claude_code/en/_agent_team_work_zone/. \
+   # Run from your project root, assuming agent-team-work-zone is at ~/Projects/agent-team-work-zone
+   cp -r ~/Projects/agent-team-work-zone/claude_code/en/_agent_team_work_zone/. \
          _agent_team_work_zone/.upgrade/
    ```
    After copying, this directory should look like:
@@ -40,7 +40,7 @@ When you want to upgrade an installed `_agent_team_work_zone/` to a newer versio
    ```
    (Or just `rm -rf .upgrade/` and let the next upgrade recreate it — its contents are all provided by the repo.)
 
-## Why not run straight from the `agent-work-zone` repo?
+## Why not run straight from the `agent-team-work-zone` repo?
 
 Staging the new version in the project-local `.upgrade/` has several advantages:
 

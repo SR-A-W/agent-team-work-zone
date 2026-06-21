@@ -4,7 +4,7 @@ description: >
   Structured flow for a team lead to assemble a Claude Code agent team. 6 phases: task
   decomposition → lineup proposal (selected from role_archetypes) → plan-mode gating →
   adversarial check → user confirmation → spawn each teammate via the Agent tool
-  (team_name + name) + save team_recipe. After Phase 5 user confirmation, Phase 6 spawns
+  (name must be <slug>-<role>; permission mode inherits the lead, not set per-teammate at spawn) + save team_recipe. After Phase 5 user confirmation, Phase 6 spawns
   immediately with no additional confirmation. The agent can invoke autonomously; if
   currently a flat workstation, it will first guide through /promote-to-team.
 disable-model-invocation: false
@@ -14,11 +14,13 @@ mode: interactive
 
 # `/spawn-team` — Structured Agent Team Assembly
 
-This skill helps a **team lead** decompose a complex task into a team lineup, then spawn each teammate via the **Agent tool** (with `team_name` + `name` parameters).
+This skill helps a **team lead** decompose a complex task into a team lineup, then spawn each teammate via the **Agent tool** (with the `name` parameter).
 
-> ⚠️ **Teammate vs subagent**: when calling the Agent tool, you **must pass both `team_name` and `name`** to create a real teammate (one that joins the Claude Code team and can exchange messages). Without these parameters you only get a regular subagent that cannot participate in team collaboration.
+> ⚠️ **Teammate vs subagent**: when calling the Agent tool, you **must pass the `name` parameter** to create a real teammate (one that joins the current session-level team and can exchange messages); without `name` you only get a regular subagent. `name` **must be of the form `<slug>-<role>` and globally unique** (see the Phase 3 naming convention).
+>
+> **About `team_name` (CC ≥2.1.178)**: **do not pass `team_name` anymore** — that parameter is now ignored. Each session auto-creates a unique session-level team at startup, and `Agent(name=…)` auto-joins the teammate into it; the teammate is auto-cleaned on exit.
 
-> **`mode` field**: currently only `interactive` is supported. A future `autonomous` mode will work with `/loop` for end-to-end automation (see `docs/roadmap/autonomous_team_mode.md`), driven by a higher-capability model.
+> **`mode` field**: currently only `interactive` is supported. A future `autonomous` mode will work with `/loop` for end-to-end automation, driven by a higher-capability model.
 
 ---
 
@@ -76,7 +78,11 @@ Consult the following resources:
 Based on Phase 2 decomposition, **assemble a 3–5 person team** (**max 5**—more causes coordination cost to explode; if more than 5 are needed, explain why).
 
 For each teammate output:
-- **Role name** (nickname within team, e.g. "Fixer", "Tracker")
+- **Role name** (`name`, **must be of the form `<slug>-<role>`, globally unique**):
+  - `slug` = this team's workstation name minus the `_team` suffix, a **single token** (no `-`/`_`). E.g. team workstation `architect_team` → slug `architect`.
+  - `role` = a short name for the teammate's responsibility, **may contain hyphens**. E.g. `reviewer`, `plan-a-author`.
+  - Joined: `architect-reviewer`, `architect-plan-a-author`.
+  - ⚠️ This naming is **load-bearing**: the idle checkpoint hook derives the workstation back from the name via `${name%%-*}_team` (the slug must be a single token with no hyphen for the hook to split it correctly). Legacy nicknames (`Fixer`, `Tracker`) are tolerated only for **existing** teammates; **every new spawn must use `<slug>-<role>`**.
 - **Role source**:
   - Reference a general subagent (Claude Code auto-loads; specify by name at spawn)
   - Reference a role archetype (fill the archetype markdown content into the spawn prompt, add project-specific details)
@@ -256,14 +262,15 @@ Call the Agent tool for each teammate:
 
 ```
 Agent(
-    description="Spawn <nickname>: <one-line role>",
+    description="Spawn <name>: <one-line role>",
     subagent_type="<see selection rules below>",
     model="<haiku|sonnet|opus>",   # from Phase 3 decision
-    team_name="<SELF>_team",       # ← required; without this it's just a subagent
-    name="<nickname>",             # ← required; must match the workstation directory name
+    name="<slug>-<role>",          # ← required; without this it's just a subagent; must be <slug>-<role>, matching the workstation directory name
     prompt="<prompt prepared for this teammate in 6a>"
 )
 ```
+> CC ≥2.1.178: **do not pass `team_name`** (it is ignored). The teammate is auto-joined into the current session-level team by `Agent(name=…)`.
+> **Also do not pass `mode`**: a teammate's permission mode cannot be set per-teammate at spawn — it **inherits the lead's current permission mode** (see "Permission mode vs `teammateMode`" below).
 
 **subagent_type selection rules**:
 - `role_source.type == "subagent"` → `subagent_type = role_source.subagent_name` (e.g. `"tracker"`, `"reviewer"`)
@@ -291,16 +298,23 @@ Agent(
 - `Could not determine current tmux pane/window` → the tmux on PATH differs from the one owning the current session (`$TMUX` socket) — multiple tmux installs coexist. Point PATH at the tmux that started the current session.
 - bootstrap **pre-empts and diagnoses** both once you're inside tmux — if you see one, **re-run bootstrap** and follow its guidance.
 
+**Permission mode vs `teammateMode` (two different things, don't conflate)**:
+
+- **Permission mode** (`default` / `acceptEdits` / `auto` / `plan` / `bypassPermissions`): controls whether the teammate prompts for permission on tool calls. **A teammate inherits the lead's permission mode at spawn — official docs state per-teammate modes cannot be set at spawn time** (`Agent(mode=…)` has no effect on a teammate's permission mode). To start teammates in **auto mode**, put the **lead itself in auto** (`Shift+Tab`, or set `permissions.defaultMode:"auto"` in `settings.json` so the lead starts in auto and teammates inherit it); after spawn you can only change modes per-teammate by hand.
+- **`teammateMode` (a `settings.json` field)**: controls only **how the teammate is displayed** in the terminal (split-pane vs in-process); nothing to do with permissions.
+
 **`teammateMode` (display mode, a settings.json field)**:
 
 | Value | Behavior |
 |---|---|
 | `auto` (default) | inside tmux **or** iTerm2 → split-pane (one pane per teammate); otherwise → in-process |
-| `split-pane` | force one pane per teammate (needs tmux or iTerm2) |
+| `split-pane` (**recommended**) | force one pane per teammate (needs tmux or iTerm2) |
 | `in-process` | all teammates in one terminal, `Shift+Down` cycles between them; **works in any terminal** |
 
-- Don't want panes split → use `in-process`. **Don't hand-edit settings.json** — re-run `bootstrap.sh`; it has an interactive option to write it for you (default leaves it unchanged).
-- **Strongly recommended: run Claude Code inside a tmux session** (even with in-process display): when the terminal closes / SSH disconnects, tmux keeps the process alive and the session uninterrupted, **sparing you frequent `/reactivate-team` to rebuild the team**. Installing tmux or running inside tmux does not affect team functionality, but running inside tmux avoids losing the team on disconnect. See the tmux section of `docs/user_manual.md`.
+- **Recommended: `split-pane` (inside tmux)**, for two reasons:
+  1. **Idle teammates stay visible**: one independent pane per teammate, so you can see at a glance who is working, who is stuck, who is idle; with in-process you have to `Shift+Down` through them one by one and can easily miss something.
+  2. **Survives disconnect**: when running inside a tmux session, closing the terminal / SSH disconnect still keeps the process alive via tmux, **sparing you frequent `/reactivate-team` to rebuild the team**.
+- Don't want panes split → use `in-process` (works in any terminal, no loss of functionality). **Don't hand-edit settings.json** — re-run `bootstrap.sh`; it has an interactive option to write it for you (default leaves it unchanged). See the tmux section of `docs/user_manual.md`.
 
 ---
 
@@ -310,5 +324,5 @@ Agent(
 - **Max 5**: beyond that coordination overhead spikes significantly
 - **Dialogue is the black box**: the user interacts with the lead in natural language only; `/spawn-team` is invoked autonomously by the agent, and the user doesn't need to memorize commands
 - **Team recipe is a reusable asset**: for future similar tasks, the lead can first check `team_recipes/` for precedent
-- **Agent tool must carry `team_name` + `name`**: without both, you only get a regular subagent that cannot join the team or exchange messages. Phase 5 user agreement = final authorization — call Agent directly, no second confirmation
+- **Agent tool must carry `name` (`<slug>-<role>`)**: without `name` you only get a regular subagent that cannot join the team or exchange messages; `team_name` is ignored on CC ≥2.1.178 — don't pass it. Phase 5 user agreement = final authorization — call Agent directly, no second confirmation
 - **`mode: interactive` annotation**: the frontmatter position is reserved; when switching to `autonomous` in the future, extend this file's Phase 7 (start `/loop` + hook)

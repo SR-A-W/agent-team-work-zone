@@ -12,8 +12,8 @@
 #   cd /path/to/your/project
 #   bash _agent_team_work_zone/resources/scripts/install_skills.sh
 #
-# Development environment (dogfooding inside the agent-work-zone repo):
-#   cd /path/to/agent-work-zone
+# Development environment (dogfooding inside the agent-team-work-zone repo):
+#   cd /path/to/agent-team-work-zone
 #   bash claude_code/en/_agent_team_work_zone/resources/scripts/install_skills.sh
 #
 # Normally invoked by bootstrap.sh; no need to run directly.

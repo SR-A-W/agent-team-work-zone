@@ -9,7 +9,7 @@
 # Why retired (the read/write asymmetry dead end): this "read side" chain never worked
 #   for in-process teammates — the UserPromptSubmit payload carries no teammate identity;
 #   in-process the teammate shares the lead's process and cwd = project root, so it cannot
-#   tell whether the current turn is the lead or which teammate (see developer_manual §5).
+#   tell whether the current turn is the lead or which teammate.
 #
 # As of v0.2.3, automatic checkpointing is done single-sidedly by teammate_idle_checkpoint.sh:
 #   on the identity-bearing WRITE side (TeammateIdle) it uses a working-context.md mtime

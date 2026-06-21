@@ -82,9 +82,9 @@ Checkpoint received. You are now benched — shutting down your session. You wil
 woken later via /reactivate-team if needed. Thank you.
 ```
 
-> 关闭后它在 runtime 注册里可能留下 ghost 条目——这无害：日后 `/reactivate-team <name>` 唤回时会处理（参见该 skill「调用形态」对 Step 0 的说明：team 已有其他活成员时**不**做 TeamDelete/TeamCreate，直接 spawn）。
+> 关闭只是结束该 teammate 的 session。CC ≥2.1.178 下会话级 team 自动清理，**不再残留 ghost 条目**；日后 `/reactivate-team <name>` 唤回时直接 spawn 即可（无需任何 `TeamCreate`/`TeamDelete` 预处理——那两个工具已删除）。
 >
-> **不要**把它从 team 注册里硬删/当永久 remove 处理——bench 只是结束 session，档案与成员身份都保留。
+> **不要**把它从 `TEAMMATE_INFO.json` 里硬删/当永久 remove 处理——bench 只是结束 session，档案与成员身份都保留。
 
 ## Step 4: 更新 TEAMMATE_INFO.json
 

@@ -54,6 +54,8 @@ Do you agree to promote?
 
 ## Phase 2: Rename workstation directory
 
+> ⚠️ **`<english_name>` must be a single token (no hyphen, no underscore)** — it will become this team's **slug** (the workstation name minus `_team`). Teammates spawned later are named `<slug>-<role>`, and the idle hook derives the workstation back via `${name%%-*}_team`; if the slug contains a hyphen, the hook will split it wrong. If the current flat workstation name has a hyphen, take this rename as the chance to make it a single token.
+
 Use `git mv` (if in a git repo) or `mv`:
 
 ```bash
