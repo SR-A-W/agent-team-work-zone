@@ -121,10 +121,10 @@ _agent_team_work_zone/
 │   └── hooks/                 ← reserved, to be enabled by terminal-form automation mode
 │
 └── docs/                      ← documentation
+    ├── user_manual.md
     ├── agent-teams.md         ← new architecture design doc
     ├── teammate_info_schema.md
-    ├── upgrade_guide.md
-    └── user_manual.md
+    └── upgrade_guide.md
 ```
 
 ### Workstation Naming Conventions

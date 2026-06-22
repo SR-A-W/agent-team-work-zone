@@ -4,6 +4,23 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v0.3.0 (2026-06-22)
+
+MINOR (new feature, backward compatible): **Adds `CLAUDE.md` (always-loaded operating instructions)**. No breaking change.
+
+### Added
+- **`CLAUDE.md`**: always-loaded operating instructions for projects that use this framework — the operations-layer core principles (files over context, own your files, liveness, checkpoints, lead-coordinates / teammates-implement, teammate-signal interpretation) + **Coding Engineering Principles** (reproduced verbatim under the MIT License from [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills), based on Andrej Karpathy's observations on LLM coding pitfalls; see the repo-root README acknowledgments).
+- **bootstrap installs CLAUDE.md into the project root**: created if absent; if a CLAUDE.md already exists, the two sections are appended (your content is preserved), idempotent.
+
+### Migration (v0.2.0 → v0.3.0)
+- **Required**: `bash _agent_team_work_zone/upgrade.sh` auto-upgrades from v0.2.0 to v0.3.0 and installs CLAUDE.md into the project root when it re-runs bootstrap.
+- **No user-data migration**: `TEAMMATE_INFO.json` `schema_version` stays 1. Backward compatible.
+
+### Notes
+- zh + en kept symmetric.
+
+---
+
 ## v0.2.0 (2026-06-20)
 
 Adapts to the **Claude Code 2.1.178** agent-teams API. **Requires Claude Code ≥ 2.1.178.** This release adds no new feature — it is the necessary Claude Code adaptation.

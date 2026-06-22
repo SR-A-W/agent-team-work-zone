@@ -236,3 +236,7 @@ It only updates framework files — **it never touches the work inside your agen
 ## In One Sentence
 
 **Agent Team Work Zone is a persistence and management layer for Claude Code and its Agent Teams: it gives AI agents roles, workstations, working notes, reports, handoffs, checkpoints, and an audit trail, so the multi-agent workflows in your project can rebuild knowledge and keep moving after compaction, a session interruption, and resume.**
+
+## Acknowledgments
+
+The **Coding Engineering Principles** section of `CLAUDE.md` reproduces, under the MIT License, the coding guidelines from [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills), based on Andrej Karpathy's observations on LLM coding pitfalls.

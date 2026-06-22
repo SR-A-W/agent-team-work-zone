@@ -236,3 +236,7 @@ bash _agent_team_work_zone/upgrade.sh
 ## 一句话总结
 
 **Agent Team Work Zone 是面向 Claude Code 及其 Agent Teams 的持久化管理层：它给 AI agents 提供角色、工位、工作笔记、报告、交接、检查点和审计轨迹，让项目中的 multi-agent 工作流在 compact、session 中断和 resume 之后仍能重建知识并继续推进工作。**
+
+## 致谢
+
+`CLAUDE.md` 的 **Coding Engineering Principles** 一节，在 MIT License 下逐字引用了 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) 的编码准则（基于 Andrej Karpathy 对 LLM 编码陷阱的观察）。

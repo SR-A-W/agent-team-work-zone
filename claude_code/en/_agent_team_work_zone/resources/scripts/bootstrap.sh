@@ -243,6 +243,31 @@ else
     fi
 fi
 
+# --- 5a. Install CLAUDE.md ---
+echo "--- CLAUDE.md ---"
+CLAUDE_TEMPLATE="$TEMPLATE_ROOT/resources/CLAUDE.md.template"
+CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
+
+if [ ! -f "$CLAUDE_TEMPLATE" ]; then
+    echo "  ⚠ $CLAUDE_TEMPLATE not found — skipping CLAUDE.md install"
+else
+    # Extract the language-specific first ## header for idempotency (no hardcoding)
+    CLAUDE_FIRST_HEADER="$(awk '/^## /{print; exit}' "$CLAUDE_TEMPLATE")"
+
+    if [ ! -f "$CLAUDE_MD" ]; then
+        cp "$CLAUDE_TEMPLATE" "$CLAUDE_MD"
+        echo "  ✓ installed CLAUDE.md"
+    elif grep -qF "$CLAUDE_FIRST_HEADER" "$CLAUDE_MD" && \
+         grep -qF "## Coding Engineering Principles" "$CLAUDE_MD"; then
+        echo "  ↻ CLAUDE.md already has the agent-team-work-zone sections — skipping"
+    else
+        printf '\n' >> "$CLAUDE_MD"
+        awk '/^## /{found=1} found{print}' "$CLAUDE_TEMPLATE" >> "$CLAUDE_MD"
+        echo "  ⚠ Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them."
+    fi
+fi
+echo ""
+
 # --- 6. (optional, interactive) hide the extra teammate pane ---
 # Personal display preference only. Default = NO change (keep Claude Code's
 # default "auto"). Choosing yes writes "teammateMode":"in-process" so spawning

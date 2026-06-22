@@ -121,10 +121,10 @@ _agent_team_work_zone/
 │   └── hooks/                 ← 预留，供 terminal-form 自动化模式启用
 │
 └── docs/                      ← 文档
+    ├── user_manual.md
     ├── agent-teams.md         ← 新架构设计文档
     ├── teammate_info_schema.md
-    ├── upgrade_guide.md
-    └── user_manual.md
+    └── upgrade_guide.md
 ```
 
 ### 工位命名约定

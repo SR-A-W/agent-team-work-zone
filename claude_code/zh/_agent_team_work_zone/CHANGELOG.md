@@ -4,6 +4,23 @@
 
 ---
 
+## v0.3.0 (2026-06-22)
+
+MINOR（新增功能，向后兼容）：**新增 `CLAUDE.md`（always-loaded 操作指令）**。无破坏性变更。
+
+### 新增
+- **`CLAUDE.md`**：面向「使用本框架的项目」的常驻操作指令——含操作层精华原则（文件优先、管好自己的文件、判活、checkpoint、lead 协调/teammate 实现、teammate 信号判读）+ **Coding Engineering Principles**（在 MIT License 下逐字引用 [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills)，基于 Andrej Karpathy 对 LLM 编码陷阱的观察，见仓库根 README 致谢）。
+- **bootstrap 装 CLAUDE.md 进项目根**：无 CLAUDE.md 则创建；已有则把上述两节追加（不覆盖你的内容），幂等。
+
+### Migration（v0.2.0 → v0.3.0）
+- **必做**：`bash _agent_team_work_zone/upgrade.sh` 自动从 v0.2.0 升到 v0.3.0，并在重跑 bootstrap 时把 CLAUDE.md 装进项目根。
+- **无用户数据迁移**：`TEAMMATE_INFO.json` `schema_version` 仍为 1。向后兼容。
+
+### 备注
+- zh + en 双语对称。
+
+---
+
 ## v0.2.0 (2026-06-20)
 
 适配 **Claude Code 2.1.178** 的 agent-teams API。**要求 Claude Code ≥ 2.1.178。** 本版无新增功能——是必要的 Claude Code 适配。
