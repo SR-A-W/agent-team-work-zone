@@ -122,7 +122,9 @@ _agent_team_work_zone/
 │
 └── docs/                      ← documentation
     ├── user_manual.md
-    └── agent-teams.md         ← new architecture design doc
+    ├── agent-teams.md         ← new architecture design doc
+    ├── teammate_info_schema.md
+    └── upgrade_guide.md
 ```
 
 ### Workstation Naming Conventions
