@@ -13,8 +13,10 @@
 #   3. jq 检查（可选，用于 settings.json 合并；没有会 fallback）
 #   4. 调用 install_skills.sh 同步 skills 和 agents 到 .claude/
 #   5. 创建或合并 .claude/settings.json 启用 agent-teams env flag
-#   6. （交互，可选）询问是否写 "teammateMode":"in-process" 隐藏多余 pane
-#      —— 纯个人显示偏好，default = 否（保留 Claude Code 默认 "auto"）
+#   6. （交互，可选）选择 Teammate 显示模式（auto / in-process / 不修改）
+#      —— 恒写全局 ~/.claude/settings.json；CC v2.1.179+ 默认为 in-process
+#   7. （交互，推荐）启用 auto 权限模式（恒写全局 ~/.claude/settings.json）
+#      —— permissions.defaultMode 项目级被 CC 明确忽略，只有全局生效
 #
 # 用法:
 #   cd /path/to/your/project
@@ -48,6 +50,60 @@ REQUIRED_VERSION="2.1.178"
 version_ge() {
     # return 0 if $1 >= $2 (using sort -V)
     [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+# choose_option — arrow-key selection menu
+# Usage: idx=$(choose_option <default_idx> "<title>" "<opt0>" "<opt1>" ...)
+# All rendering goes to /dev/tty; only the selected 0-based index is printed to stdout.
+choose_option() {
+    local default_idx="$1"; shift
+    local title="$1"; shift
+    local -a opts=("$@")
+    local count="${#opts[@]}"
+    local cur="$default_idx"
+    local key seq1 seq2 num
+
+    _co_render() {
+        local i=0
+        printf '%s\n' "$title" >/dev/tty
+        while [ "$i" -lt "$count" ]; do
+            if [ "$i" -eq "$cur" ]; then
+                printf '  \033[7m\033[1m❯ %s\033[0m\n' "${opts[$i]}" >/dev/tty
+            else
+                printf '    %s\n' "${opts[$i]}" >/dev/tty
+            fi
+            i=$((i+1))
+        done
+    }
+
+    _co_render
+    while true; do
+        key=""
+        IFS= read -rsn1 key </dev/tty || { echo "$default_idx"; return 0; }
+        case "$key" in
+            $'\033')
+                seq1=""; seq2=""
+                IFS= read -rsn1 -t 0.1 seq1 </dev/tty || true
+                IFS= read -rsn1 -t 0.1 seq2 </dev/tty || true
+                case "${seq1}${seq2}" in
+                    '[A') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+                    '[B') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+                esac
+                ;;
+            'k') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+            'j') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+            [1-9])
+                num=$((key-1))
+                if [ "$num" -lt "$count" ]; then cur=$num; fi
+                ;;
+            ''|$'\n'|$'\r')
+                echo "$cur"
+                return 0
+                ;;
+        esac
+        printf '\033[%dA\033[J' "$((count+1))" >/dev/tty
+        _co_render
+    done
 }
 
 if ! command -v claude >/dev/null 2>&1; then
@@ -137,9 +193,9 @@ if command -v tmux >/dev/null 2>&1; then
         fi
 
         echo "✓ tmux $TMUX_VERSION inside session, PATH/socket consistent (>= $TMUX_MIN)"
-        echo "  → Recommended: keep \"teammateMode\":\"auto\"/\"split-pane\" for one pane per"
-        echo "    teammate (idle/stuck teammates stay visible). Step 6 below can switch to"
-        echo "    in-process if you prefer a single pane."
+        echo "  → tmux split-pane mode is available. At step 6 below, choose 'auto' to"
+        echo "    get one pane per teammate (idle/stuck ones stay visible). CC v2.1.179+"
+        echo "    default is in-process (single terminal)."
     else
         # Not inside tmux: tmux is only a latent prereq for split-pane view.
         if version_ge "$TMUX_VERSION_NUM" "$TMUX_MIN"; then
@@ -269,119 +325,106 @@ else
 fi
 echo ""
 
-# --- 6. (optional, interactive) hide the extra teammate pane ---
-# Personal display preference only. Default = NO change (keep Claude Code's
-# default "auto"). Choosing yes writes "teammateMode":"in-process" so spawning
-# teammates does not split an extra tmux pane.
-echo "--- Teammate pane display preference (optional) ---"
+# --- 6. 显示模式选择（交互，可选）---
+# CC v2.1.179 起默认从 "auto"（tmux 分面板）改为 "in-process"（单终端）。
+# teammateMode 为用户级设置，只在全局 ~/.claude/settings.json 生效。
+echo "--- 显示模式选择（可选）---"
 echo ""
-echo "Inside tmux, Claude Code's default (\"teammateMode\":\"auto\") splits an"
-echo "extra pane per teammate. Some users prefer \"in-process\" — teammates run"
-echo "without splitting panes; switch to one with Shift+Down."
-echo ""
-echo "This is a PERSONAL DISPLAY PREFERENCE ONLY:"
-echo "  • Does NOT change agent-team behaviour or capability."
-echo "  • Default keeps Claude Code's default (\"auto\") untouched."
+echo "CC v2.1.179+ 默认显示模式为 in-process（单终端，Shift+Down 切换 teammate）。"
+echo "在 tmux 内运行时，选 auto 可开启分面板（每个 teammate 独立面板）。"
+echo "⚠ 写入全局 ~/.claude/settings.json（影响你所有项目）。"
 echo ""
 
 if [ -t 0 ]; then
-    printf 'Modify settings to hide the extra pane ("teammateMode":"in-process")? [y/N] '
-    read -r HIDE_ANS || HIDE_ANS=""
-    case "$HIDE_ANS" in
-        [Yy]|[Yy][Ee][Ss])
-            printf 'Scope — [P]roject-local .claude/settings.json (recommended) or [g]lobal ~/.claude/settings.json? [P/g] '
-            read -r SCOPE_ANS || SCOPE_ANS=""
-            case "$SCOPE_ANS" in
-                [Gg]|[Gg][Ll][Oo][Bb][Aa][Ll])
-                    TARGET_SETTINGS="$HOME/.claude/settings.json"
-                    SCOPE_LABEL="global (~/.claude/settings.json)"
-                    ;;
-                *)
-                    TARGET_SETTINGS="$SETTINGS_JSON"
-                    SCOPE_LABEL="project-local (.claude/settings.json)"
-                    ;;
-            esac
-            mkdir -p "$(dirname "$TARGET_SETTINGS")"
+    DISPLAY_MODE_IDX=$(choose_option 2 \
+        "显示模式 (↑↓ 切换，回车确认，数字键快选):" \
+        "auto       — tmux/iTerm2 分面板，否则单终端（在 tmux 里推荐）" \
+        "in-process — 始终单终端，Shift+Down 切换（任何终端可用）" \
+        "不修改     — 保留现状")
+    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    case "$DISPLAY_MODE_IDX" in
+        0)
             if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$TARGET_SETTINGS" ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
                     TMP="$(mktemp)"
-                    jq '.teammateMode = "in-process"' "$TARGET_SETTINGS" >"$TMP" && mv "$TMP" "$TARGET_SETTINGS"
+                    jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
                 else
-                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$TARGET_SETTINGS"
+                    printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
                 fi
-                echo "  ✓ set \"teammateMode\":\"in-process\" in $SCOPE_LABEL"
-                echo "    revert anytime: delete that key, or re-run bootstrap and answer N"
+                echo "  ✓ 已设置 \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
             else
-                echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    To hide panes manually, add  \"teammateMode\":\"in-process\""
-                echo "    to $TARGET_SETTINGS"
+                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
+                echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"auto\""
+            fi
+            ;;
+        1)
+            if [ "$HAS_JQ" -eq 1 ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
+                    TMP="$(mktemp)"
+                    jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                else
+                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
+                fi
+                echo "  ✓ 已设置 \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
+            else
+                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
+                echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"in-process\""
             fi
             ;;
         *)
-            echo "  ↳ keeping Claude Code default (\"auto\"). No settings changed."
+            echo "  ↻ 不修改显示模式，保留现状。"
             ;;
     esac
 else
-    echo "  (non-interactive shell — skipped; keeping default \"auto\")"
+    echo "  （非交互 shell，跳过；显示模式保持不变）"
 fi
 echo ""
 
-# --- 7. (interactive) enable auto permission mode (RECOMMENDED) ---
-# Teammates INHERIT the lead's permission mode at spawn — per-teammate modes
-# cannot be set at spawn (Claude Code docs). Setting permissions.defaultMode="auto"
-# makes the lead start in auto, so every teammate it spawns inherits auto and
-# does not stall on permission prompts in panes you aren't watching.
-echo "--- Auto permission mode (recommended for agent teams) ---"
+# --- 7. 启用 auto 权限模式（交互，推荐）---
+# Teammate 在 spawn 时继承 lead 的权限模式，无法为每个 teammate 单独设置。
+# permissions.defaultMode="auto" 让 lead（及其 spawn 的所有 teammate）以 auto
+# 模式启动，避免 teammate 在无人关注的面板中被权限提示卡住。
+# ⚠ CC 明确忽略项目级/本地级的此项设置；只有写入全局 ~/.claude/settings.json 才生效。
+echo "--- Auto 权限模式（推荐）---"
 echo ""
-echo "Teammates INHERIT the lead's permission mode at spawn — there is no way to"
-echo "set a teammate's mode individually. Setting \"permissions.defaultMode\":\"auto\""
-echo "makes the lead (and every teammate it spawns) start in auto mode, so teammates"
-echo "don't stall on permission prompts in panes you aren't watching."
-echo ""
-echo "STRONGLY RECOMMENDED for agent-team use. auto mode auto-approves tool calls"
-echo "with background safety checks; you can still switch modes anytime with Shift+Tab."
+echo "Teammate 在 spawn 时继承 lead 的权限模式，无法单独设置。"
+echo "\"permissions.defaultMode\":\"auto\" 让 lead 及所有 teammate 以 auto 模式启动，"
+echo "避免 teammate 在无人关注的面板中被权限提示卡住。"
+echo "⚠ 此设置仅在全局 ~/.claude/settings.json 生效（项目级被 CC 明确忽略）。"
 echo ""
 
 if [ -t 0 ]; then
-    printf 'Enable auto permission mode by default ("permissions.defaultMode":"auto")? [Y/n] '
-    read -r AUTO_ANS || AUTO_ANS=""
-    case "$AUTO_ANS" in
-        [Nn]|[Nn][Oo])
-            echo "  ↳ leaving permission mode unset. Teammates inherit whatever mode the"
-            echo "    lead is in; switch the lead to auto with Shift+Tab before spawning."
+    AUTO_PERM_IDX=$(choose_option 0 \
+        "Auto 权限模式 (↑↓ 切换，回车确认，数字键快选):" \
+        "启用 auto 权限模式（推荐，写入 ~/.claude/settings.json）" \
+        "不启用（保持当前权限模式）")
+    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    case "$AUTO_PERM_IDX" in
+        0)
+            if [ "$HAS_JQ" -eq 1 ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
+                    TMP="$(mktemp)"
+                    jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                else
+                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
+                fi
+                echo "  ✓ 已设置 \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
+                echo "    如需还原：删除该键，或用 Shift+Tab 临时切换。"
+            else
+                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
+                echo "    请手动在 $GLOBAL_SETTINGS 中添加:"
+                echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
+            fi
             ;;
         *)
-            printf 'Scope — [P]roject-local .claude/settings.json (recommended) or [g]lobal ~/.claude/settings.json? [P/g] '
-            read -r AMSCOPE_ANS || AMSCOPE_ANS=""
-            case "$AMSCOPE_ANS" in
-                [Gg]|[Gg][Ll][Oo][Bb][Aa][Ll])
-                    AM_TARGET="$HOME/.claude/settings.json"
-                    AM_LABEL="global (~/.claude/settings.json)"
-                    ;;
-                *)
-                    AM_TARGET="$SETTINGS_JSON"
-                    AM_LABEL="project-local (.claude/settings.json)"
-                    ;;
-            esac
-            mkdir -p "$(dirname "$AM_TARGET")"
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$AM_TARGET" ]; then
-                    TMP="$(mktemp)"
-                    jq '.permissions.defaultMode = "auto"' "$AM_TARGET" >"$TMP" && mv "$TMP" "$AM_TARGET"
-                else
-                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$AM_TARGET"
-                fi
-                echo "  ✓ set \"permissions.defaultMode\":\"auto\" in $AM_LABEL"
-                echo "    revert anytime: delete that key, or use Shift+Tab per session."
-            else
-                echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    To enable manually, add  \"permissions\": { \"defaultMode\": \"auto\" }"
-                echo "    to $AM_TARGET"
-            fi
+            echo "  ↻ 不启用，权限模式保持不变。"
+            echo "    如需：在 spawn lead 前用 Shift+Tab 手动切到 auto 模式。"
             ;;
     esac
 else
-    echo "  (non-interactive shell — skipped; permission mode left unset)"
+    echo "  （非交互 shell，跳过；权限模式保持不变）"
 fi
 echo ""
 
@@ -396,11 +439,9 @@ echo "  2. Run /onboard to create your workstation (agent will ask if you want"
 echo "     a flat workstation or a team lead)"
 echo "  3. For existing sessions, run /sync to pick up new skills"
 echo ""
-echo "Teammate display mode:"
-echo "  • Default \"auto\" splits a pane per teammate inside tmux."
-echo "  • To hide panes, re-run bootstrap and answer Y at the pane prompt"
-echo "    above (writes \"teammateMode\":\"in-process\"). Personal preference;"
-echo "    does not affect team behaviour. Shift+Down still switches teammate."
+echo "Teammate 显示模式:"
+echo "  • CC v2.1.179+ 默认 in-process（单终端，Shift+Down 切换）。"
+echo "  • 如需修改，重新运行 bootstrap 在步骤 6 选择即可。"
 echo ""
 echo "⚠ Do not directly edit .claude/skills/ or .claude/agents/ —"
 echo "  those are installed copies. Edit the sources in"

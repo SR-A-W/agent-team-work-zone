@@ -51,6 +51,61 @@ MIGRATIONS_DIR="$SCRIPT_DIR/migrations"
 # shellcheck source=./migrations/common.sh
 . "$MIGRATIONS_DIR/common.sh"
 
+# mirrors choose_option in resources/scripts/bootstrap.sh — keep in sync
+# choose_option — arrow-key selection menu
+# Usage: idx=$(choose_option <default_idx> "<title>" "<opt0>" "<opt1>" ...)
+# All rendering goes to /dev/tty; only the selected 0-based index is printed to stdout.
+choose_option() {
+    local default_idx="$1"; shift
+    local title="$1"; shift
+    local -a opts=("$@")
+    local count="${#opts[@]}"
+    local cur="$default_idx"
+    local key seq1 seq2 num
+
+    _co_render() {
+        local i=0
+        printf '%s\n' "$title" >/dev/tty
+        while [ "$i" -lt "$count" ]; do
+            if [ "$i" -eq "$cur" ]; then
+                printf '  \033[7m\033[1m❯ %s\033[0m\n' "${opts[$i]}" >/dev/tty
+            else
+                printf '    %s\n' "${opts[$i]}" >/dev/tty
+            fi
+            i=$((i+1))
+        done
+    }
+
+    _co_render
+    while true; do
+        key=""
+        IFS= read -rsn1 key </dev/tty || { echo "$default_idx"; return 0; }
+        case "$key" in
+            $'\033')
+                seq1=""; seq2=""
+                IFS= read -rsn1 -t 0.1 seq1 </dev/tty || true
+                IFS= read -rsn1 -t 0.1 seq2 </dev/tty || true
+                case "${seq1}${seq2}" in
+                    '[A') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+                    '[B') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+                esac
+                ;;
+            'k') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+            'j') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+            [1-9])
+                num=$((key-1))
+                if [ "$num" -lt "$count" ]; then cur=$num; fi
+                ;;
+            ''|$'\n'|$'\r')
+                echo "$cur"
+                return 0
+                ;;
+        esac
+        printf '\033[%dA\033[J' "$((count+1))" >/dev/tty
+        _co_render
+    done
+}
+
 print_header "_agent_team_work_zone upgrade"
 printf 'Upgrade staging: %s\n' "$UPGRADE_DIR"
 printf 'Target install:  %s\n' "$TARGET_DIR"
@@ -150,10 +205,16 @@ if [ "$TGT_VER" != "v0.0.0" ]; then
         print_warn "=================================================="
         print_warn "This may include breaking changes."
         print_warn "Review $TARGET_DIR/CHANGELOG.md before proceeding."
-        printf "Continue? [y/N] "
-        read -r _answer
-        case "$_answer" in
-            [yY]|[yY][eE][sS]) ;;
+        if [ -t 0 ]; then
+            _MAJOR_IDX=$(choose_option 1 \
+                "Major version upgrade (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+                "Yes — continue upgrade" \
+                "No  — cancel")
+        else
+            _MAJOR_IDX=1
+        fi
+        case "$_MAJOR_IDX" in
+            0) ;;
             *) echo "Upgrade cancelled."; exit 0 ;;
         esac
     fi

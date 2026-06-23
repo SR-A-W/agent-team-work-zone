@@ -4,6 +4,29 @@
 
 ---
 
+## v0.3.1 (2026-06-22)
+
+PATCH（Bug 修复 + 体验改进，完全向后兼容）。
+
+### 修复
+- **`bootstrap.sh` §6/§7 设置写入目标修正**：显示模式（`teammateMode`）和权限模式（`permissions.defaultMode:"auto"`）现恒写入**全局 `~/.claude/settings.json`**。此前默认写项目级 `.claude/settings.json`——但 `permissions.defaultMode` 项目级被 Claude Code 明确忽略（只有全局生效），`teammateMode` 亦为用户级设置，项目级无效。
+
+### 改进
+- **`bootstrap.sh` §6 重做为"显示模式选择"**：新增可启用分面板（`auto`）的选项（此前仅能切 `in-process` 隐藏面板）；更新过期文案（CC v2.1.179 起默认 `in-process`）；默认高亮"不修改"（第 3 项）。
+
+### 体验
+- **`bootstrap.sh` §6/§7 + `upgrade.sh` 主版本确认门**改为上下箭头选择菜单（新增可复用 `choose_option` 函数），取代原 `y/n` 文字输入。
+
+### 文档
+- 更正 `reactivate-team/SKILL.md` 和 `spawn-team/SKILL.md` 的 `teammateMode` 取值表：`in-process` 为默认（自 CC v2.1.179）；新增 `tmux` 和 `iterm2`（CC v2.1.186+）；移除非法值 `split-pane`；补充用户级/单会话覆盖说明。
+
+### Migration（v0.3.0 → v0.3.1）
+- **必做**：`bash _agent_team_work_zone/upgrade.sh` 自动覆盖框架文件 + 写 VERSION。
+- **无用户数据迁移**：`TEAMMATE_INFO.json` `schema_version` 仍为 1，无字段改名。完全向后兼容。
+- **建议升级后**：重新运行 `bootstrap.sh`，重选显示模式 / 权限模式（此前在项目级设置的偏好对 CC 无效，需在全局重设）。
+
+---
+
 ## v0.3.0 (2026-06-22)
 
 MINOR（新增功能，向后兼容）：**新增 `CLAUDE.md`（always-loaded 操作指令）**。无破坏性变更。

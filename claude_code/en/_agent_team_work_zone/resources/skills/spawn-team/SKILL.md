@@ -301,20 +301,20 @@ Agent(
 **Permission mode vs `teammateMode` (two different things, don't conflate)**:
 
 - **Permission mode** (`default` / `acceptEdits` / `auto` / `plan` / `bypassPermissions`): controls whether the teammate prompts for permission on tool calls. **A teammate inherits the lead's permission mode at spawn — official docs state per-teammate modes cannot be set at spawn time** (`Agent(mode=…)` has no effect on a teammate's permission mode). To start teammates in **auto mode**, put the **lead itself in auto** (`Shift+Tab`, or set `permissions.defaultMode:"auto"` in `settings.json` so the lead starts in auto and teammates inherit it); after spawn you can only change modes per-teammate by hand.
-- **`teammateMode` (a `settings.json` field)**: controls only **how the teammate is displayed** in the terminal (split-pane vs in-process); nothing to do with permissions.
+- **`teammateMode` (a `settings.json` field)**: controls only **how the teammate is displayed** in the terminal (pane-split vs in-process); nothing to do with permissions.
 
 **`teammateMode` (display mode, a settings.json field)**:
 
 | Value | Behavior |
 |---|---|
-| `auto` (default) | inside tmux **or** iTerm2 → split-pane (one pane per teammate); otherwise → in-process |
-| `split-pane` (**recommended**) | force one pane per teammate (needs tmux or iTerm2) |
-| `in-process` | all teammates in one terminal, `Shift+Down` cycles between them; **works in any terminal** |
+| `in-process` | all teammates in the main terminal; ↑↓ to navigate + Enter to view/message; works in any terminal. **Default (since CC v2.1.179)** |
+| `auto` | inside a tmux session **or** iTerm2 → split panes; otherwise falls back to in-process |
+| `tmux` | enables split panes; auto-detects whether to use tmux or iTerm2 |
+| `iterm2` (CC v2.1.186+) | explicitly use iTerm2 native split panes (requires `it2` CLI) |
 
-- **Recommended: `split-pane` (inside tmux)**, for two reasons:
-  1. **Idle teammates stay visible**: one independent pane per teammate, so you can see at a glance who is working, who is stuck, who is idle; with in-process you have to `Shift+Down` through them one by one and can easily miss something.
-  2. **Survives disconnect**: when running inside a tmux session, closing the terminal / SSH disconnect still keeps the process alive via tmux, **sparing you frequent `/reactivate-team` to rebuild the team**.
-- Don't want panes split → use `in-process` (works in any terminal, no loss of functionality). **Don't hand-edit settings.json** — re-run `bootstrap.sh`; it has an interactive option to write it for you (default leaves it unchanged). See the tmux section of `docs/user_manual.md`.
+- `teammateMode` is a **user-level** setting (`~/.claude/settings.json`); you can also use `--teammate-mode` to override for a single session; split panes require tmux or iTerm2.
+- Want split panes → use `auto` (inside tmux/iTerm2) or `tmux`; **idle teammates stay visible**: one independent pane per teammate, so you can see who is working, stuck, or idle at a glance.
+- Don't want panes split → use `in-process` (works in any terminal, no loss of functionality). **Don't hand-edit settings.json** — re-run `bootstrap.sh`'s "display mode selection" menu (it writes to the **global** `~/.claude/settings.json`). See the tmux section of `docs/user_manual.md`.
 
 ---
 

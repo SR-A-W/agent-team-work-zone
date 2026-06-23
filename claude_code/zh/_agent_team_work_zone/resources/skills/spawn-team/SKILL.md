@@ -300,20 +300,20 @@ Agent(
 **权限模式 vs `teammateMode`（两个不同的东西，别混）**：
 
 - **权限模式**（`default` / `acceptEdits` / `auto` / `plan` / `bypassPermissions`）：控制 teammate 要不要为工具调用弹权限确认。**teammate spawn 时继承 lead 当时的权限模式——官方明确 per-teammate 模式无法在 spawn 时设置**（`Agent(mode=…)` 对 teammate 权限模式无效）。要 teammate 起手即 **auto mode** → 让 **lead 自己处于 auto**（`Shift+Tab` 切，或在 `settings.json` 设 `permissions.defaultMode:"auto"`，则 lead 起手 auto、teammate 继承）；spawn 后只能逐个手动改。
-- **`teammateMode`（`settings.json` 字段）**：只控制 teammate 在终端里**怎么显示**（split-pane vs in-process），与权限无关。
+- **`teammateMode`（`settings.json` 字段）**：只控制 teammate 在终端里**怎么显示**（分面板 vs in-process），与权限无关。
 
 **`teammateMode`（显示方式，settings.json 字段）**：
 
 | 值 | 行为 |
 |---|---|
-| `auto`（默认）| 在 tmux 内**或** iTerm2 里 → split-pane（每个 teammate 一个窗格）；否则 → in-process |
-| `split-pane`（**推荐**）| 强制每 teammate 一个窗格（需 tmux 或 iTerm2）|
-| `in-process` | 所有 teammate 同一终端，`Shift+Down` 循环切换；**任何终端可用** |
+| `in-process` | 所有 teammate 在主终端，↑↓ 选 + Enter 查看/发消息；任何终端可用。**默认（自 CC v2.1.179）** |
+| `auto` | 在 tmux session 内**或** iTerm2 里 → 分面板；否则回落 in-process |
+| `tmux` | 启用分面板，自动探测用 tmux 还是 iTerm2 |
+| `iterm2`（CC v2.1.186+）| 显式用 iTerm2 原生分面板（需 `it2` CLI） |
 
-- **推荐 `split-pane`（在 tmux 内）**，两条理由：
-  1. **idle 不隐藏**：每个 teammate 一个独立窗格，谁在干活、谁卡住、谁 idle 一目了然；in-process 下要 `Shift+Down` 逐个翻，容易漏看。
-  2. **断连保命**：跑在 tmux session 里时，关终端 / SSH 断连 tmux 仍保住进程，**省去事后频繁 `/reactivate-team` 重建 team**。
-- 不想被拆窗格 → 用 `in-process`（任何终端可用，功能不打折）。**别手改 settings.json**——重跑 `bootstrap.sh`，它有交互选项帮你写（default 不改）。详见 `docs/user_manual.md` 的 tmux 部分。
+- `teammateMode` 是**用户级**设置（`~/.claude/settings.json`）；也可 `--teammate-mode` 单会话覆盖；分面板需 tmux 或 iTerm2。
+- 想要分面板 → 用 `auto`（在 tmux/iTerm2 内）或 `tmux`；**idle 不隐藏**：每个 teammate 一个独立窗格，谁在干活、谁卡住、谁 idle 一目了然。
+- 不想被拆窗格 → 用 `in-process`（任何终端可用，功能不打折）。**别手改 settings.json**——重跑 `bootstrap.sh` 的"显示模式选择"菜单（它写**全局** `~/.claude/settings.json`）。详见 `docs/user_manual.md` 的 tmux 部分。
 
 ---
 

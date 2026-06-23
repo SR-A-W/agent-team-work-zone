@@ -151,7 +151,6 @@ Tracker 的物理存在是一个 subagent 定义（`resources/agents/tracker.md`
 
 `/spawn-team` 的 frontmatter 留有 `mode: interactive | autonomous` 字段，目前只实现 `interactive`。将来通过 `/loop` + hook 机制实现端到端自动化，届时在同一个 skill 里扩展。
 
-
 ## 与 hierarchy.md 的关系
 
 `design/hierarchy.md` 保留作为**历史推理过程**的记录。它的核心价值：

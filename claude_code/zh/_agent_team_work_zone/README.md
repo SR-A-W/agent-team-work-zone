@@ -122,9 +122,7 @@ _agent_team_work_zone/
 │
 └── docs/                      ← 文档
     ├── user_manual.md
-    ├── agent-teams.md         ← 新架构设计文档
-    ├── teammate_info_schema.md
-    └── upgrade_guide.md
+    └── agent-teams.md         ← 新架构设计文档
 ```
 
 ### 工位命名约定

@@ -273,11 +273,12 @@ Teammate spawn prompt 里已明确指示——如果文件损坏，teammate 会 
 
 | 值 | 行为 |
 |---|---|
-| `auto`（默认）| 在 tmux 内**或** iTerm2 里 → split-pane（每个 teammate 一个窗格）；否则 → in-process |
-| `split-pane` | 强制每 teammate 一个窗格（需 tmux 或 iTerm2）|
-| `in-process` | 所有 teammate 同一终端，`Shift+Down` 循环切换；**任何终端可用** |
+| `in-process` | 所有 teammate 在主终端，↑↓ 选 + Enter 查看/发消息；任何终端可用。**默认（自 CC v2.1.179）** |
+| `auto` | 在 tmux session 内**或** iTerm2 里 → 分面板；否则回落 in-process |
+| `tmux` | 启用分面板，自动探测用 tmux 还是 iTerm2 |
+| `iterm2`（CC v2.1.186+）| 显式用 iTerm2 原生分面板（需 `it2` CLI） |
 
-- 不想被拆窗格 → 用 `in-process`。**别手改 settings.json**——重跑 `bootstrap.sh`，它有交互选项帮你写（default 不改）。
+- `teammateMode` 是**用户级**设置（`~/.claude/settings.json`）；也可 `--teammate-mode` 单会话覆盖；分面板需 tmux 或 iTerm2。**别手改 settings.json**——重跑 `bootstrap.sh` 的"显示模式选择"菜单（它写**全局** `~/.claude/settings.json`）。
 - **强烈推荐把 Claude Code 跑在 tmux session 里**（即使显示用 in-process）：关终端 / SSH 断连时 tmux 保住进程、session 不中断，**直接少触发本 skill（`/reactivate-team`）**。装不装 tmux、跑不跑在 tmux 内都不影响 team 功能，但跑在 tmux 内能省去频繁重建 team。详见 `docs/user_manual.md` 的 tmux 部分。
 
 ## 不要做的事

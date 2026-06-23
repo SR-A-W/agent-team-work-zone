@@ -151,7 +151,6 @@ The physical existence of the tracker is a subagent definition (`resources/agent
 
 The frontmatter of `/spawn-team` reserves a `mode: interactive | autonomous` field; currently only `interactive` is implemented. In the future, end-to-end automation will be implemented through the `/loop` + hook mechanism, extending within the same skill.
 
-
 ## Relationship to hierarchy.md
 
 `design/hierarchy.md` is retained as a record of the **historical reasoning process**. Its core value:

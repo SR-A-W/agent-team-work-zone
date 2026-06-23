@@ -275,11 +275,12 @@ Stop reactivate, tell the user "TEAMMATE_INFO.json parse failed; please check fo
 
 | Value | Behavior |
 |---|---|
-| `auto` (default) | inside tmux **or** iTerm2 → split-pane (one pane per teammate); otherwise → in-process |
-| `split-pane` | force one pane per teammate (needs tmux or iTerm2) |
-| `in-process` | all teammates in one terminal, `Shift+Down` cycles between them; **works in any terminal** |
+| `in-process` | all teammates in the main terminal; ↑↓ to navigate + Enter to view/message; works in any terminal. **Default (since CC v2.1.179)** |
+| `auto` | inside a tmux session **or** iTerm2 → split panes; otherwise falls back to in-process |
+| `tmux` | enables split panes; auto-detects whether to use tmux or iTerm2 |
+| `iterm2` (CC v2.1.186+) | explicitly use iTerm2 native split panes (requires `it2` CLI) |
 
-- Don't want panes split → use `in-process`. **Don't hand-edit settings.json** — re-run `bootstrap.sh`; it has an interactive option to write it for you (default leaves it unchanged).
+- `teammateMode` is a **user-level** setting (`~/.claude/settings.json`); you can also use `--teammate-mode` to override for a single session; split panes require tmux or iTerm2. **Don't hand-edit settings.json** — re-run `bootstrap.sh`'s "display mode selection" menu (it writes to the **global** `~/.claude/settings.json`).
 - **Strongly recommended: run Claude Code inside a tmux session** (even with in-process display): when the terminal closes / SSH disconnects, tmux keeps the process alive and the session uninterrupted, **sparing you frequent `/reactivate-team` to rebuild the team**. Installing tmux or running inside tmux does not affect team functionality, but running inside tmux avoids losing the team on disconnect. See the tmux section of `docs/user_manual.md`.
 
 ## Don'ts

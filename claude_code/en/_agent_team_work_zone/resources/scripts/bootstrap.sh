@@ -13,9 +13,10 @@
 #   3. Checks jq (optional, used for settings.json merge; falls back if missing)
 #   4. Calls install_skills.sh to sync skills and agents into .claude/
 #   5. Creates or merges .claude/settings.json to enable the agent-teams env flag
-#   6. (interactive, optional) offers to write "teammateMode":"in-process" to hide
-#      the extra pane — purely a personal display preference, default = no
-#      (keeps Claude Code's default "auto")
+#   6. (interactive, optional) select teammate display mode (auto / in-process / no change)
+#      — always writes to global ~/.claude/settings.json; CC v2.1.179+ default is in-process
+#   7. (interactive, recommended) enable auto permission mode (always writes to global
+#      ~/.claude/settings.json) — project/local level is explicitly ignored by CC
 #
 # Usage:
 #   cd /path/to/your/project
@@ -49,6 +50,60 @@ REQUIRED_VERSION="2.1.178"
 version_ge() {
     # return 0 if $1 >= $2 (using sort -V)
     [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+# choose_option — arrow-key selection menu
+# Usage: idx=$(choose_option <default_idx> "<title>" "<opt0>" "<opt1>" ...)
+# All rendering goes to /dev/tty; only the selected 0-based index is printed to stdout.
+choose_option() {
+    local default_idx="$1"; shift
+    local title="$1"; shift
+    local -a opts=("$@")
+    local count="${#opts[@]}"
+    local cur="$default_idx"
+    local key seq1 seq2 num
+
+    _co_render() {
+        local i=0
+        printf '%s\n' "$title" >/dev/tty
+        while [ "$i" -lt "$count" ]; do
+            if [ "$i" -eq "$cur" ]; then
+                printf '  \033[7m\033[1m❯ %s\033[0m\n' "${opts[$i]}" >/dev/tty
+            else
+                printf '    %s\n' "${opts[$i]}" >/dev/tty
+            fi
+            i=$((i+1))
+        done
+    }
+
+    _co_render
+    while true; do
+        key=""
+        IFS= read -rsn1 key </dev/tty || { echo "$default_idx"; return 0; }
+        case "$key" in
+            $'\033')
+                seq1=""; seq2=""
+                IFS= read -rsn1 -t 0.1 seq1 </dev/tty || true
+                IFS= read -rsn1 -t 0.1 seq2 </dev/tty || true
+                case "${seq1}${seq2}" in
+                    '[A') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+                    '[B') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+                esac
+                ;;
+            'k') if [ "$cur" -gt 0 ]; then cur=$((cur-1)); fi ;;
+            'j') if [ "$cur" -lt $((count-1)) ]; then cur=$((cur+1)); fi ;;
+            [1-9])
+                num=$((key-1))
+                if [ "$num" -lt "$count" ]; then cur=$num; fi
+                ;;
+            ''|$'\n'|$'\r')
+                echo "$cur"
+                return 0
+                ;;
+        esac
+        printf '\033[%dA\033[J' "$((count+1))" >/dev/tty
+        _co_render
+    done
 }
 
 if ! command -v claude >/dev/null 2>&1; then
@@ -138,9 +193,9 @@ if command -v tmux >/dev/null 2>&1; then
         fi
 
         echo "✓ tmux $TMUX_VERSION inside session, PATH/socket consistent (>= $TMUX_MIN)"
-        echo "  → Recommended: keep \"teammateMode\":\"auto\"/\"split-pane\" for one pane per"
-        echo "    teammate (idle/stuck teammates stay visible). Step 6 below can switch to"
-        echo "    in-process if you prefer a single pane."
+        echo "  → tmux split-pane mode is available. At step 6 below, choose 'auto' to"
+        echo "    get one pane per teammate (idle/stuck ones stay visible). CC v2.1.179+"
+        echo "    default is in-process (single terminal)."
     else
         # Not inside tmux: tmux is only a latent prereq for split-pane view.
         if version_ge "$TMUX_VERSION_NUM" "$TMUX_MIN"; then
@@ -268,119 +323,110 @@ else
 fi
 echo ""
 
-# --- 6. (optional, interactive) hide the extra teammate pane ---
-# Personal display preference only. Default = NO change (keep Claude Code's
-# default "auto"). Choosing yes writes "teammateMode":"in-process" so spawning
-# teammates does not split an extra tmux pane.
-echo "--- Teammate pane display preference (optional) ---"
+# --- 6. Display mode selection (interactive, optional) ---
+# Since CC v2.1.179, the default changed from "auto" (tmux panes) to "in-process"
+# (single terminal). teammateMode is a user-level setting — only takes effect in
+# the global ~/.claude/settings.json (project/local level is ignored by CC).
+echo "--- Teammate display mode (optional) ---"
 echo ""
-echo "Inside tmux, Claude Code's default (\"teammateMode\":\"auto\") splits an"
-echo "extra pane per teammate. Some users prefer \"in-process\" — teammates run"
-echo "without splitting panes; switch to one with Shift+Down."
-echo ""
-echo "This is a PERSONAL DISPLAY PREFERENCE ONLY:"
-echo "  • Does NOT change agent-team behaviour or capability."
-echo "  • Default keeps Claude Code's default (\"auto\") untouched."
+echo "CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch teammate)."
+echo "Inside tmux, choose 'auto' to get a split pane per teammate."
+echo "⚠ Writes to global ~/.claude/settings.json (affects all your projects)."
 echo ""
 
 if [ -t 0 ]; then
-    printf 'Modify settings to hide the extra pane ("teammateMode":"in-process")? [y/N] '
-    read -r HIDE_ANS || HIDE_ANS=""
-    case "$HIDE_ANS" in
-        [Yy]|[Yy][Ee][Ss])
-            printf 'Scope — [P]roject-local .claude/settings.json (recommended) or [g]lobal ~/.claude/settings.json? [P/g] '
-            read -r SCOPE_ANS || SCOPE_ANS=""
-            case "$SCOPE_ANS" in
-                [Gg]|[Gg][Ll][Oo][Bb][Aa][Ll])
-                    TARGET_SETTINGS="$HOME/.claude/settings.json"
-                    SCOPE_LABEL="global (~/.claude/settings.json)"
-                    ;;
-                *)
-                    TARGET_SETTINGS="$SETTINGS_JSON"
-                    SCOPE_LABEL="project-local (.claude/settings.json)"
-                    ;;
-            esac
-            mkdir -p "$(dirname "$TARGET_SETTINGS")"
+    DISPLAY_MODE_IDX=$(choose_option 2 \
+        "Display mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+        "auto       — split pane per teammate in tmux/iTerm2, single terminal otherwise" \
+        "in-process — always single terminal, Shift+Down to switch (works everywhere)" \
+        "no change  — keep current setting")
+    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    case "$DISPLAY_MODE_IDX" in
+        0)
             if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$TARGET_SETTINGS" ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
                     TMP="$(mktemp)"
-                    jq '.teammateMode = "in-process"' "$TARGET_SETTINGS" >"$TMP" && mv "$TMP" "$TARGET_SETTINGS"
+                    jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
                 else
-                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$TARGET_SETTINGS"
+                    printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
                 fi
-                echo "  ✓ set \"teammateMode\":\"in-process\" in $SCOPE_LABEL"
-                echo "    revert anytime: delete that key, or re-run bootstrap and answer N"
+                echo "  ✓ set \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
             else
                 echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    To hide panes manually, add  \"teammateMode\":\"in-process\""
-                echo "    to $TARGET_SETTINGS"
+                echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"auto\""
+            fi
+            ;;
+        1)
+            if [ "$HAS_JQ" -eq 1 ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
+                    TMP="$(mktemp)"
+                    jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                else
+                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
+                fi
+                echo "  ✓ set \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
+            else
+                echo "  ⚠ jq unavailable — cannot safely merge JSON."
+                echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"in-process\""
             fi
             ;;
         *)
-            echo "  ↳ keeping Claude Code default (\"auto\"). No settings changed."
+            echo "  ↻ no change to display mode."
             ;;
     esac
 else
-    echo "  (non-interactive shell — skipped; keeping default \"auto\")"
+    echo "  (non-interactive shell — skipped; display mode unchanged)"
 fi
 echo ""
 
-# --- 7. (interactive) enable auto permission mode (RECOMMENDED) ---
-# Teammates INHERIT the lead's permission mode at spawn — per-teammate modes
-# cannot be set at spawn (Claude Code docs). Setting permissions.defaultMode="auto"
-# makes the lead start in auto, so every teammate it spawns inherits auto and
-# does not stall on permission prompts in panes you aren't watching.
-echo "--- Auto permission mode (recommended for agent teams) ---"
+# --- 7. Enable auto permission mode (interactive, recommended) ---
+# Teammates INHERIT the lead's permission mode at spawn — per-teammate permission
+# modes cannot be set individually. permissions.defaultMode="auto" makes the lead
+# (and every teammate it spawns) start in auto mode, so teammates don't stall on
+# permission prompts in panes you aren't watching.
+# ⚠ CC explicitly ignores this setting at project/local level — it only takes
+#    effect in the global ~/.claude/settings.json. This step always writes global.
+echo "--- Auto permission mode (recommended) ---"
 echo ""
-echo "Teammates INHERIT the lead's permission mode at spawn — there is no way to"
-echo "set a teammate's mode individually. Setting \"permissions.defaultMode\":\"auto\""
-echo "makes the lead (and every teammate it spawns) start in auto mode, so teammates"
-echo "don't stall on permission prompts in panes you aren't watching."
-echo ""
-echo "STRONGLY RECOMMENDED for agent-team use. auto mode auto-approves tool calls"
-echo "with background safety checks; you can still switch modes anytime with Shift+Tab."
+echo "Teammates inherit the lead's permission mode at spawn — no per-teammate override."
+echo "\"permissions.defaultMode\":\"auto\" makes the lead and all teammates start in auto,"
+echo "preventing permission-prompt stalls in panes you aren't watching."
+echo "⚠ This setting only takes effect in the global ~/.claude/settings.json"
+echo "  (project/local level is explicitly ignored by CC)."
 echo ""
 
 if [ -t 0 ]; then
-    printf 'Enable auto permission mode by default ("permissions.defaultMode":"auto")? [Y/n] '
-    read -r AUTO_ANS || AUTO_ANS=""
-    case "$AUTO_ANS" in
-        [Nn]|[Nn][Oo])
-            echo "  ↳ leaving permission mode unset. Teammates inherit whatever mode the"
-            echo "    lead is in; switch the lead to auto with Shift+Tab before spawning."
-            ;;
-        *)
-            printf 'Scope — [P]roject-local .claude/settings.json (recommended) or [g]lobal ~/.claude/settings.json? [P/g] '
-            read -r AMSCOPE_ANS || AMSCOPE_ANS=""
-            case "$AMSCOPE_ANS" in
-                [Gg]|[Gg][Ll][Oo][Bb][Aa][Ll])
-                    AM_TARGET="$HOME/.claude/settings.json"
-                    AM_LABEL="global (~/.claude/settings.json)"
-                    ;;
-                *)
-                    AM_TARGET="$SETTINGS_JSON"
-                    AM_LABEL="project-local (.claude/settings.json)"
-                    ;;
-            esac
-            mkdir -p "$(dirname "$AM_TARGET")"
+    AUTO_PERM_IDX=$(choose_option 0 \
+        "Auto permission mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+        "enable auto permission mode (recommended — write to ~/.claude/settings.json)" \
+        "skip (leave permission mode as-is)")
+    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    case "$AUTO_PERM_IDX" in
+        0)
             if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$AM_TARGET" ]; then
+                if [ -f "$GLOBAL_SETTINGS" ]; then
                     TMP="$(mktemp)"
-                    jq '.permissions.defaultMode = "auto"' "$AM_TARGET" >"$TMP" && mv "$TMP" "$AM_TARGET"
+                    jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
                 else
-                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$AM_TARGET"
+                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
                 fi
-                echo "  ✓ set \"permissions.defaultMode\":\"auto\" in $AM_LABEL"
+                echo "  ✓ set \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
                 echo "    revert anytime: delete that key, or use Shift+Tab per session."
             else
                 echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    To enable manually, add  \"permissions\": { \"defaultMode\": \"auto\" }"
-                echo "    to $AM_TARGET"
+                echo "    Manually add to $GLOBAL_SETTINGS:"
+                echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
             fi
+            ;;
+        *)
+            echo "  ↻ skipped; permission mode unchanged."
+            echo "    To use auto: switch the lead to auto with Shift+Tab before spawning."
             ;;
     esac
 else
-    echo "  (non-interactive shell — skipped; permission mode left unset)"
+    echo "  (non-interactive shell — skipped; permission mode unchanged)"
 fi
 echo ""
 
@@ -396,10 +442,8 @@ echo "     a flat workstation or a team lead)"
 echo "  3. For existing sessions, run /sync to pick up new skills"
 echo ""
 echo "Teammate display mode:"
-echo "  • Default \"auto\" splits a pane per teammate inside tmux."
-echo "  • To hide panes, re-run bootstrap and answer Y at the pane prompt"
-echo "    above (writes \"teammateMode\":\"in-process\"). Personal preference;"
-echo "    does not affect team behaviour. Shift+Down still switches teammate."
+echo "  • CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch)."
+echo "  • To change, re-run bootstrap and choose at step 6."
 echo ""
 echo "⚠ Do not directly edit .claude/skills/ or .claude/agents/ —"
 echo "  those are installed copies. Edit the sources in"
