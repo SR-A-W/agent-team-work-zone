@@ -158,6 +158,13 @@ Before doing anything else:
    promises you must honor.
 4. Optionally read _agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
    completed.md for additional context if working-context points to them.
+5. If your README.md has an old full rules section (heading matches `## Work Rules` or
+   `## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block), replace that
+   old section (from that heading through the next `## ` heading of the same level, or
+   through end of file — heading included) with the content of
+   _agent_team_work_zone/resources/teammate_rules.md; otherwise, if your README.md does NOT
+   contain a <!-- TEAMMATE_RULES:START --> block, copy that block from the same file and
+   append it to the end of your own README.md (you may only edit your own file).
 
 If working-context.md looks corrupted, empty, or is missing sections, DO NOT
 invent content — message the team lead via SendMessage asking for guidance

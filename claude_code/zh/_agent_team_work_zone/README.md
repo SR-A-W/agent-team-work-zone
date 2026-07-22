@@ -233,9 +233,10 @@ priority: HIGH | MEDIUM | LOW
 
 ---
 
+<!-- RULES:START -->
 ## 工作守则（13 条）
 
-> **重要**: 每个 agent 必须将以下守则完整复制到自己工位的 README.md 中，以防上下文压缩后遗忘。
+> **本守则由框架维护，随升级刷新。** 扁平工位与 team lead 在自己的工位 README 中带全套守则（升级会就地刷新）；teammate 带的是精简子集（见 `resources/teammate_rules.md`），由 `/spawn-team` 在建工位时写入。**请勿手改本区块——改动会在下次升级被覆盖；要定制，改标记块之外的用户区。**
 
 ### 1. 低耦合
 每个 agent 只做自己职责内的事，不越界。**具体含义**：
@@ -353,7 +354,9 @@ date: 2026-04-11 15:30
 **违反本条的代价**：teammate 状态丢失、lead 产生幻觉误以为 teammate 还在、team 协作彻底崩溃。
 
 ---
+<!-- RULES:END -->
 
+<!-- REFERENCE:START -->
 ## 预置 Skills
 
 安装后可通过 `/skill名` 在对话中触发。部分 skill 允许 agent 自主调用（`disable-model-invocation: false`），部分只能由用户手动触发。
@@ -432,3 +435,4 @@ date: 2026-04-11 15:30
 - **`.claude/skills/` 下找不到某个 skill**：重新运行 `bootstrap.sh`；确认源文件在 `resources/skills/<name>/SKILL.md`
 - **skill 修改后不生效**：Claude Code 在 session 启动时加载 skills。重启 session 或用 `/agents` 命令刷新
 - **切勿直接编辑 `.claude/skills/` 或 `.claude/agents/`**：这些是运行时派生物，下次 bootstrap 会被覆盖。**源在 `resources/`，只编辑源**
+<!-- REFERENCE:END -->

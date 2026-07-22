@@ -4,6 +4,26 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v0.3.2 (2026-07-21)
+
+PATCH (bug fix, fully backward compatible): **Work Rules and the five framework reference sections now actually refresh across upgrades on existing installs; teammate condensed rules now self-heal by replacement (eliminates dual copies)**.
+
+### Fixed
+- **Rules now refresh across upgrades**: previously the "Work Rules" section lived outside the README's `FRAMEWORK:START/END` markers, so no `upgrade.sh` run ever touched it — existing installs stayed frozen at whatever version they were first installed with. Adds independent `<!-- RULES:START/END -->` markers plus three new `common.sh` functions: `replace_marked_section` (a generic marker-block replacer), `ensure_rules_markers` (self-heals missing markers on existing installs — count-insensitive, recognizes the rules-section heading in either language, locates the rules section, and injects markers when absent), and `refresh_rules_section` (orchestration: self-heal → diff against source → back up the old block and replace only when there's an actual difference). The migration script now sweeps every workstation README (flat workstations and `<team>_team/` lead workstations), refreshing the rules section as needed.
+- **Reference sections now refresh across upgrades**: the "Pre-installed Skills / General-purpose Custom Subagents / Role Archetype Quick Reference / Team-Created Role Definition Storage / Troubleshooting" sections in the README also lived outside the markers — once installed, they **never updated**, so users could be looking at a stale command/skill table. Adds `<!-- REFERENCE:START/END -->` markers plus two new `common.sh` functions: `ensure_reference_markers` (self-heals by locating the "Pre-installed Skills" heading and wrapping everything through end-of-file — the five sections form one combined block, not five separate ones) and `refresh_reference_section` (orchestration: self-heal → **unconditional overwrite**, no diff, no backup, since this content is 100% framework-owned). The migration adds one call for the top-level README only; workstation READMEs never contain these five sections.
+- **README rules-section opening sentence rewritten**: the old "every agent must copy these rules in full into their own workstation README" text contradicted the new asymmetric distribution (teammates actually carry a condensed subset, not the full set). Replaced with: "these rules are framework-maintained and refresh on upgrade; flat workstations and team leads carry the full set (refreshed in place); teammates carry a condensed subset (`resources/teammate_rules.md`, written in by `/spawn-team`); do not hand-edit this block — changes are overwritten on the next upgrade; customize the user area outside the marker instead."
+
+### Added
+- **Teammate condensed-rules distribution + self-heal replacement**: adds `resources/teammate_rules.md` (a 7-rule excerpt wrapped in `<!-- TEAMMATE_RULES:START/END -->` markers, independent of the full 13-rule set). `/spawn-team` now writes this file's content into every new teammate workstation skeleton; both `/spawn-team`'s and `/reactivate-team`'s spawn prompts now include a self-heal instruction — if the teammate's README still has an old full rules section (heading matches the "Work Rules" title, not inside a `TEAMMATE_RULES` block), it **replaces** that old section with the condensed block (eliminating the old-and-new dual copy); otherwise, if there's no old section and no `TEAMMATE_RULES` block, it appends. The migration refreshes the `TEAMMATE_RULES` block on teammate READMEs that already have it, only when the content differs (no backup); teammate workstations that don't have the block yet are left untouched by the migration and get it the next time that teammate is spawned/reactivated.
+- **Two teammate-rules additions**: rule 1 now notes that peer-to-peer collaboration (asking questions, sharing, challenging, helping) is encouraged and a core team value, while formal task assignment and prioritization remains the lead's coordination responsibility; rule 7 now notes that if you posted a roundtable report and every recipient has marked it RESOLVED, you archive it yourself.
+
+### Migration (v0.3.1 → v0.3.2)
+- **Required**: `bash _agent_team_work_zone/upgrade.sh` automatically overwrites framework files, refreshes the rules section, refreshes the reference section, and writes VERSION.
+- **No user-data migration**: `TEAMMATE_INFO.json` `schema_version` stays 1, no field renames. Fully backward compatible.
+- **Existing teammate workstations**: if a `TEAMMATE_RULES` block already exists and differs, it's refreshed automatically; if it doesn't exist yet (including workstations that still carry an old full rules section), the migration leaves it alone — the next time that teammate is spawned/reactivated, it replaces or appends per the self-heal instruction.
+
+---
+
 ## v0.3.1 (2026-06-22)
 
 PATCH (bug fix + UX improvement, fully backward compatible).

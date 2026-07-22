@@ -233,9 +233,10 @@ See `meeting_room/README.md` and each team workstation's `roundtable/README.md` 
 
 ---
 
+<!-- RULES:START -->
 ## Work Rules (13 items)
 
-> **Important**: Every agent must copy the following rules in full into the README.md of their own workstation, to prevent them from being forgotten after context compression.
+> **These rules are framework-maintained and refresh on upgrade.** Flat workstations and team leads carry the full rule set in their own workstation README (refreshed in place on upgrade); teammates carry a condensed subset instead (see `resources/teammate_rules.md`), written in by `/spawn-team` when the workstation is created. **Do not hand-edit this block — changes will be overwritten on the next upgrade; to customize, edit the user area outside the marker block.**
 
 ### 1. Low Coupling
 Each agent only does what falls within its own responsibilities; no overstepping. **Specifically**:
@@ -353,7 +354,9 @@ When receiving a task that requires hands-on work, first judge:
 **Cost of violating this rule**: teammate state is lost, lead hallucinates that teammates still exist, team collaboration completely collapses.
 
 ---
+<!-- RULES:END -->
 
+<!-- REFERENCE:START -->
 ## Pre-installed Skills
 
 After installation, they can be triggered in a conversation via `/skill_name`. Some skills allow autonomous invocation by the agent (`disable-model-invocation: false`); others can only be triggered manually by the user.
@@ -432,3 +435,4 @@ The default path is Tier 1 — this keeps `.claude/agents/` always clean, contai
 - **A skill is missing under `.claude/skills/`**: rerun `bootstrap.sh`; confirm that the source file exists at `resources/skills/<name>/SKILL.md`
 - **Skill modifications don't take effect**: Claude Code loads skills when a session starts. Restart the session or refresh via the `/agents` command
 - **Never edit `.claude/skills/` or `.claude/agents/` directly**: these are runtime derived copies and will be overwritten by the next bootstrap. **The source is in `resources/`; edit only the source**
+<!-- REFERENCE:END -->

@@ -25,7 +25,7 @@ cat _agent_team_work_zone/VERSION
 
 ```
 _agent_team_work_zone/
-├── upgrade.sh                 ← 框架所有（v0.5.0 起的一键脚本入口）
+├── upgrade.sh                 ← 框架所有（一键脚本入口）
 ├── VERSION                    ← 框架所有
 ├── CHANGELOG.md               ← 框架所有
 ├── README.md                  ← 部分更新（仅 FRAMEWORK:START~END 之间）
@@ -69,9 +69,11 @@ _agent_team_work_zone/
 
 升级脚本只替换 `FRAMEWORK:START` 到 `FRAMEWORK:END` 之间的内容，成员表及之后的内容完全保留。如果你的 `README.md` 因故丢失了这两个标记，升级脚本会打印警告并**跳过** README 替换。
 
+**例外：守则区。** `<!-- RULES:START --> … <!-- RULES:END -->` 是嵌在用户区内的**第二个框架管理子块**（v0.3.2 起）：升级时会与新模板**比对**，仅在内容有差异时先把旧块备份为 `README.md.rules.bak.<时间戳>` 再替换；块外其它用户内容（成员表、自定义章节）仍然一律不碰。若你的 README 还没有这对标记，迁移会按守则区标题自动定位并注入（找不到则跳过）。
+
 ## 如何升级
 
-### 推荐方式（v0.5.0 起）：一键脚本
+### 推荐方式：一键脚本
 
 在你的项目根目录（含 `_agent_team_work_zone/` 那一级）跑：
 
@@ -99,7 +101,7 @@ bash _agent_team_work_zone/upgrade.sh
 
 ### 旧 4 步流程（已废弃但仍可用）
 
-v0.5.0 起，**手动 4 步流程不再推荐**。但 `resources/scripts/upgrade.sh`（migration chain dispatcher）继续保留，新一键脚本只是它的自动化包装层。如果你出于调试或定制需求需要手动跑：
+**手动 4 步流程不推荐**。但 `resources/scripts/upgrade.sh`（migration chain dispatcher）继续保留，新一键脚本只是它的自动化包装层。如果你出于调试或定制需求需要手动跑：
 
 ```bash
 # 1. 在本地 clone 一份 agent-team-work-zone repo
@@ -116,12 +118,6 @@ bash _agent_team_work_zone/.upgrade/resources/scripts/upgrade.sh
 ```
 
 普通用户不再需要走这条路径——一键脚本完全等价。
-
-### 给 v0.5.0 之前版本（v0.0.0 .. v0.4.0）的存量用户
-
-新一键脚本 `_agent_team_work_zone/upgrade.sh` 是 v0.5.0 才引入的。如果你的项目在 v0.5.0 之前，得先用旧 4 步流程升到 v0.4.0+ 再用新法。或者直接对照本文档"旧 4 步流程"段一次跑通到 latest：dispatcher 会自动识别当前版本并跑链上所有的 migration。
-
-升级到 v0.5.0+ 之后，后续就只需要 `bash _agent_team_work_zone/upgrade.sh` 一条命令。
 
 ## 如何回滚
 
@@ -140,7 +136,7 @@ git checkout HEAD -- _agent_team_work_zone/
 
 回滚后，如果 `.claude/settings.json` 中的 hooks 需要同步回旧版本，重跑旧版 `bootstrap.sh` 即可。
 
-历史发布有 annotated git tag（v0.1.0 起），可以用 `git checkout v0.4.0` 跳到那个发布点查看当时的内容。
+历史发布有 annotated git tag（v0.1.0 起），可以用 `git checkout v0.2.0` 跳到那个发布点查看当时的内容。
 
 ## 升级失败的常见处理
 

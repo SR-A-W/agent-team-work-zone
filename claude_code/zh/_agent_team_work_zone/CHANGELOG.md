@@ -4,6 +4,26 @@
 
 ---
 
+## v0.3.2 (2026-07-21)
+
+PATCH（Bug 修复，完全向后兼容）：**工作守则 + 五节框架参考资料现能随升级实际刷新到存量安装，teammate 精简守则改为自愈替换（消除双套并存）**。
+
+### 修复
+- **守则随升级刷新**：此前"工作守则"章节在 README 的 `FRAMEWORK:START/END` 标记之外，任何一次 `upgrade.sh` 升级都刷不到它——存量安装的守则永久停留在初装版本。新增独立的 `<!-- RULES:START/END -->` 标记 + `common.sh` 三个新函数：`replace_marked_section`（通用 marker 区块替换器）、`ensure_rules_markers`（存量自愈：条数不敏感、双语标题都认，缺标记时自动定位守则区并注入）、`refresh_rules_section`（编排：自愈 → 与源比对 → 仅在有实质差异时先备份旧块再替换）。迁移脚本现在会遍历**所有工位 README**（扁平工位 + `<team>_team/` lead 工位），按需刷新守则区。
+- **参考资料随升级刷新**：README 里"预置 Skills / 通用 Custom Subagents / 角色原型速查 / 团队创建的角色定义存储 / Troubleshooting"这五节此前也在标记之外——装机后**永不更新**，用户查到的命令/技能表可能早已过时。新增 `<!-- REFERENCE:START/END -->` 标记 + `common.sh` 两个新函数：`ensure_reference_markers`（存量自愈：按"预置 Skills"标题定位，注入标记，止于文件末——五节合计一个区块）、`refresh_reference_section`（编排：自愈 → **直接覆盖**，不比对不备份，因为这五节是纯框架内容，没有可保留的用户定制）。迁移脚本对顶层 README 新增一次调用；工位 README 从不含这五节，不进工位遍历。
+- **README 守则区开头句改写**：原"每个 agent 必须将以下守则完整复制到自己工位的 README"与新的非对称分发机制矛盾（teammate 实际带的是精简子集，不是全套）。改为"本守则由框架维护，随升级刷新；扁平工位与 team lead 带全套（就地刷新），teammate 带精简子集（`resources/teammate_rules.md`，由 `/spawn-team` 写入）；请勿手改本区块——改动会在下次升级被覆盖，要定制请改标记块之外的用户区"。
+
+### 新增
+- **teammate 精简守则分发 + 自愈替换**：新增 `resources/teammate_rules.md`（7 条摘录，`<!-- TEAMMATE_RULES:START/END -->` 标记包裹，内容独立于 13 条完整守则）。`/spawn-team` 建 teammate 工位骨架时即写入该文件内容；`/spawn-team` 与 `/reactivate-team` 的 spawn prompt 都新增一句自愈指令——若 teammate 的 README 里还留着旧的完整守则区（标题匹配"工作守则"且不在 `TEAMMATE_RULES` 标记内），**用精简块替换掉它**（消除新旧两套并存）；若没有旧守则区、也没有 `TEAMMATE_RULES` 块，则追加。迁移脚本对已有 `TEAMMATE_RULES` 区块的 teammate README 按差异刷新（无备份）；尚无该区块的存量 teammate 工位，迁移不动它，留给下次 spawn/reactivate 时自然补齐。
+- **teammate 守则补充两条**：第 1 条补充"同侪间的交流协作（提问/共享/质疑/互助）鼓励且是 team 的核心价值，但正式任务分配与优先级是 lead 的协调职责"；第 7 条补充"你发的、各接收方都已 RESOLVED 的报告，由你自行归档"。
+
+### Migration（v0.3.1 → v0.3.2）
+- **必做**：`bash _agent_team_work_zone/upgrade.sh` 自动覆盖框架文件 + 刷新守则区 + 刷新参考资料区 + 写 VERSION。
+- **无用户数据迁移**：`TEAMMATE_INFO.json` `schema_version` 仍为 1，无字段改名。完全向后兼容。
+- **存量 teammate 工位**：若已有 `TEAMMATE_RULES` 区块且内容有差异，会被自动刷新；若尚无该区块（含仍留着旧完整守则区的情形），迁移不动它——下次该 teammate 被 spawn/reactivate 时，由 teammate 自己按自愈指令替换或追加。
+
+---
+
 ## v0.3.1 (2026-06-22)
 
 PATCH（Bug 修复 + 体验改进，完全向后兼容）。

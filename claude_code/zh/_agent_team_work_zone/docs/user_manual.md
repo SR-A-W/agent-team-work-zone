@@ -277,7 +277,6 @@ jq '.members[] | {name, tmuxPaneId, backendType}' \
 - **长任务（> 6 天）**：每个 epoch 重新 spawn 一个 tracker，不要试图无限续期
 - **不要**写自动续期 daemon——手动可控比看不见的自动化安全
 
-
 ### 角色原型（`resources/role_archetypes/`）
 
 Team lead 在 `/spawn-team` 时参考的**模板**，不是 subagent 定义。9 个：

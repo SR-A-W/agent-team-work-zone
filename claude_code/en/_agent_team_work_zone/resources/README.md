@@ -57,4 +57,3 @@ resources/
 2. Run `bash resources/scripts/bootstrap.sh` to sync into `.claude/`
 3. Restart the Claude Code session or use `/agents` to refresh so it loads the new version
 4. Test
-

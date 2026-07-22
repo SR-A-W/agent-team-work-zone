@@ -172,6 +172,11 @@ Plan-mode gating：<是/否；若是，说明批准标准>
 lead 已初始化 5 个骨架文件（README / working-context.md / completed.md / TODO.md / commitments.md）。
 进入 idle 前、收到 checkpoint 提醒时、任务完成后 → 调用 /checkpoint 更新 working-context.md。
 这是你跨 session 恢复状态的唯一桥梁（Claude Code 不自动保留 teammate session）。
+若你的工位 README 里有旧的完整守则区（标题匹配 `## 工作守则` 或 `## Work Rules`，且不在
+<!-- TEAMMATE_RULES:START --> 标记内），用 _agent_team_work_zone/resources/teammate_rules.md
+的内容替换掉那个旧守则区（从该标题起，到下一个 `## ` 同级标题之前、或文件末为止，连标题一起
+替换）；否则，若你的工位 README 里没有 <!-- TEAMMATE_RULES:START --> 区块，从该文件复制该区块
+追加到你自己 README 末尾（你只能改自己的文件）。
 ```
 
 ### 6b. 初始化每个 teammate 的工位骨架
@@ -180,7 +185,7 @@ lead 已初始化 5 个骨架文件（README / working-context.md / completed.md
 
 路径：`_agent_team_work_zone/<SELF>_team/teammates/<teammate-name>/`
 
-- **`README.md`** — 角色定义：写昵称、模型、角色来源、作用域、禁区、交付物、plan-mode gating 说明，以及（可选）空的 `## Checkpoint Instructions` 段位供后续定制
+- **`README.md`** — 角色定义：写昵称、模型、角色来源、作用域、禁区、交付物、plan-mode gating 说明，以及（可选）空的 `## Checkpoint Instructions` 段位供后续定制；**并将 `resources/teammate_rules.md` 的完整内容（含 `<!-- TEAMMATE_RULES:START/END -->` 标记）追加到文件末尾**
 - **`working-context.md`** — 初始占位：
   ```markdown
   # Working Context — <teammate-name>

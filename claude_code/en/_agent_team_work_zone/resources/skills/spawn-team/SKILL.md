@@ -173,6 +173,13 @@ Your workstation: _agent_team_work_zone/<SELF>_team/teammates/<nickname>/
 The lead has initialized 5 skeleton files (README / working-context.md / completed.md / TODO.md / commitments.md).
 Before going idle, when prompted, and after task completion → call /checkpoint to update working-context.md.
 This is the only bridge for recovering your state across sessions (Claude Code does not preserve teammate sessions).
+If your workstation README has an old full rules section (heading matches `## Work Rules` or
+`## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block), replace that old
+section (from that heading through the next `## ` heading of the same level, or through end
+of file — heading included) with the content of _agent_team_work_zone/resources/teammate_rules.md;
+otherwise, if your workstation README has no <!-- TEAMMATE_RULES:START --> block, copy that
+block from the same file and append it to the end of your own README (you may only edit your
+own file).
 ```
 
 ### 6b. Initialize each teammate's workstation skeleton
@@ -181,7 +188,7 @@ For each teammate in the Phase 5 final version, create the workstation directory
 
 Path: `_agent_team_work_zone/<SELF>_team/teammates/<teammate-name>/`
 
-- **`README.md`** — role definition: write the nickname, model, role source, scope, no-go zones, deliverables, plan-mode gating description, plus (optional) an empty `## Checkpoint Instructions` section for later customization
+- **`README.md`** — role definition: write the nickname, model, role source, scope, no-go zones, deliverables, plan-mode gating description, plus (optional) an empty `## Checkpoint Instructions` section for later customization; **and append the full content of `resources/teammate_rules.md` (including the `<!-- TEAMMATE_RULES:START/END -->` markers) to the end of the file**
 - **`working-context.md`** — initial placeholder:
   ```markdown
   # Working Context — <teammate-name>

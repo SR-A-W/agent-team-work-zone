@@ -25,7 +25,7 @@ During upgrades, the following files are **framework-owned** (overwritten by the
 
 ```
 _agent_team_work_zone/
-├── upgrade.sh                 ← framework-owned (one-button entry, v0.5.0+)
+├── upgrade.sh                 ← framework-owned (one-button entry)
 ├── VERSION                    ← framework-owned
 ├── CHANGELOG.md               ← framework-owned
 ├── README.md                  ← partial update (only between FRAMEWORK:START~END)
@@ -69,9 +69,11 @@ _agent_team_work_zone/
 
 The upgrade script only replaces content between `FRAMEWORK:START` and `FRAMEWORK:END`; the members table and content after `FRAMEWORK:END` are fully preserved. If your `README.md` has lost these markers, the script will print a warning and **skip** README replacement.
 
+**Exception: the rules section.** `<!-- RULES:START --> … <!-- RULES:END -->` is a **second, independently framework-managed sub-block** nested inside the user area (as of v0.3.2): on upgrade it is **diffed** against the new template, and only replaced — after backing up the old block to `README.md.rules.bak.<timestamp>` — when the content actually differs; everything else in the user area (the members table, custom sections) is still never touched. If your README doesn't have this marker pair yet, the migration locates the rules section by its heading and injects it automatically (skipped if not found).
+
 ## How to upgrade
 
-### Recommended (v0.5.0+): one-button script
+### Recommended: one-button script
 
 In your project root (the one containing `_agent_team_work_zone/`), run:
 
@@ -99,7 +101,7 @@ bash _agent_team_work_zone/upgrade.sh
 
 ### Old 4-step flow (deprecated but still works)
 
-From v0.5.0 onward, the **manual 4-step flow is no longer recommended**. But `resources/scripts/upgrade.sh` (the migration-chain dispatcher) is preserved — the new one-button script is just its automation wrapper. If you need to run it manually for debugging or customization:
+The **manual 4-step flow is not recommended**. But `resources/scripts/upgrade.sh` (the migration-chain dispatcher) is preserved — the new one-button script is just its automation wrapper. If you need to run it manually for debugging or customization:
 
 ```bash
 # 1. Clone agent-team-work-zone repo locally
@@ -116,12 +118,6 @@ bash _agent_team_work_zone/.upgrade/resources/scripts/upgrade.sh
 ```
 
 Regular users no longer need this path — the one-button script is fully equivalent.
-
-### For legacy users on pre-v0.5.0 versions (v0.0.0 .. v0.4.0)
-
-The new one-button script `_agent_team_work_zone/upgrade.sh` was introduced in v0.5.0. If your project is on a pre-v0.5.0 version, use the old 4-step flow once to upgrade to v0.4.0+. Then use the new method. Or run the old 4-step flow directly to latest: the dispatcher will detect your current version and run all migrations in the chain.
-
-Once on v0.5.0+, all subsequent upgrades only require `bash _agent_team_work_zone/upgrade.sh`.
 
 ## How to roll back
 
@@ -140,7 +136,7 @@ git checkout HEAD -- _agent_team_work_zone/
 
 After rolling back, if the hooks in `.claude/settings.json` need to match the old version, re-run the old `bootstrap.sh`.
 
-Past releases have annotated git tags (from v0.1.0 onward), so you can `git checkout v0.4.0` to inspect what that release looked like.
+Past releases have annotated git tags (from v0.1.0 onward), so you can `git checkout v0.2.0` to inspect what that release looked like.
 
 ## Common failure modes
 

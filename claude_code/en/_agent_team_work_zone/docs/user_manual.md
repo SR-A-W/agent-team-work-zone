@@ -273,7 +273,6 @@ jq '.members[] | {name, tmuxPaneId, backendType}' \
 - **Long tasks (> 6 days)**: every epoch, spawn a fresh tracker — don't try to renew indefinitely
 - **Don't** write an auto-renewal daemon — manual control is safer than invisible automation
 
-
 ### Role Archetypes (`resources/role_archetypes/`)
 
 **Templates** referenced by the team lead during `/spawn-team`, not subagent definitions. 9 in total:
