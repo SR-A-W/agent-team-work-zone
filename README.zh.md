@@ -6,6 +6,8 @@
 
 **太长不看?** 👉 [直接跳到 Quick Start](#quick-start) 开始用。
 
+> 📄 **设计手册。** ATWZ 附有一份面向开发者的详细设计手册——阐述其设计与理念、场景演示,以及对失败模式与局限的分析。**[阅读 PDF](docs/design-manual.pdf)。** *(arXiv 版本即将上线。)*
+
 Claude Code 让启动强大的 agent 变得很容易。但当工作的规模和周期超出单个对话能承载的范围，几个现实问题就会浮现——其中最致命的一条，Claude Code 原生完全无解：**teammate 一旦随进程消失，就再也找不回来**。**Agent Team Work Zone 正是为此而生：它把分散、易断的 agent 工作，组织成一个持久、可恢复、可审计的团队。** 它要消除的痛点：
 
 - **Claude Code Agent Team 模式下的 teammate agent，其 session 跨不过进程重启、且原生无法恢复。** Claude Code 的 Agent Teams 不持久化 teammate 的 session：当 Claude Code 进程停止时(比如经常发生的 SSH 断连、或运行它的终端被关闭)，**整个团队连同各自积累的工作状态一起消失，原生没有任何办法找回**;你只能从零重新组队、重新交代。

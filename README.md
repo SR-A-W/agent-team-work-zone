@@ -6,6 +6,8 @@
 
 **TL;DR?** 👉 [Jump straight to Quick Start](#quick-start).
 
+> 📄 **Design manual.** ATWZ comes with a detailed, developer-oriented design manual — its design and rationale, scenario walkthroughs, and an analysis of its failure modes and limitations. **[Read the PDF](docs/design-manual.pdf).** *(arXiv version coming soon.)*
+
 Claude Code makes it easy to spin up powerful agents. But once the scale and lifespan of your work outgrow what a single conversation can hold, a few real problems surface — and the most damaging one has no native fix in Claude Code: **once a teammate vanishes with its process, it's gone for good**. **Agent Team Work Zone exists for exactly this: it organizes scattered, interruptible agent work into a persistent, recoverable, auditable team.** Here is the pain it removes:
 
 - **A teammate agent in Claude Code's Agent Team mode can't survive a process restart, and Claude Code can't recover it.** Claude Code's Agent Teams do not persist teammate sessions: when the Claude Code process stops (say the SSH connection drops, as it often does, or the terminal running it is closed), **the entire team, along with all the working state each member built up, is gone, with no native way to get it back**; you're left rebuilding the team from scratch and re-explaining everything.
