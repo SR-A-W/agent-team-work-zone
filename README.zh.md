@@ -2,11 +2,15 @@
 
 # Agent Team Work Zone
 
+[![arXiv](https://img.shields.io/badge/arXiv-2607.22917-b31b1b.svg)](https://arxiv.org/abs/2607.22917)
+[![Paper (PDF)](https://img.shields.io/badge/Paper-PDF-green.svg)](./docs/design-manual.pdf)
+[![License](https://img.shields.io/badge/License-see%20LICENSE-lightgrey.svg)](./LICENSE)
+
 > 面向 Claude Code 及其 Agent Teams 的持久化管理层。
 
 **太长不看?** 👉 [直接跳到 Quick Start](#quick-start) 开始用。
 
-> 📄 **设计手册。** ATWZ 附有一份面向开发者的详细设计手册——阐述其设计与理念、场景演示,以及对失败模式与局限的分析。**[阅读 PDF](docs/design-manual.pdf)。** *(arXiv 版本即将上线。)*
+> 📄 **设计手册。** ATWZ 附有一份面向开发者的详细设计手册——阐述其设计与理念、场景演示,以及对失败模式与局限的分析。**[阅读 PDF](docs/design-manual.pdf)** 或 **[在 arXiv 上查看](https://arxiv.org/abs/2607.22917)**。
 
 Claude Code 让启动强大的 agent 变得很容易。但当工作的规模和周期超出单个对话能承载的范围，几个现实问题就会浮现——其中最致命的一条，Claude Code 原生完全无解：**teammate 一旦随进程消失，就再也找不回来**。**Agent Team Work Zone 正是为此而生：它把分散、易断的 agent 工作，组织成一个持久、可恢复、可审计的团队。** 它要消除的痛点：
 

@@ -2,11 +2,15 @@
 
 # Agent Team Work Zone
 
+[![arXiv](https://img.shields.io/badge/arXiv-2607.22917-b31b1b.svg)](https://arxiv.org/abs/2607.22917)
+[![Paper (PDF)](https://img.shields.io/badge/Paper-PDF-green.svg)](./docs/design-manual.pdf)
+[![License](https://img.shields.io/badge/License-see%20LICENSE-lightgrey.svg)](./LICENSE)
+
 > A persistence and management layer for Claude Code and its Agent Teams.
 
 **TL;DR?** 👉 [Jump straight to Quick Start](#quick-start).
 
-> 📄 **Design manual.** ATWZ comes with a detailed, developer-oriented design manual — its design and rationale, scenario walkthroughs, and an analysis of its failure modes and limitations. **[Read the PDF](docs/design-manual.pdf).** *(arXiv version coming soon.)*
+> 📄 **Design manual.** ATWZ comes with a detailed, developer-oriented design manual — its design and rationale, scenario walkthroughs, and an analysis of its failure modes and limitations. **[Read the PDF](docs/design-manual.pdf)** or **[view it on arXiv](https://arxiv.org/abs/2607.22917)**.
 
 Claude Code makes it easy to spin up powerful agents. But once the scale and lifespan of your work outgrow what a single conversation can hold, a few real problems surface — and the most damaging one has no native fix in Claude Code: **once a teammate vanishes with its process, it's gone for good**. **Agent Team Work Zone exists for exactly this: it organizes scattered, interruptible agent work into a persistent, recoverable, auditable team.** Here is the pain it removes:
 
