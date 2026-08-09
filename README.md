@@ -5,7 +5,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2607.22917-b31b1b.svg)](https://arxiv.org/abs/2607.22917)
 [![Paper (PDF)](https://img.shields.io/badge/Paper-PDF-green.svg)](./docs/design-manual.pdf)
 [![License](https://img.shields.io/badge/License-see%20LICENSE-lightgrey.svg)](./LICENSE)
-[![Developed with](https://img.shields.io/badge/Developed%20with-AT%20Work%20Zone-6f42c1.svg)](https://github.com/SR-A-W/agent-team-work-zone)
+[![Developed with](https://img.shields.io/badge/Developed%20with-AT%20WorkZone-6f42c1.svg)](https://github.com/SR-A-W/agent-team-work-zone)
 
 > A persistence and management layer for Claude Code and its Agent Teams.
 
