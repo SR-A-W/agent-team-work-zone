@@ -88,27 +88,31 @@ Agent Team Work Zone 把这些 agent 当作**真实的员工**来对待。在这
 
 ## Quick Start
 
-> **Claude Code 版本**：本发行版(**v0.2.0**)要求 **Claude Code ≥ 2.1.178**——它适配 2.1.178 的 agent-teams API(自动会话级 team;`TeamCreate`/`TeamDelete` 已移除)。若你的 Claude Code **≤ 2.1.177**，请改用 **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)**(针对旧 agent-teams API)。安装脚本也会强制这条下限。
+> **Claude Code 版本**：Agent Team Work Zone 要求 **Claude Code ≥ 2.1.178**——它适配 2.1.178 的 agent-teams API(自动会话级 team;`TeamCreate`/`TeamDelete` 已移除)。若你的 Claude Code **≤ 2.1.177**，请改用 **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)**(针对旧 agent-teams API)。安装脚本也会强制这条下限。
 
 > **平台支持**：目前支持 **Linux** 和 **macOS**。安装/升级脚本和运行时 hook 基于 bash;**Windows 暂不支持**(原生 Windows 无 bash，原生化在 roadmap 上、计划于下一个大版本提供)。Windows 用户当前可借助 WSL 运行。
 
-### 1. 获取模板
+### 1. 前提
+
+- **Node.js 18 或更高版本**（只用来运行安装程序）
+- **bash**：Linux、macOS 或 Windows 上的 WSL（不支持原生 Windows）
+- **jq**（配置步骤用它把框架的 hook 写进 `.claude/settings.json`，没有它会停下）
+- **Claude Code 2.1.178 或更高版本**
+
+### 2. 安装到你的项目
+
+在你的项目目录下（目录须已存在）：
 
 ```bash
-git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cd /path/to/your/project
+npx agent-team-work-zone init --lang zh     # 英文版用 --lang en
 ```
 
-### 2. 复制到你的项目
-
-把模板目录复制进你的项目根目录即可：
-
-```bash
-cp -r claude_code/zh/_agent_team_work_zone /path/to/your/project/   # 中文版——跑这一行
-# 想用英文版的话，改跑这一行：
-# cp -r claude_code/en/_agent_team_work_zone /path/to/your/project/
-```
-
-> **不想用命令行?** 直接在文件管理器(Finder / Nautilus 等)里操作：进入 clone 下来的仓库，把 `claude_code/zh/_agent_team_work_zone`(或 `en/` 版)整个文件夹**复制**，**粘贴**到你的目标项目根目录下，效果完全一样。
+- 它把 `_agent_team_work_zone/` 放进你的项目，并运行其中的安装脚本。也可以不进入项目目录、直接给出路径：`npx agent-team-work-zone init /path/to/your/project --lang zh`。
+- 不给 `--lang` 时，在终端里会弹出语言菜单，否则使用英文版。
+- 项目里已有 `_agent_team_work_zone/` 时它会停下，不覆盖。要更新已有的安装，见下文「把框架升级到最新版」。
+- 项目里已有 `.claude/` 目录时，安装会合并进去：你自己的 skill 和 agent，名字与框架不同的保留；与框架同名的会被框架的版本替换，而且没有备份，请先改名或自行备份。其他事件上的 hook 保留，但在 `SessionStart`、`TeammateIdle`、`SessionEnd` 三个 hook 事件上，框架的 hook 会替换你原有的（替换前先备份 `settings.json`）。怎么把自己的 hook 加回去，见[用户手册](claude_code/zh/_agent_team_work_zone/docs/user_manual.md)。
+- 偶尔用一次，就用 `npx agent-team-work-zone <命令>`；经常用的话，先 `npm i -g agent-team-work-zone` 装一次，之后用更短的 `atwz <命令>`（例如 `atwz init --lang zh`）。
 
 > [!IMPORTANT]
 > **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
@@ -120,21 +124,27 @@ cp -r claude_code/zh/_agent_team_work_zone /path/to/your/project/   # 中文版�
 >
 > 所以：先 `cd /path/to/your/project`，再运行 `claude`。把 home 目录本身当作项目也可以——只要 `_agent_team_work_zone/` 就在 home 目录下，并且在那里启动 Claude。但我们依然强烈推荐：在项目目录下使用该项目专有的 agent team work zone，并为它单独启动一个 Claude Code session。
 
-### 3. 安装
+#### 从源码安装（另一种方式，不需要 Node.js）
 
 ```bash
+git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cp -r agent-team-work-zone/claude_code/zh/_agent_team_work_zone /path/to/your/project/   # 英文版用 claude_code/en/
 cd /path/to/your/project
 bash _agent_team_work_zone/install.sh
 ```
 
-脚本会把 skills 和 agent definitions 安装到 `.claude/` 目录，并启用所需的 Claude Code 设置。
+> **复制这一步不想用命令行？** 直接在文件管理器（Finder / Nautilus 等）里操作：进入 clone 下来的仓库，把 `claude_code/zh/_agent_team_work_zone`（或 `en/` 版）整个文件夹**复制**，**粘贴**到你的项目根目录下，再运行上面 `install.sh` 那一行。
+
+### 3. 安装程序做了什么
+
+安装程序把 skills 和 agent definitions 装进 `.claude/`，并启用所需的 Claude Code 设置。首次安装时它还会检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你；在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）。选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。它还会提供两个可选的 `CLAUDE.md` 段落：给你的消息格式，以及平实用语规则；默认都会加入。所有提问都是菜单（方向键加回车）；没有终端时不提问。
 
 #### 把 `_agent_team_work_zone/` 纳入 git 管理（强烈推荐）
 
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里运行一次安装脚本（`bash _agent_team_work_zone/install.sh`，它会安装 skills、hooks 并配置 Claude Code），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone reconfigure`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash
@@ -193,13 +203,30 @@ Lead 会用团队注册表和各 teammate 的检查点，把团队恢复到上�
 
 ### 把框架升级到最新版
 
-想把 Agent Team Work Zone **框架本身**升级到最新版(拉取最新的 skills / hooks / 文档，并自动过一遍迁移)时，在项目根目录运行：
+在你的项目目录下：
 
 ```bash
-bash _agent_team_work_zone/upgrade.sh
+npx agent-team-work-zone@latest upgrade
 ```
 
-它只更新框架文件，**不会动你 agent 工位里的工作内容**。
+- 全局安装的：先 `npm i -g agent-team-work-zone@latest`，再 `atwz upgrade`。
+- 从源码安装的：`bash _agent_team_work_zone/upgrade.sh` 仍然可用（它会从 GitHub 下载最新版本）。
+- 只更新框架自身的文件，并刷新 `.claude/` 里的 skills 和 hooks。agent 的工作内容不受影响：它们的 checkpoint、工作日志和待办，meeting room 里的文档，团队登记表和 `settings.conf` 都保持原样。（框架在每个 agent 的 README 里维护的那段守则会更新。）
+- 升级到新的大版本时会要求你确认。没有终端时加 `--yes`（用 `upgrade.sh` 时设置 `ATWZ_ASSUME_YES=1`）。
+- 升级不会再问安装时的那些问题：成员显示方式和 Auto 权限模式保持现有设置，也不会追加可选的 `CLAUDE.md` 段落。
+- **每次升级之后，都要重启 Claude Code 会话，并对每个正在运行的团队执行 `/reactivate-team`。** 已经在运行的会话和成员，可能仍在用启动时加载的旧版 skill：我们实际遇到过，升级之后正在运行的成员仍照旧版 `/checkpoint` 的步骤执行，直到重新启动才改过来。
+
+在你的项目里启动 Claude Code 会话时，如果已有更新的版本发布，会显示一条简短提示，附带上面的命令。版本查询在后台进行，每天最多一次，不会拖慢会话启动。查到新版本后，从下一次会话启动起开始提示，之后每次启动都会提示，直到你升级。查询失败时沿用上次查到的版本；如果从未查询成功过，就什么也不显示。要关闭这条提示：设置 `ATWZ_UPDATE_CHECK=0`，或创建文件 `_agent_team_work_zone/.no_update_check`（把它提交进仓库，就对项目里所有人关闭）。
+
+#### 之后修改设置
+
+想改掉之前的选择、把项目搬到另一台机器之后，或补上当初跳过的可选 `CLAUDE.md` 段落，在项目目录下运行：
+
+```bash
+npx agent-team-work-zone reconfigure        # 全局安装的也可以用：atwz reconfigure
+```
+
+它在你已经安装的版本上重新询问安装时的问题，不升级、也不重装。细节（包括从源码安装时用的命令）见[用户手册](claude_code/zh/_agent_team_work_zone/docs/user_manual.md)。
 
 ---
 

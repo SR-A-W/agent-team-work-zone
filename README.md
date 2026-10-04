@@ -88,27 +88,31 @@ For any project with real complexity, we **strongly recommend team mode**. A tea
 
 ## Quick Start
 
-> **Claude Code version**: this release (**v0.2.0**) requires **Claude Code ≥ 2.1.178** — it adapts to the 2.1.178 agent-teams API (auto session-scoped teams; `TeamCreate`/`TeamDelete` removed). If your Claude Code is **≤ 2.1.177**, use **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)** instead (it targets the old agent-teams API). The installer also enforces this floor.
+> **Claude Code version**: Agent Team Work Zone requires **Claude Code ≥ 2.1.178** — it adapts to the 2.1.178 agent-teams API (auto session-scoped teams; `TeamCreate`/`TeamDelete` removed). If your Claude Code is **≤ 2.1.177**, use **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)** instead (it targets the old agent-teams API). The installer also enforces this floor.
 
 > **Platform support**: currently supported on **Linux** and **macOS**. The install/upgrade scripts and runtime hooks are bash-based; **Windows is not yet supported** (native Windows has no bash — native support is on the roadmap, planned for the next major release). Windows users can run it via WSL for now.
 
-### 1. Get the template
+### 1. Requirements
+
+- **Node.js 18 or later** (only to run the installer)
+- **bash**: Linux, macOS, or WSL on Windows (native Windows is not supported)
+- **jq** (the setup step uses it to add the framework's hooks to `.claude/settings.json`, and stops without it)
+- **Claude Code 2.1.178 or later**
+
+### 2. Install into your project
+
+From your project directory (it must already exist):
 
 ```bash
-git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cd /path/to/your/project
+npx agent-team-work-zone init --lang en     # or --lang zh for the Chinese edition
 ```
 
-### 2. Copy into your project
-
-Just copy the template directory into your project root:
-
-```bash
-cp -r claude_code/en/_agent_team_work_zone /path/to/your/project/   # English edition — run this one
-# Or, for the Chinese edition instead, run this one:
-# cp -r claude_code/zh/_agent_team_work_zone /path/to/your/project/
-```
-
-> **Prefer not to use the command line?** Do it right in your file manager (Finder / Nautilus, etc.): open the cloned repo, **copy** the whole `claude_code/en/_agent_team_work_zone` (or `zh/`) folder, and **paste** it into your target project's root directory — exactly the same result.
+- This puts `_agent_team_work_zone/` into your project and runs its installer. You can also name the project instead of changing into it: `npx agent-team-work-zone init /path/to/your/project --lang en`.
+- Without `--lang`, it shows a language menu when run in a terminal, and uses English otherwise.
+- It stops if `_agent_team_work_zone/` is already there. To update an existing install, see "Update the framework" below.
+- If your project already has a `.claude/` directory, the install merges into it. Your own skills and agents are kept if their names differ from the framework's; one with the same name is replaced by the framework's version, with no backup, so rename or back it up first. Hooks on other events are kept, but on three hook events (`SessionStart`, `TeammateIdle`, `SessionEnd`) the framework's hooks replace yours, after `settings.json` is backed up. The [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md) explains how to add your hooks back.
+- For occasional use, run `npx agent-team-work-zone <command>`. If you use it often, install it once with `npm i -g agent-team-work-zone` and then use the shorter `atwz <command>` (for example `atwz init --lang en`).
 
 > [!IMPORTANT]
 > **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
@@ -120,21 +124,27 @@ cp -r claude_code/en/_agent_team_work_zone /path/to/your/project/   # English ed
 >
 > So: `cd /path/to/your/project`, then run `claude`. Using your home directory *as* the project is fine, as long as `_agent_team_work_zone/` is directly inside it and you start Claude there. We still strongly recommend a project-specific agent team work zone inside the project directory, with its own separate Claude Code session.
 
-### 3. Install
+#### From source (alternative, no Node.js needed)
 
 ```bash
+git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cp -r agent-team-work-zone/claude_code/en/_agent_team_work_zone /path/to/your/project/   # or claude_code/zh/ for Chinese
 cd /path/to/your/project
 bash _agent_team_work_zone/install.sh
 ```
 
-The script installs the skills and agent definitions into `.claude/` and enables the required Claude Code settings.
+> **Prefer not to use the command line for the copy?** Do it in your file manager (Finder / Nautilus, etc.): open the cloned repo, **copy** the whole `claude_code/en/_agent_team_work_zone` (or `zh/`) folder, and **paste** it into your project's root directory, then run the `install.sh` line above.
+
+### 3. What the installer sets up
+
+The installer puts the skills and agent definitions into `.claude/` and enables the required Claude Code settings. On first install it also checks git: if the project is not in a git repository, or is inside one but not at its root, it tells you; at the root of a repository it asks whether to track `_agent_team_work_zone/` in git (default yes, recommended). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`; delete that line later if you change your mind. It also offers two optional `CLAUDE.md` sections, a message format for messages to you and a plain-vocabulary rule; both are added by default. All questions are menus (arrow keys and Enter); without a terminal nothing is asked.
 
 #### Track `_agent_team_work_zone/` in git (strongly recommended)
 
 Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
 
 - **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
-- **Easy migration to a new machine.** Clone the project on another machine, run the installer there once (`bash _agent_team_work_zone/install.sh` — it installs the skills and hooks and sets Claude Code up), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Easy migration to a new machine.** Clone the project on another machine, run `npx agent-team-work-zone reconfigure` there once from the project directory (installed from source: `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`); it installs the skills and hooks, sets Claude Code up, and asks the install questions again, including the display mode and auto permission mode that are set per machine. Then start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
 - **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
 
 ```bash
@@ -193,13 +203,30 @@ The lead uses the team registry and each teammate's checkpoint to restore the te
 
 ### Update the framework to the latest version
 
-To upgrade **Agent Team Work Zone itself** to the latest version (pulling the newest skills / hooks / docs and running any migrations automatically), run from your project root:
+From your project directory:
 
 ```bash
-bash _agent_team_work_zone/upgrade.sh
+npx agent-team-work-zone@latest upgrade
 ```
 
-It only updates framework files — **it never touches the work inside your agents' workstations**.
+- With a global install: `npm i -g agent-team-work-zone@latest`, then `atwz upgrade`.
+- Installed from source: `bash _agent_team_work_zone/upgrade.sh` still works (it downloads the latest version from GitHub).
+- Only the framework's own files are updated, and the skills and hooks in `.claude/` are refreshed. Your agents' work is not touched: their checkpoints, journals and to-do lists, the documents in the meeting room, the team registries and `settings.conf` stay as they are. (The rules section that the framework maintains inside each agent's README is updated.)
+- An upgrade to a new major version asks you to confirm. Without a terminal, add `--yes` (with `upgrade.sh`, set `ATWZ_ASSUME_YES=1`).
+- An upgrade does not ask the install questions again: the teammate display mode and auto permission mode keep their current settings, and no optional `CLAUDE.md` section is added.
+- **After any upgrade, restart your Claude Code sessions and run `/reactivate-team` for each running team.** Sessions and teammates that were already running may still be using the skills as they were loaded when they started: we have seen running teammates keep following the old `/checkpoint` steps after an upgrade until they were started again.
+
+When a Claude Code session starts in your project, it shows a short notice with these commands if a newer version has been published. The lookup runs in the background at most once a day and never delays the session. Once a newer version has been found, the notice appears from the next session start on, and at every start until you upgrade. If a lookup fails, the version found last time is used; if none has ever succeeded, nothing is shown. To turn the notice off, set `ATWZ_UPDATE_CHECK=0`, or create the file `_agent_team_work_zone/.no_update_check` (commit it to turn it off for everyone on the project).
+
+#### Changing your setup later
+
+To change an earlier choice, after moving the project to another machine, or to add an optional `CLAUDE.md` section you skipped, run from the project directory:
+
+```bash
+npx agent-team-work-zone reconfigure        # or, with a global install: atwz reconfigure
+```
+
+It asks the install questions again on the version you already have; it does not upgrade or reinstall anything. Details, including the command for a source install, are in the [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md).
 
 ---
 
