@@ -94,12 +94,14 @@ Agent Team Work Zone 把这些 agent 当作**真实的员工**来对待。在这
 
 ### 1. 前提
 
-- **Node.js 18 或更高版本**（只用来运行安装程序）
+- **Node.js 18 或更高版本**，只有用 npm 安装（方式一）时需要。从源码安装（方式二）不需要 Node.js，需要 git，或者把本仓库下载为 ZIP。
 - **bash**：Linux、macOS 或 Windows 上的 WSL（不支持原生 Windows）
 - **jq**（配置步骤用它把框架的 hook 写进 `.claude/settings.json`，没有它会停下）
 - **Claude Code 2.1.178 或更高版本**
 
 ### 2. 安装到你的项目
+
+#### 方式一：npm（推荐）
 
 在你的项目目录下（目录须已存在）：
 
@@ -110,9 +112,26 @@ npx agent-team-work-zone init --lang zh     # 英文版用 --lang en
 
 - 它把 `_agent_team_work_zone/` 放进你的项目，并运行其中的安装脚本。也可以不进入项目目录、直接给出路径：`npx agent-team-work-zone init /path/to/your/project --lang zh`。
 - 不给 `--lang` 时，在终端里会弹出语言菜单，否则使用英文版。
-- 项目里已有 `_agent_team_work_zone/` 时它会停下，不覆盖。要更新已有的安装，见下文「把框架升级到最新版」。
+- 项目里已有 `_agent_team_work_zone/` 时它会停下，不覆盖。要更新已有的安装，见下文[把框架升级到最新版](#把框架升级到最新版)。
 - 项目里已有 `.claude/` 目录时，安装会合并进去：你自己的 skill 和 agent，名字与框架不同的保留；与框架同名的会被框架的版本替换，而且没有备份，请先改名或自行备份。其他事件上的 hook 保留，但在 `SessionStart`、`TeammateIdle`、`SessionEnd` 三个 hook 事件上，框架的 hook 会替换你原有的（替换前先备份 `settings.json`）。怎么把自己的 hook 加回去，见[用户手册](claude_code/zh/_agent_team_work_zone/docs/user_manual.md)。
 - 偶尔用一次，就用 `npx agent-team-work-zone <命令>`；经常用的话，先 `npm i -g agent-team-work-zone` 装一次，之后用更短的 `atwz <命令>`（例如 `atwz init --lang zh`）。
+
+#### 方式二：从源码安装（不需要 Node.js）
+
+clone 本仓库（或在 GitHub 上下载 ZIP 并解压），把 work zone 复制进你的项目，再运行其中的安装脚本：
+
+```bash
+git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cp -r agent-team-work-zone/claude_code/zh/_agent_team_work_zone /path/to/your/project/   # 英文版用 claude_code/en/
+cd /path/to/your/project
+bash _agent_team_work_zone/install.sh
+```
+
+> **复制这一步不想用命令行？** 直接在文件管理器（Finder / Nautilus 等）里操作：进入 clone 下来的仓库，把 `claude_code/zh/_agent_team_work_zone`（或 `en/` 版）整个文件夹**复制**，**粘贴**到你的项目根目录下，再运行上面 `install.sh` 那一行。
+
+- 只往还没有 `_agent_team_work_zone/` 的项目里复制。项目里已经有时，复制不会被拦下：复制进去的每个文件都会覆盖原文件，包括 work zone 的 `README.md`（里面有你的「项目组成员」一节）和 `.gitignore`，而且不经过升级步骤。要更新已有的安装，见下文[把框架升级到最新版](#把框架升级到最新版)。
+- 项目里已有内容非空的 `.claude/` 目录时，`install.sh` 会先问是否合并进去（默认否；没有终端时停下，并打印之后完成安装用的命令）。合并方式与方式一相同。
+- 之后在项目目录下：升级用 `bash _agent_team_work_zone/upgrade.sh`，修改安装时的选择用 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`。
 
 > [!IMPORTANT]
 > **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
@@ -123,17 +142,6 @@ npx agent-team-work-zone init --lang zh     # 英文版用 --lang en
 > - teammate 从 lead 当前所在的目录启动——lead 在错的目录里运行（或它的 shell 切到了某个子目录），派生出的 teammate 也从那里启动，相对路径随之失效。
 >
 > 所以：先 `cd /path/to/your/project`，再运行 `claude`。把 home 目录本身当作项目也可以——只要 `_agent_team_work_zone/` 就在 home 目录下，并且在那里启动 Claude。但我们依然强烈推荐：在项目目录下使用该项目专有的 agent team work zone，并为它单独启动一个 Claude Code session。
-
-#### 从源码安装（另一种方式，不需要 Node.js）
-
-```bash
-git clone https://github.com/SR-A-W/agent-team-work-zone.git
-cp -r agent-team-work-zone/claude_code/zh/_agent_team_work_zone /path/to/your/project/   # 英文版用 claude_code/en/
-cd /path/to/your/project
-bash _agent_team_work_zone/install.sh
-```
-
-> **复制这一步不想用命令行？** 直接在文件管理器（Finder / Nautilus 等）里操作：进入 clone 下来的仓库，把 `claude_code/zh/_agent_team_work_zone`（或 `en/` 版）整个文件夹**复制**，**粘贴**到你的项目根目录下，再运行上面 `install.sh` 那一行。
 
 ### 3. 安装程序做了什么
 
@@ -224,9 +232,10 @@ npx agent-team-work-zone@latest upgrade
 
 ```bash
 npx agent-team-work-zone reconfigure        # 全局安装的也可以用：atwz reconfigure
+bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure   # 从源码安装的
 ```
 
-它在你已经安装的版本上重新询问安装时的问题，不升级、也不重装。细节（包括从源码安装时用的命令）见[用户手册](claude_code/zh/_agent_team_work_zone/docs/user_manual.md)。
+它在你已经安装的版本上重新询问安装时的问题，不升级、也不重装。细节见[用户手册](claude_code/zh/_agent_team_work_zone/docs/user_manual.md)。
 
 ---
 

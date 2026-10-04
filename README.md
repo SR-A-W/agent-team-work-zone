@@ -94,12 +94,14 @@ For any project with real complexity, we **strongly recommend team mode**. A tea
 
 ### 1. Requirements
 
-- **Node.js 18 or later** (only to run the installer)
+- **Node.js 18 or later**, only for the npm install (option 1). A source install (option 2) does not need Node.js; it needs git, or a ZIP download of this repository.
 - **bash**: Linux, macOS, or WSL on Windows (native Windows is not supported)
 - **jq** (the setup step uses it to add the framework's hooks to `.claude/settings.json`, and stops without it)
 - **Claude Code 2.1.178 or later**
 
 ### 2. Install into your project
+
+#### Option 1: npm (recommended)
 
 From your project directory (it must already exist):
 
@@ -110,9 +112,26 @@ npx agent-team-work-zone init --lang en     # or --lang zh for the Chinese editi
 
 - This puts `_agent_team_work_zone/` into your project and runs its installer. You can also name the project instead of changing into it: `npx agent-team-work-zone init /path/to/your/project --lang en`.
 - Without `--lang`, it shows a language menu when run in a terminal, and uses English otherwise.
-- It stops if `_agent_team_work_zone/` is already there. To update an existing install, see "Update the framework" below.
+- It stops if `_agent_team_work_zone/` is already there. To update an existing install, see [Update the framework to the latest version](#update-the-framework-to-the-latest-version) below.
 - If your project already has a `.claude/` directory, the install merges into it. Your own skills and agents are kept if their names differ from the framework's; one with the same name is replaced by the framework's version, with no backup, so rename or back it up first. Hooks on other events are kept, but on three hook events (`SessionStart`, `TeammateIdle`, `SessionEnd`) the framework's hooks replace yours, after `settings.json` is backed up. The [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md) explains how to add your hooks back.
 - For occasional use, run `npx agent-team-work-zone <command>`. If you use it often, install it once with `npm i -g agent-team-work-zone` and then use the shorter `atwz <command>` (for example `atwz init --lang en`).
+
+#### Option 2: from source (no Node.js needed)
+
+Clone the repository (or download it as a ZIP from GitHub and unpack it), copy the work zone into your project, and run its installer:
+
+```bash
+git clone https://github.com/SR-A-W/agent-team-work-zone.git
+cp -r agent-team-work-zone/claude_code/en/_agent_team_work_zone /path/to/your/project/   # or claude_code/zh/ for Chinese
+cd /path/to/your/project
+bash _agent_team_work_zone/install.sh
+```
+
+> **Prefer not to use the command line for the copy?** Do it in your file manager (Finder / Nautilus, etc.): open the cloned repo, **copy** the whole `claude_code/en/_agent_team_work_zone` (or `zh/`) folder, and **paste** it into your project's root directory, then run the `install.sh` line above.
+
+- Copy only into a project that does not have `_agent_team_work_zone/` yet. Nothing stops the copy if one is already there: it overwrites every file it copies in, including the work zone's `README.md` (with your "Project Team Members" section) and `.gitignore`, and skips the upgrade steps. To update an existing install, see [Update the framework to the latest version](#update-the-framework-to-the-latest-version) below.
+- If your project already has a `.claude/` directory with content, `install.sh` first asks whether to merge into it (default No; without a terminal it stops and prints the command to finish later). The merge works as described for option 1.
+- Later, from the project directory: upgrade with `bash _agent_team_work_zone/upgrade.sh`, and change your install-time choices with `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`.
 
 > [!IMPORTANT]
 > **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
@@ -123,17 +142,6 @@ npx agent-team-work-zone init --lang en     # or --lang zh for the Chinese editi
 > - teammates start in the lead's current directory — if the lead runs in the wrong directory (or its shell has moved into a subdirectory), its teammates start there too and their relative paths fail.
 >
 > So: `cd /path/to/your/project`, then run `claude`. Using your home directory *as* the project is fine, as long as `_agent_team_work_zone/` is directly inside it and you start Claude there. We still strongly recommend a project-specific agent team work zone inside the project directory, with its own separate Claude Code session.
-
-#### From source (alternative, no Node.js needed)
-
-```bash
-git clone https://github.com/SR-A-W/agent-team-work-zone.git
-cp -r agent-team-work-zone/claude_code/en/_agent_team_work_zone /path/to/your/project/   # or claude_code/zh/ for Chinese
-cd /path/to/your/project
-bash _agent_team_work_zone/install.sh
-```
-
-> **Prefer not to use the command line for the copy?** Do it in your file manager (Finder / Nautilus, etc.): open the cloned repo, **copy** the whole `claude_code/en/_agent_team_work_zone` (or `zh/`) folder, and **paste** it into your project's root directory, then run the `install.sh` line above.
 
 ### 3. What the installer sets up
 
@@ -224,9 +232,10 @@ To change an earlier choice, after moving the project to another machine, or to 
 
 ```bash
 npx agent-team-work-zone reconfigure        # or, with a global install: atwz reconfigure
+bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure   # installed from source
 ```
 
-It asks the install questions again on the version you already have; it does not upgrade or reinstall anything. Details, including the command for a source install, are in the [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md).
+It asks the install questions again on the version you already have; it does not upgrade or reinstall anything. Details are in the [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md).
 
 ---
 
