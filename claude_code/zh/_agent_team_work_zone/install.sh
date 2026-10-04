@@ -13,7 +13,8 @@
 #
 # What it does:
 #   1. Verifies it is run from within a recognizable project layout.
-#   2. Checks .claude/ does not already exist (avoids overwriting existing config).
+#   2. If .claude/ already has content, asks before merging into it; declined or no
+#      terminal → exit code 3 and the bootstrap command to run later.
 #   3. Invokes resources/scripts/bootstrap.sh to create .claude/skills/, .claude/agents/,
 #      and .claude/settings.json with the agent-teams env flag + hooks.
 #   4. Prints next steps.
@@ -59,18 +60,26 @@ echo ""
 CLAUDE_DIR="$PROJECT_ROOT/.claude"
 if [ -d "$CLAUDE_DIR" ] && [ -n "$(ls -A "$CLAUDE_DIR" 2>/dev/null)" ]; then
     _warn ".claude/ already exists and is non-empty at: $CLAUDE_DIR"
-    _warn "install.sh is for fresh installs only."
-    _warn "To refresh an existing install, run upgrade.sh instead."
+    _warn "Installing merges into it: .claude/settings.json is merged, and the framework's skills"
+    _warn "and agents are added or updated by name — your own skills and agents are left alone."
+    _warn "But the framework's SessionStart, TeammateIdle and SessionEnd hooks replace any hooks"
+    _warn "you have on those three events (settings.json is backed up first if you do)."
+    _warn "(To refresh an existing framework install, run _agent_team_work_zone/upgrade.sh instead.)"
     echo ""
-    printf 'Overwrite existing .claude/ configuration? [y/N] '
+    printf 'Install into the existing .claude/? [y/N] '
     if [ -t 0 ]; then
         read -r _ans || _ans=""
     else
         _ans=""
+        echo ""
     fi
     case "$_ans" in
-        [yY]|[yY][eE][sS]) _warn "Proceeding — existing .claude/ will be overwritten." ;;
-        *) echo "Install cancelled."; exit 0 ;;
+        [yY]|[yY][eE][sS]) _ok "Proceeding — merging into the existing .claude/." ;;
+        *)
+            echo "Install cancelled (nothing was changed in .claude/)."
+            echo "To finish the install later, run in the project directory:"
+            echo "  bash _agent_team_work_zone/resources/scripts/bootstrap.sh"
+            exit 3 ;;
     esac
     echo ""
 fi
@@ -100,5 +109,6 @@ echo "       /onboard <role> <responsibilities>"
 echo "     Example:"
 echo "       /onboard Architect \"Design system architecture and review code\""
 echo "  3. To upgrade the framework in the future:"
-echo "       bash _agent_team_work_zone/upgrade.sh"
+echo "       npx agent-team-work-zone@latest upgrade     (installed with npm)"
+echo "       bash _agent_team_work_zone/upgrade.sh        (installed from source)"
 echo ""

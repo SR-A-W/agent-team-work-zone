@@ -4,6 +4,46 @@
 
 ---
 
+## v1.0.0 (2026-10-04)
+
+MAJOR（无破坏性变更）：**用 npm 安装和升级**。agent 团队的工作方式没有变化；本版新增一种安装和升级框架的方式、有新版本时的提示，以及首次安装时的 git 检查。大版本号标记的是新的发行方式。`bash _agent_team_work_zone/upgrade.sh` 照常可用。
+
+### 新增
+- **npm 包** `agent-team-work-zone`（需要 Node.js 18 或更高版本，以及 bash 和 jq；不支持原生 Windows）：
+  - `npx agent-team-work-zone init [项目目录] [--lang zh|en]`：在项目里（不写目录就是当前目录）铺好 `_agent_team_work_zone/` 并运行安装脚本。项目里已有 `.claude/` 时合并安装：框架的 skill 和 agent 按名字新增或更新，你自己的保留，`.claude/settings.json` 合并（框架的 `SessionStart`、`TeammateIdle`、`SessionEnd` 三个 hook 会替换你在这三个事件上原有的 hook；如果你原来有，安装脚本会先把原文件另存为 `.claude/settings.json.bak.<时间戳>` 并打印路径）。工作区已存在时拒绝执行。不加 `--lang` 时，在终端里会询问语言，没有终端则用英文。
+  - `npx agent-team-work-zone upgrade [项目目录] [--yes]`：用包里自带的版本升级已有安装，不需要下载；会自动识别已安装的语言。
+  - `--version` 和 `help`。
+  - 用 `npm i -g agent-team-work-zone` 全局安装一次，就能使用短命令 `atwz`（`atwz init`、`atwz upgrade`）。另有一个名为 `atwz` 的小包，让 `npx atwz …` 也能用；两者只全局安装其中一个。
+- **新版本提示**：Claude Code 启动时，一个 hook 会比较你的版本和已发布的最新版本；落后时打印升级命令（npm 方式和源码方式），并提醒升级后重启会话。它每天最多查询一次最新版本号，在后台进行（发现新版本后，每次会话启动都会提示，直到你升级），任何失败都不输出，因此不会拖慢或卡住会话启动。用 `ATWZ_UPDATE_CHECK=0` 或新建 `_agent_team_work_zone/.no_update_check` 关闭。
+- **首次安装时的 git 检查**：项目不在 git 仓库里，或工作区不在仓库根目录时，安装脚本会给出警告。在仓库根目录时，会询问是否把 `_agent_team_work_zone/` 纳入 git（强烈推荐，默认是）；回答否则把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`。没有终端时不询问，保持纳入。升级时从不询问。
+- `UPGRADE_SOURCE_DIR=<目录> bash _agent_team_work_zone/upgrade.sh`：从本地的一份框架升级，不用下载。
+
+### 变更
+- **大版本升级**现在会先说明新的大版本改了什么、升级会覆盖哪些内容（框架文件；各 README 里由框架维护的守则段会被刷新，有备份；`.claude/settings.json` 会重新合并）、哪些不受影响（你在工位和 `meeting_room/` 里写的内容、注册表、`settings.conf` 等数据），并建议先把 `_agent_team_work_zone/` 提交到 git；升级本身不做备份。在终端里确认，或在没有终端时用 `--yes`（`ATWZ_ASSUME_YES=1`）确认。两者都没有时以退出码 3 取消，并说明如何确认（原来只打印 "Upgrade cancelled" 并以 0 退出）。
+- 升级结束时提示：重启 Claude Code 会话，并对正在运行的团队执行 `/reactivate-team`——已在运行的会话和成员可能仍在用旧版 skill。
+- 源码方式安装（`install.sh`）时，若项目已有 `.claude/` 目录：提问改为说明实际会发生什么（即上面 `init` 所述的合并）；拒绝或没有终端时以退出码 3 退出，并打印完成安装的命令（`bash _agent_team_work_zone/resources/scripts/bootstrap.sh`）。原来以 0 退出。结尾提示现在给出两条升级命令（npm 方式和源码方式）。
+- 升级现在也会把顶层的 `_agent_team_work_zone/upgrade.sh` 换成新版（在旧版正在运行时也能安全替换）。
+- 可选的 `CLAUDE.md` 段落"给用户的消息（格式）"现在要求标题用一级 Markdown 标题（`# To Be Read By User`），下面跟一行加粗的状态行，更醒目。可选段落只会被追加、不会被改写，所以如果你之前已经加过这一段，你的 `CLAUDE.md` 里仍是旧写法：请参照 `resources/claude_md_optional/user_message_format.md` 手动更新。
+- `docs/upgrade_guide.md`：新增 npm、从本地目录升级、大版本升级、新版本提示、升级之后该做什么几节。
+
+### 修复
+- 运行安装脚本不再改变已有的 `.claude/settings.json` 的文件权限（原来会变成 `600`）。hook 命令里的项目路径加了引号，路径含空格时也能运行。在确认这一步取消的升级、以及发现已是最新版的升级，不再在 `_agent_team_work_zone/.upgrade/` 里留下一份新框架。
+
+### 已知问题
+- 如果你的 `CLAUDE.md` 里框架段落的标题是另一种语言（或被改过名），再次运行安装脚本或升级时，会再追加一份这些段落（再次运行安装脚本时还会把首次安装的问题再问一遍；升级时不会询问）。已有内容不会被修改或删除，重复的部分请手动删掉。计划修复。
+- 你自己的 skill 或 agent 若与框架的同名，会被框架的替换，且没有备份。安装前请先改名（或自行备份）。
+- 你重新加回 `SessionStart`、`TeammateIdle`、`SessionEnd` 上的 hook，在下一次安装或升级时会再次被替换（每次都会另存一份 `settings.json.bak.<时间戳>`）。其他事件上的 hook 会保留。
+- 安装和升级都需要 `jq`（用来写入和合并 `.claude/settings.json`）；没有 `jq` 时会以退出码 1 停下。安装脚本自己检查 `jq` 时仍说它是可选的，这个说法是错的。
+- 同时全局安装 `agent-team-work-zone` 和 `atwz` 会失败，因为两者都提供 `atwz` 命令；只装其中一个。
+- 新脚本对 macOS 的兼容只做了代码阅读，还没有在 Mac 上实际运行过。
+
+### Migration（v0.5.0 → v1.0.0）
+- **用 npm**：`npx agent-team-work-zone@latest upgrade`（没有终端时加 `--yes`）。**用源码**：`bash _agent_team_work_zone/upgrade.sh`。
+- 这是大版本，升级会要求确认，并列出会覆盖的内容。没有用户数据迁移；工作守则本版没有变化，所以不会产生 `.rules.bak`。
+- 升级后请重启 Claude Code 会话，并对正在运行的团队执行 `/reactivate-team`。
+
+---
+
 ## v0.5.0 (2026-10-04)
 
 MINOR（向后兼容）：**能区分"根本没启动"的 teammate 并让它保持可达、共享工作目录的守则、可选的 checkpoint git 保存与 git 锁、广播规则变更的 skill、可选的 CLAUDE.md 段落，以及不碰你自己文件的升级**。

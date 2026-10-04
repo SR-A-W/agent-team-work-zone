@@ -51,6 +51,18 @@ MIGRATIONS_DIR="$SCRIPT_DIR/migrations"
 # shellcheck source=./migrations/common.sh
 . "$MIGRATIONS_DIR/common.sh"
 
+# clean_staging — empty the .upgrade/ staging area, keeping its placeholder README.md.
+# Called after a completed upgrade AND on every early exit that upgraded nothing
+# (already up to date, declined, major upgrade not confirmed), so the source entry
+# (upgrade.sh) and the npm entry leave the same state. NOT called after a failure:
+# then the staged copy is kept for inspection. Only ever touches a directory named
+# .upgrade directly inside the install.
+clean_staging() {
+    [ -d "$UPGRADE_DIR" ] && [ "$(basename "$UPGRADE_DIR")" = ".upgrade" ] \
+        && [ "$(cd "$UPGRADE_DIR/.." && pwd)" = "$TARGET_DIR" ] || return 0
+    find "$UPGRADE_DIR" -mindepth 1 -maxdepth 1 ! -name README.md -exec rm -rf {} + 2>/dev/null || true
+}
+
 # mirrors choose_option in resources/scripts/bootstrap.sh — keep in sync
 # choose_option — arrow-key selection menu
 # Usage: idx=$(choose_option <default_idx> "<title>" "<opt0>" "<opt1>" ...)
@@ -191,11 +203,17 @@ CURRENT="$TGT_VER"
 
 if ! version_lt "$CURRENT" "$SRC_VER"; then
     print_success "Already up-to-date ($CURRENT ≥ $SRC_VER). Nothing to do."
+    clean_staging
     exit 0
 fi
 
 # --- MAJOR version bump: warn and require confirmation before proceeding. ---
 # Skip when TGT_VER is v0.0.0 (fresh install — no user state to worry about).
+# Before asking, print every "# MAJOR-NOTICE: <text>" comment line from the
+# migration(s) in this chain that cross a major version, so each major release
+# can explain itself without changing this script. No backup is made here.
+# Confirmation: ATWZ_ASSUME_YES=1 → yes; a terminal → ask (default No);
+# neither → cancel with exit code 3 and say how to confirm.
 if [ "$TGT_VER" != "v0.0.0" ]; then
     parse_version "$TGT_VER"; old_major=$MAJOR
     parse_version "$SRC_VER"; new_major=$MAJOR
@@ -203,19 +221,40 @@ if [ "$TGT_VER" != "v0.0.0" ]; then
         print_warn "=================================================="
         print_warn "  MAJOR VERSION UPGRADE: $TGT_VER → $SRC_VER"
         print_warn "=================================================="
-        print_warn "This may include breaking changes."
-        print_warn "Review $TARGET_DIR/CHANGELOG.md before proceeding."
-        if [ -t 0 ]; then
+        _cur="$TGT_VER"; _had_notice=0
+        while version_lt "$_cur" "$SRC_VER"; do
+            _line="$(awk -F'\t' -v cur="$_cur" '$2 == cur { print; exit }' "$MIG_INDEX")"
+            [ -n "$_line" ] || break
+            IFS=$'\t' read -r _ _mf _mt _mp <<< "$_line"
+            parse_version "$_mf"; _fm=$MAJOR
+            parse_version "$_mt"; _tm=$MAJOR
+            if [ "$_tm" -gt "$_fm" ] && [ -f "$_mp" ]; then
+                while IFS= read -r _n; do
+                    printf '  %s\n' "$_n"; _had_notice=1
+                done < <(sed -n 's/^# MAJOR-NOTICE: \{0,1\}//p' "$_mp")
+            fi
+            _cur="$_mt"
+        done
+        [ "$_had_notice" = 1 ] || print_warn "This may include breaking changes."
+        print_step "This upgrade overwrites framework files (resources/, docs/, the framework blocks of README.md, CHANGELOG.md, upgrade.sh). What you wrote in your workstations and meeting_room/, the registries (TEAMMATE_INFO.json) and settings.conf are not affected. The framework-maintained rules block in each README is refreshed (the old block is backed up), and .claude/settings.json is merged again (the framework hooks on SessionStart, TeammateIdle and SessionEnd replace yours there; settings.json is backed up first if you had any)."
+        print_step "Recommended: commit _agent_team_work_zone/ to git before upgrading — this upgrade makes no backup of its own."
+        print_step "What changed in this release: $UPGRADE_DIR/CHANGELOG.md"
+        if [ "${ATWZ_ASSUME_YES:-0}" = "1" ]; then
+            print_step "ATWZ_ASSUME_YES=1 — continuing without asking."
+            _MAJOR_IDX=0
+        elif [ -t 0 ]; then
             _MAJOR_IDX=$(choose_option 1 \
                 "Major version upgrade (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
                 "Yes — continue upgrade" \
                 "No  — cancel")
         else
-            _MAJOR_IDX=1
+            print_warn "This is a major-version upgrade and there is no terminal to confirm it."
+            print_warn "Run it in a terminal, or confirm with ATWZ_ASSUME_YES=1 (npm: add --yes)."
+            echo "Upgrade cancelled."; clean_staging; exit 3
         fi
         case "$_MAJOR_IDX" in
             0) ;;
-            *) echo "Upgrade cancelled."; exit 0 ;;
+            *) echo "Upgrade cancelled."; clean_staging; exit 0 ;;
         esac
     fi
 fi
@@ -306,7 +345,7 @@ echo ""
 # Only reached when bootstrap.sh succeeds; staging is no longer needed.
 print_header "Cleaning up staging area"
 if [ -d "$UPGRADE_DIR" ]; then
-    find "$UPGRADE_DIR" -mindepth 1 ! -name README.md -exec rm -rf {} + 2>/dev/null || true
+    clean_staging
     print_success "Staging area cleaned (README.md preserved)"
 fi
 
@@ -315,6 +354,6 @@ print_header "Upgrade complete: $TGT_VER → $SRC_VER"
 echo ""
 echo "Next steps:"
 echo "  1. Review the CHANGELOG:   $TARGET_DIR/CHANGELOG.md"
-echo "  2. In active Claude Code sessions, run /sync to pick up new skills."
-echo "  3. If any teammate was mid-task, ask the team lead to /reactivate-team."
+echo "  2. Restart your Claude Code sessions, and for each running team have its lead run /reactivate-team:"
+echo "     sessions and teammates that were already running may still be using the old skills."
 echo ""

@@ -13,7 +13,7 @@ cat _agent_team_work_zone/VERSION
 
 Version numbers follow SemVer `vMAJOR.MINOR.PATCH`:
 
-- **MAJOR (X)**: breaking architectural changes
+- **MAJOR (X)**: breaking changes, or a major change in how the framework is installed and upgraded (the upgrade asks for confirmation)
 - **MINOR (Y)**: new features (new skills / agents / hooks), backward compatible
 - **PATCH (Z)**: documentation revisions, bug fixes, fully backward compatible
 
@@ -91,6 +91,46 @@ The script will:
 5. Clean up the staging area (preserves `.upgrade/README.md` as the directory placeholder)
 
 **Zero arguments, zero config files, zero residue.** On failure, exits non-zero and preserves staging for debugging; the temp download dir is auto-cleaned by an EXIT trap.
+
+### With npm
+
+The framework is also published as the npm package `agent-team-work-zone` (needs Node.js 18 or later and `bash`; native Windows is not supported). Run it with `npx agent-team-work-zone <command>`, or install it once with `npm i -g agent-team-work-zone` and use the short name `atwz <command>`:
+
+```bash
+npx agent-team-work-zone init [project-dir] --lang en   # new project: lays out _agent_team_work_zone/ and runs bootstrap
+npx agent-team-work-zone upgrade [project-dir]          # existing install: upgrades to the version inside the package
+npx agent-team-work-zone --version                      # package version and the framework version it carries
+```
+
+`[project-dir]` is the project root; it defaults to the current directory, accepts `~` and relative paths, and must already exist.
+
+For a global install, install only the main package `agent-team-work-zone` — it already provides the `atwz` command. The separate `atwz` package exists only for `npx atwz`; do not install it globally next to the main package (both provide an `atwz` command).
+
+`upgrade` uses the templates shipped in the package (nothing is downloaded) and then runs the same migration chain and `bootstrap.sh` as the one-button script. It detects the install's language from `_agent_team_work_zone/upgrade.sh`; pass `--lang zh|en` if it cannot. `init` refuses to run where `_agent_team_work_zone/` already exists.
+
+### Upgrading from a local directory
+
+`bash _agent_team_work_zone/upgrade.sh` can take an already-unpacked new-version template instead of downloading one:
+
+```bash
+UPGRADE_SOURCE_DIR=/path/to/claude_code/en/_agent_team_work_zone bash _agent_team_work_zone/upgrade.sh
+```
+
+### Major-version upgrades
+
+When an upgrade crosses a major version (for example v1.x → v2.x), the dispatcher first prints what that release changes, then asks for confirmation (default No):
+
+- The upgrade overwrites framework files (`resources/`, `docs/`, the framework blocks of `README.md`, `CHANGELOG.md`, `upgrade.sh`). What you wrote in your workstations and `meeting_room/`, the registries (`TEAMMATE_INFO.json`) and `settings.conf` are not affected. The framework-maintained rules block in each README is refreshed (the old block is backed up), and `.claude/settings.json` is merged again: the framework's `SessionStart`, `TeammateIdle` and `SessionEnd` hooks replace yours on those events (if you had any, `settings.json` is first backed up as `settings.json.bak.<timestamp>`).
+- **No backup is made.** Commit `_agent_team_work_zone/` to git before upgrading, so you can roll back (see "How to roll back").
+- Without a terminal the upgrade is cancelled (exit code 3) unless you confirm with `ATWZ_ASSUME_YES=1` (npm: `upgrade --yes`).
+
+### After upgrading
+
+After an upgrade, restart your Claude Code sessions, and for each team that is running, have its lead run `/reactivate-team` — sessions and teammates that were already running may still be using the old skills.
+
+### Update notice
+
+At the start of each Claude Code session, `resources/scripts/check_update.sh` (a SessionStart hook installed by `bootstrap.sh`) compares your installed `VERSION` with the latest version of the npm package `agent-team-work-zone`, and prints a short notice when you are behind. It only tells you; it never upgrades anything. It looks the version up at most once every 24 hours, in the background, so session start does not wait for it; the result is cached in `_agent_team_work_zone/.upgrade/update_check`. Without network or `curl` it stays silent. To turn it off, set `ATWZ_UPDATE_CHECK=0`, or create the file `_agent_team_work_zone/.no_update_check` (commit it to turn it off for everyone on the project).
 
 ### Fork users
 

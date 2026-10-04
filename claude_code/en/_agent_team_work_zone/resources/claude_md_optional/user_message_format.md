@@ -3,7 +3,7 @@
 
 - Don't flood the user. Skip small progress; batch what you can.
 - A message to the user that was triggered by a teammate's or subagent's report starts with **Team brief:** followed by one or two short sentences.
-- Anything the user should read or decide starts with the heading **To Be Read By User**. The first line under it is a status line with exactly one of:
+- Anything the user should read or decide starts with a level-1 Markdown heading on its own line — `# To Be Read By User` — so that it renders bold, large and prominent; plain bold text is not enough. The first line under the heading is the status line, written in bold (for example `**Status: Decision needed**`), with exactly one of:
   - **Decision needed**: the user must decide; work is blocked without an answer.
   - **Progress**: a report; nothing for the user to do.
   - **Correction**: this withdraws or corrects something you told the user earlier. Say what you said before and what is true now.

@@ -51,6 +51,18 @@ MIGRATIONS_DIR="$SCRIPT_DIR/migrations"
 # shellcheck source=./migrations/common.sh
 . "$MIGRATIONS_DIR/common.sh"
 
+# clean_staging — empty the .upgrade/ staging area, keeping its placeholder README.md.
+# Called after a completed upgrade AND on every early exit that upgraded nothing
+# (already up to date, declined, major upgrade not confirmed), so the source entry
+# (upgrade.sh) and the npm entry leave the same state. NOT called after a failure:
+# then the staged copy is kept for inspection. Only ever touches a directory named
+# .upgrade directly inside the install.
+clean_staging() {
+    [ -d "$UPGRADE_DIR" ] && [ "$(basename "$UPGRADE_DIR")" = ".upgrade" ] \
+        && [ "$(cd "$UPGRADE_DIR/.." && pwd)" = "$TARGET_DIR" ] || return 0
+    find "$UPGRADE_DIR" -mindepth 1 -maxdepth 1 ! -name README.md -exec rm -rf {} + 2>/dev/null || true
+}
+
 # mirrors choose_option in resources/scripts/bootstrap.sh — keep in sync
 # choose_option — arrow-key selection menu
 # Usage: idx=$(choose_option <default_idx> "<title>" "<opt0>" "<opt1>" ...)
@@ -191,11 +203,17 @@ CURRENT="$TGT_VER"
 
 if ! version_lt "$CURRENT" "$SRC_VER"; then
     print_success "Already up-to-date ($CURRENT ≥ $SRC_VER). Nothing to do."
+    clean_staging
     exit 0
 fi
 
 # --- MAJOR version bump: warn and require confirmation before proceeding. ---
 # Skip when TGT_VER is v0.0.0 (fresh install — no user state to worry about).
+# Before asking, print every "# MAJOR-NOTICE: <text>" comment line from the
+# migration(s) in this chain that cross a major version, so each major release
+# can explain itself without changing this script. No backup is made here.
+# Confirmation: ATWZ_ASSUME_YES=1 → yes; a terminal → ask (default No);
+# neither → cancel with exit code 3 and say how to confirm.
 if [ "$TGT_VER" != "v0.0.0" ]; then
     parse_version "$TGT_VER"; old_major=$MAJOR
     parse_version "$SRC_VER"; new_major=$MAJOR
@@ -203,19 +221,40 @@ if [ "$TGT_VER" != "v0.0.0" ]; then
         print_warn "=================================================="
         print_warn "  MAJOR VERSION UPGRADE: $TGT_VER → $SRC_VER"
         print_warn "=================================================="
-        print_warn "This may include breaking changes."
-        print_warn "Review $TARGET_DIR/CHANGELOG.md before proceeding."
-        if [ -t 0 ]; then
+        _cur="$TGT_VER"; _had_notice=0
+        while version_lt "$_cur" "$SRC_VER"; do
+            _line="$(awk -F'\t' -v cur="$_cur" '$2 == cur { print; exit }' "$MIG_INDEX")"
+            [ -n "$_line" ] || break
+            IFS=$'\t' read -r _ _mf _mt _mp <<< "$_line"
+            parse_version "$_mf"; _fm=$MAJOR
+            parse_version "$_mt"; _tm=$MAJOR
+            if [ "$_tm" -gt "$_fm" ] && [ -f "$_mp" ]; then
+                while IFS= read -r _n; do
+                    printf '  %s\n' "$_n"; _had_notice=1
+                done < <(sed -n 's/^# MAJOR-NOTICE: \{0,1\}//p' "$_mp")
+            fi
+            _cur="$_mt"
+        done
+        [ "$_had_notice" = 1 ] || print_warn "This may include breaking changes."
+        print_step "这次升级覆盖框架文件（resources/、docs/、README.md 的框架段、CHANGELOG.md、upgrade.sh）。你在工位和 meeting_room/ 里写的内容、注册表（TEAMMATE_INFO.json）、settings.conf 不受影响；各 README 里由框架维护的守则段会被刷新（旧块有备份）；.claude/settings.json 会重新合并（SessionStart、TeammateIdle、SessionEnd 三个事件上的 hook 换成框架的；你在这三个事件上有自己的 hook 时，会先备份 settings.json）。"
+        print_step "建议升级前先把 _agent_team_work_zone/ 提交到 git——升级本身不做备份。"
+        print_step "本版改动见：$UPGRADE_DIR/CHANGELOG.md"
+        if [ "${ATWZ_ASSUME_YES:-0}" = "1" ]; then
+            print_step "ATWZ_ASSUME_YES=1 —— 不再询问，继续升级。"
+            _MAJOR_IDX=0
+        elif [ -t 0 ]; then
             _MAJOR_IDX=$(choose_option 1 \
                 "主版本升级确认 (↑↓ 切换，回车确认，数字键快选):" \
                 "Yes — 继续升级" \
                 "No  — 取消")
         else
-            _MAJOR_IDX=1
+            print_warn "这是一次主版本升级，但没有终端可以确认。"
+            print_warn "请在终端里运行；或用 ATWZ_ASSUME_YES=1 确认（npm 方式：加 --yes）。"
+            echo "升级已取消。"; clean_staging; exit 3
         fi
         case "$_MAJOR_IDX" in
             0) ;;
-            *) echo "升级已取消。"; exit 0 ;;
+            *) echo "升级已取消。"; clean_staging; exit 0 ;;
         esac
     fi
 fi
@@ -306,7 +345,7 @@ echo ""
 # Only reached when bootstrap.sh succeeds; staging is no longer needed.
 print_header "Cleaning up staging area"
 if [ -d "$UPGRADE_DIR" ]; then
-    find "$UPGRADE_DIR" -mindepth 1 ! -name README.md -exec rm -rf {} + 2>/dev/null || true
+    clean_staging
     print_success "Staging area cleaned (README.md preserved)"
 fi
 
@@ -315,6 +354,6 @@ print_header "Upgrade complete: $TGT_VER → $SRC_VER"
 echo ""
 echo "Next steps:"
 echo "  1. Review the CHANGELOG:   $TARGET_DIR/CHANGELOG.md"
-echo "  2. In active Claude Code sessions, run /sync to pick up new skills."
-echo "  3. If any teammate was mid-task, ask the team lead to /reactivate-team."
+echo "  2. 升级完成后请重启 Claude Code 会话，并对正在运行的团队执行 /reactivate-team——"
+echo "     已在运行的会话和成员可能仍在用旧版 skill。"
 echo ""

@@ -4,6 +4,46 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v1.0.0 (2026-10-04)
+
+MAJOR (no breaking change): **install and upgrade with npm**. How your agent teams work is unchanged; this release adds a new way to install and upgrade the framework, a notice when a newer version is out, and a git check on first install. The major version marks the new distribution channel. `bash _agent_team_work_zone/upgrade.sh` keeps working as before.
+
+### Added
+- **npm package** `agent-team-work-zone` (Node.js 18 or later, plus bash and jq; native Windows is not supported):
+  - `npx agent-team-work-zone init [project-dir] [--lang zh|en]` sets up `_agent_team_work_zone/` in a project (the current directory if none is given) and runs the installer. If the project already has a `.claude/` directory, it merges into it: framework skills and agents are added or updated by name, your own are kept, and `.claude/settings.json` is merged (the framework's `SessionStart`, `TeammateIdle` and `SessionEnd` hooks replace any you had for those three events; if you had any, your original file is first saved as `.claude/settings.json.bak.<timestamp>` and the installer prints its path). It refuses if the work zone already exists. Without `--lang` it asks when run in a terminal, and uses English otherwise.
+  - `npx agent-team-work-zone upgrade [project-dir] [--yes]` upgrades an existing install from the package itself, with no download. It detects the installed language.
+  - `--version` and `help`.
+  - Install it once with `npm i -g agent-team-work-zone` to get the short command `atwz` (`atwz init`, `atwz upgrade`). A small package named `atwz` also exists so that `npx atwz …` works; install only one of the two globally.
+- **New-version notice**: when Claude Code starts, a hook compares your version with the latest published one and, if yours is older, prints the upgrade commands (npm and source) and the reminder to restart sessions afterwards. It looks up the latest version at most once a day, in the background (once a newer version is found, every session start shows the notice until you upgrade), and stays silent on any failure, so it never slows down or blocks a session. Turn it off with `ATWZ_UPDATE_CHECK=0` or by creating `_agent_team_work_zone/.no_update_check`.
+- **Git check on first install**: if the project is not in a git repository, or the work zone is not at the repository root, the installer warns. At the repository root it asks whether to track `_agent_team_work_zone/` in git (strongly recommended; default yes). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`. Without a terminal it does not ask and leaves tracking on. Upgrades never ask.
+- `UPGRADE_SOURCE_DIR=<dir> bash _agent_team_work_zone/upgrade.sh` upgrades from a local copy of the framework instead of downloading it.
+
+### Changed
+- **Major-version upgrades** now print what the new major version changes, what the upgrade overwrites (framework files; the framework-maintained rules blocks in READMEs are refreshed, with backup; `.claude/settings.json` is merged again) and what it leaves alone (what you wrote in your workstations and `meeting_room/`, registries, `settings.conf` and other data), and suggest committing `_agent_team_work_zone/` to git first; the upgrade itself makes no backup. Confirm in a terminal, or with `--yes` (`ATWZ_ASSUME_YES=1`) when there is no terminal. Without either it cancels with exit code 3 and says how to confirm (it used to print only "Upgrade cancelled" and exit 0).
+- At the end of an upgrade: restart your Claude Code sessions and run `/reactivate-team` for running teams — sessions and teammates that were already running may still use the old skills.
+- Source install (`install.sh`) in a project that already has a `.claude/` directory: the question now says what actually happens (a merge, as described above for `init`); declining, or running without a terminal, exits with code 3 and prints the command to finish the install (`bash _agent_team_work_zone/resources/scripts/bootstrap.sh`). It used to exit 0. Its closing message now gives both upgrade commands (npm and source).
+- The upgrade now also replaces the top-level `_agent_team_work_zone/upgrade.sh` with the new version (safely, while the old one is running).
+- The optional "Messages to the user (format)" `CLAUDE.md` section now asks for the heading to be a level-1 Markdown heading (`# To Be Read By User`) followed by a bold status line, so it stands out. Optional sections are only ever appended, so if you added this section earlier, your `CLAUDE.md` keeps the old wording: update it by hand from `resources/claude_md_optional/user_message_format.md`.
+- `docs/upgrade_guide.md`: new sections on npm, upgrading from a local directory, major-version upgrades, the new-version notice, and what to do after an upgrade.
+
+### Fixed
+- Running the installer no longer changes the file mode of an existing `.claude/settings.json` (it used to become `600`). Hook commands now quote the project path, so they also work when the path contains spaces. An upgrade cancelled at the confirmation step, or one that finds you are already up to date, no longer leaves a copy of the new framework in `_agent_team_work_zone/.upgrade/`.
+
+### Known issues
+- If your `CLAUDE.md` contains the framework sections under headings in the other language (or under renamed headings), running the installer again, or upgrading, appends a second copy of those sections (running the installer again also repeats the first-install questions; an upgrade does not ask). Nothing existing is changed or removed; delete the duplicate by hand. A fix is planned.
+- A skill or agent of your own that has the same name as a framework one is replaced by the framework's, without a backup. Rename yours (or back it up) before installing.
+- Hooks you add again to `SessionStart`, `TeammateIdle` or `SessionEnd` are replaced again at the next install or upgrade (a new `settings.json.bak.<timestamp>` is made each time). Hooks on other events are kept.
+- `jq` is required by the installer and the upgrade (to write and merge `.claude/settings.json`); without it they stop with exit code 1. The installer's own `jq` check still calls it optional, which is wrong.
+- Installing both `agent-team-work-zone` and `atwz` globally fails because both provide the `atwz` command; install only one.
+- The new scripts were checked for macOS by reading the code; they have not yet been run on a Mac.
+
+### Migration (v0.5.0 → v1.0.0)
+- **With npm**: `npx agent-team-work-zone@latest upgrade` (add `--yes` when there is no terminal). **From source**: `bash _agent_team_work_zone/upgrade.sh`.
+- This is a major version, so the upgrade asks you to confirm and shows what it overwrites. No user data is migrated, and the work rules did not change, so no `.rules.bak` files are created.
+- After upgrading, restart your Claude Code sessions and run `/reactivate-team` for running teams.
+
+---
+
 ## v0.5.0 (2026-10-04)
 
 MINOR (backward compatible): **teammates you can tell apart from "never started" and keep reachable, rules for a shared working tree, optional checkpoint saving in git with a git lock, a skill for broadcasting rule changes, optional CLAUDE.md sections, and upgrades that leave your own files alone**.

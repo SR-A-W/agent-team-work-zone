@@ -5,8 +5,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_start_check.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_start_check.sh\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/scripts/check_update.sh\"",
+            "timeout": 5
           }
         ]
       }
@@ -16,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/teammate_idle_checkpoint.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/teammate_idle_checkpoint.sh\"",
             "timeout": 10
           }
         ]
@@ -27,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_end_final_checkpoint.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/{{TEMPLATE_REL}}/resources/hooks/session_end_final_checkpoint.sh\"",
             "timeout": 30
           }
         ]

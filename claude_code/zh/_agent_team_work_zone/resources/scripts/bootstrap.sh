@@ -293,22 +293,50 @@ EOF
 else
     # Existing settings: merge env flag AND hooks
     if [ "$HAS_JQ" -eq 1 ]; then
+        # The template's three hook events (SessionStart, TeammateIdle, SessionEnd) will
+        # REPLACE whatever is on them (jq '*' replaces arrays); other events, e.g. a user's
+        # own PreToolUse, are kept. If the user has hooks of their own on those three
+        # events — commands that are not framework hooks; framework hooks of any version
+        # run scripts under <TEMPLATE_REL>/resources/ — back the ORIGINAL settings.json up
+        # before anything is rewritten (cp -p keeps its mode). A re-run finds only
+        # framework hooks there, so it makes no new backup.
+        TEMPLATE_REL="${TEMPLATE_ROOT#$PROJECT_ROOT/}"
+        SETTINGS_BAK=""
+        USER_HOOKS=0
+        if [ -f "$HOOKS_TEMPLATE" ]; then
+            USER_HOOKS="$(jq -r --arg rel "$TEMPLATE_REL/resources/" '
+                [ (.hooks // {}) as $h
+                  | ("SessionStart", "TeammateIdle", "SessionEnd") as $e
+                  | ($h[$e] // [])[] | (.hooks // [])[] | (.command // "")
+                  | select(contains($rel) | not) ] | length' "$SETTINGS_JSON" 2>/dev/null || echo 0)"
+            if [ "${USER_HOOKS:-0}" != "0" ]; then
+                SETTINGS_BAK="$SETTINGS_JSON.bak.$(date -u +%Y%m%d%H%M%S)"
+                cp -p "$SETTINGS_JSON" "$SETTINGS_BAK"
+            fi
+        fi
+
+        # Write merged results back with cat > (not mv): settings.json keeps its mode.
         TMP="$(mktemp)"
         jq '.env = (.env // {}) | .env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"' "$SETTINGS_JSON" >"$TMP"
-        mv "$TMP" "$SETTINGS_JSON"
+        cat "$TMP" > "$SETTINGS_JSON"; rm -f "$TMP"
         echo "  ↻ merged CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 into existing $SETTINGS_JSON"
 
-        # Also merge hooks (template wins for our 4 event keys)
+        # Also merge hooks (see above: the template's three events replace the user's).
         if [ -f "$HOOKS_TEMPLATE" ]; then
             RESOLVED="$(mktemp)"
-            sed "s|{{TEMPLATE_REL}}|${TEMPLATE_ROOT#$PROJECT_ROOT/}|g" "$HOOKS_TEMPLATE" > "$RESOLVED"
+            sed "s|{{TEMPLATE_REL}}|$TEMPLATE_REL|g" "$HOOKS_TEMPLATE" > "$RESOLVED"
             TMP="$(mktemp)"
             jq -s '.[0] * .[1]' "$SETTINGS_JSON" "$RESOLVED" >"$TMP"
-            mv "$TMP" "$SETTINGS_JSON"
+            cat "$TMP" > "$SETTINGS_JSON"; rm -f "$TMP"
             rm -f "$RESOLVED"
             echo "  ↻ merged teammate-persistence hooks into $SETTINGS_JSON"
-            echo "    (if you had customized SessionStart / TeammateIdle / UserPromptSubmit / SessionEnd"
-            echo "    hooks manually, they have been overwritten; re-merge your customizations)"
+            if [ -n "$SETTINGS_BAK" ]; then
+                echo "  ⚠ You had $USER_HOOKS hook(s) of your own on SessionStart / TeammateIdle / SessionEnd;"
+                echo "    on those three events the framework's hooks have replaced them. Your previous"
+                echo "    settings are saved in:"
+                echo "      $SETTINGS_BAK"
+                echo "    Re-add your hooks from there if you still need them (other events were kept)."
+            fi
         fi
     else
         echo "  ⚠ $SETTINGS_JSON already exists and jq is not available."
@@ -387,6 +415,50 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
                     printf '  · 未追加：「%s」\n' "$title" ;;
             esac
         done
+    fi
+    echo ""
+fi
+
+# --- 5c. Git tracking of the work zone (first install only, never on upgrade) ---
+# Same first-install test as 5b. Needs git (3b already reported if it is missing).
+#   - project not inside a git repository  → warning + why tracking it helps
+#   - inside a repository but not its root → warning: keep the work zone at the project root
+#   - at the repository root               → ask whether to track _agent_team_work_zone/ (default Y);
+#     n → append "/_agent_team_work_zone/" to the PROJECT ROOT .gitignore (created if missing —
+#     the user asked for it), append-only and idempotent; no terminal → treated as Y, nothing written.
+if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" != "1" ] && [ "$CLAUDE_MD_FIRST_INSTALL" = "1" ] \
+   && command -v git >/dev/null 2>&1; then
+    echo "--- git ---"
+    GIT_TOP="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
+    PROJECT_REAL="$(cd "$PROJECT_ROOT" && pwd -P)"
+    if [ -z "$GIT_TOP" ]; then
+        echo "⚠ 这个项目不在 git 仓库里。"
+        echo "  把 _agent_team_work_zone/ 纳入 git，agent 的项目记忆就有了备份、可以回滚，换一台机器能拉起同一支团队，多人也能通过 git push / pull 协作。开始：git init"
+    elif [ "$(cd "$GIT_TOP" && pwd -P)" != "$PROJECT_REAL" ]; then
+        printf '%s\n' "$(printf '⚠ 这个项目在 git 仓库 %s 里，但不是仓库的根目录。' "$GIT_TOP")"
+        echo "  _agent_team_work_zone/ 应放在项目根目录（即仓库根目录），并在那里启动 Claude Code。"
+    else
+        TRACK_ANSWER="y"
+        if [ -t 0 ]; then
+            printf '是否把 _agent_team_work_zone/ 纳入 git？（强烈推荐）[Y/n] ' >/dev/tty
+            IFS= read -r TRACK_ANSWER </dev/tty || TRACK_ANSWER=""
+        else
+            echo "· 没有终端：_agent_team_work_zone/ 按默认纳入 git（推荐）。如果不想纳入：echo '/_agent_team_work_zone/' >> .gitignore"
+        fi
+        case "$TRACK_ANSWER" in
+            n|N|no|NO|No)
+                MIG_COMMON="$TEMPLATE_ROOT/resources/scripts/migrations/common.sh"
+                ROOT_GI="$PROJECT_ROOT/.gitignore"
+                if [ -f "$MIG_COMMON" ] && . "$MIG_COMMON" && { [ -f "$ROOT_GI" ] || : > "$ROOT_GI"; } \
+                   && append_missing_lines "$ROOT_GI" "# agent-team-work-zone：工作区不纳入 git（安装时的选择）" '/_agent_team_work_zone/' >/dev/null; then
+                    echo "✓ 已在项目根目录的 .gitignore 里加入 /_agent_team_work_zone/。"
+                    echo "  这样 agent 的项目记忆就没有 git 历史：不能通过 git 备份或回滚，可选的 checkpoint git 保存也会跳过。改主意的话，从 .gitignore 里删掉这一行即可。"
+                else
+                    echo "⚠ 无法更新项目的 .gitignore；如果不想纳入 git，请自己加一行 /_agent_team_work_zone/。"
+                fi ;;
+            *)
+                echo "✓ 好。准备好后提交它：git add _agent_team_work_zone && git commit -m 'Add agent-team-work-zone'" ;;
+        esac
     fi
     echo ""
 fi

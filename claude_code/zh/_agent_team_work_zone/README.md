@@ -9,7 +9,7 @@
 
 - **Claude Code** ≥ v2.1.178（适配 2.1.178 agent-teams API；旧版用 release v0.1.0）
 - **tmux** ≥ 3.2（强烈推荐：split-pane 显示 + 抗 SSH 断连；非必需，不装则 in-process 兜底）
-- **jq**（可选，用于 bootstrap 合并 settings.json）
+- **jq**（必需：bootstrap 用它把框架的 hook 写进 `.claude/settings.json`，没有它会停下）
 
 ---
 
@@ -30,7 +30,7 @@
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里运行一次 `bootstrap.sh`（安装 skills、hooks 并配置 Claude Code），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`（安装 skills、hooks 并配置 Claude Code；无论当初是用 npm 还是从源码安装的，都用这条命令），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash
@@ -48,7 +48,9 @@ git commit -m "Track the agent team work zone"
 ### 1. 一键 bootstrap
 
 ```bash
-bash claude_code/zh/_agent_team_work_zone/resources/scripts/bootstrap.sh
+npx agent-team-work-zone init --lang zh     # 推荐（需 Node.js 18+）；在你的项目目录下运行
+# 或者，如果你是自己把 _agent_team_work_zone/ 复制进项目的：
+bash _agent_team_work_zone/install.sh
 ```
 
 脚本会：
@@ -56,6 +58,7 @@ bash claude_code/zh/_agent_team_work_zone/resources/scripts/bootstrap.sh
 - 安装 `resources/skills/` 和 `resources/agents/` 到 `.claude/` 下
 - 创建或合并 `.claude/settings.json` 启用 experimental agent teams 特性
 - 不删除源目录（与旧版 install_skills.sh 的破坏性行为不同）
+- 首次安装时检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你。在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）；选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。没有终端时不询问，也不做任何改动。
 
 ### 2. 为每个角色启动交互式对话并完成入职
 
@@ -480,8 +483,8 @@ date: 2026-04-11 15:30
 
 ## Troubleshooting
 
-- **Claude Code 版本太旧**：`bootstrap.sh` 会报错退出。升级到 ≥ v2.1.178（或改用 [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)）
-- **`.claude/skills/` 下找不到某个 skill**：重新运行 `bootstrap.sh`；确认源文件在 `resources/skills/<name>/SKILL.md`
+- **Claude Code 版本太旧**：`bootstrap.sh` 会报错退出。升级到 ≥ v2.1.178，然后在项目目录下运行 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`（`npx agent-team-work-zone init` 不会再次运行，因为 `_agent_team_work_zone/` 已经在了）；或改用 [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)
+- **`.claude/skills/` 下找不到某个 skill**：在项目目录下重新运行 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`；确认源文件在 `resources/skills/<name>/SKILL.md`
 - **skill 修改后不生效**：Claude Code 在 session 启动时加载 skills。重启 session 或用 `/agents` 命令刷新
 - **切勿直接编辑 `.claude/skills/` 或 `.claude/agents/`**：这些是运行时派生物，下次 bootstrap 会被覆盖。**源在 `resources/`，只编辑源**
 <!-- REFERENCE:END -->

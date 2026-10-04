@@ -15,8 +15,8 @@
 
 | 平台 | 安装 / 升级 | 运行时持久化 | tracker 定时 |
 |---|---|---|---|
-| **Linux** | ✅ `install.sh` / `upgrade.sh` | tmux + `/loop` | teammate + `/loop` |
-| **macOS** | ✅ `install.sh` / `upgrade.sh`（与 Linux 同一脚本，已验证零阻断）| tmux / iTerm2 split-pane / in-process | Desktop Scheduled Tasks |
+| **Linux** | ✅ `npx agent-team-work-zone`（或 `install.sh` / `upgrade.sh`）| tmux + `/loop` | teammate + `/loop` |
+| **macOS** | ✅ `npx agent-team-work-zone`（或 `install.sh` / `upgrade.sh`；与 Linux 同一脚本，已验证零阻断）| tmux / iTerm2 split-pane / in-process | Desktop Scheduled Tasks |
 | **Windows**（原生）| ⏳ 下一个大版本 | in-process（弱持久）| Desktop Scheduled Tasks |
 | **Windows + WSL** | ✅ 走 Linux 路径 | tmux 在 WSL 内 | teammate + `/loop` |
 
@@ -28,7 +28,27 @@
 
 ## 快速开始
 
-### 1. Clone 和部署模板
+### 1. 安装
+
+**前提：** Node.js 18 或更高版本（只用来运行安装程序）；bash——Linux、macOS 或 Windows 上的 WSL（不支持原生 Windows）；`jq`（配置步骤用它把框架的 hook 写进 `.claude/settings.json`，没有它会停下）；Claude Code 2.1.178 或更高版本。
+
+#### 用 npm 安装（推荐）
+
+在你的项目目录下（目录须已存在）：
+
+```bash
+cd /path/to/your/project
+npx agent-team-work-zone init --lang zh     # 英文版用 --lang en
+```
+
+- 它把 `_agent_team_work_zone/` 放进项目，并运行其中的配置脚本（`bootstrap.sh`，见下文）。也可以不进入项目目录、直接给出路径：`npx agent-team-work-zone init /path/to/your/project --lang zh`。
+- 不给 `--lang` 时，在终端里运行会询问用哪种语言，否则使用英文版。
+- 项目里已有 `_agent_team_work_zone/` 时它会停下，不覆盖。要更新已有的安装，见下文「升级」。
+- 想用更短的命令：先 `npm i -g agent-team-work-zone` 装一次，之后用 `atwz init --lang zh`。不安装也可以用 `npx atwz init …`。全局只装 `agent-team-work-zone` 这一个包，不要再全局安装单独的 `atwz` 包：两者都提供 `atwz` 命令。
+- **项目里已有 `.claude/` 目录时**，安装会直接合并进去，不询问。框架的 skill 和 agent 按名字新增或更新：你自己的 skill 和 agent，名字与框架不同的保留；与框架同名的（例如 `checkpoint`、`reviewer`）会被框架的版本替换，而且没有备份，安装前请先改名或自行备份。`.claude/settings.json` 会合并：在 `SessionStart`、`TeammateIdle`、`SessionEnd` 这三个 hook 事件上，框架的 hook 会替换你原有的；其他事件上的 hook 保留。如果你在这三个事件上原本有自己的 hook，合并前会先把 `settings.json` 复制为 `.claude/settings.json.bak.<UTC 时间>`，并打印这个路径。想继续用自己的 hook：从备份里把这三个事件上你自己的条目，加回新 `settings.json` 里同一事件的列表中。下一次升级会再次替换这三个列表（并另做一份备份），所以每次升级后都要重新加回。
+- **安装中途停下时**（安装的配置步骤失败），`_agent_team_work_zone/` 会保留。按提示解决问题后，在项目目录下运行 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh` 完成安装；再运行一次 `init` 会停下，因为工作区已经在了。常见的一种情况是没有装 `jq`：先装上（例如 `sudo apt install jq` 或 `brew install jq`），再运行上面那条命令。
+
+#### 从源码安装（另一种方式）
 
 ```bash
 # Clone 仓库
@@ -43,6 +63,8 @@ cd /path/to/your/project
 bash _agent_team_work_zone/resources/scripts/bootstrap.sh
 ```
 
+这里直接运行 `bootstrap.sh`，它合并进已有 `.claude/` 的方式与 npm 安装相同（见上文）。`bash _agent_team_work_zone/install.sh` 效果一样，但 `.claude/` 里已有内容时会先询问 `Install into the existing .claude/? [y/N]`；回答否或没有终端时，`.claude/` 保持不变，并打印日后完成安装用的 `bootstrap.sh` 命令。
+
 > 英文版稍后由 Translator 生成。
 
 > **⚠️ Claude Code 版本要求（本模板）**：本模板适配 **Claude Code 2.1.178** 的 agent-teams API（会话级自动 team、`TeamCreate`/`TeamDelete` 已删、`Agent` 的 `team_name` 被忽略），要求 **CC ≥ 2.1.178**。如果你的 Claude Code ≤ 2.1.177，请改用 **[release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)**（针对旧 API）。
@@ -52,10 +74,11 @@ Bootstrap 会：
 - 检查 tmux（**强烈推荐，非必需**——见下方说明；不装则用 in-process 兜底）
 - 同步 skills + agents 到 `.claude/`
 - 创建或合并 `.claude/settings.json` 启用 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+- 首次安装时检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你。在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）；选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。没有终端时不询问，也不做任何改动。
 
 > **💡 强烈推荐把 Claude Code 跑在 tmux 里**（不限 HPC，本地同样受益）：关终端 / SSH 断连时，tmux 保住 Claude Code 进程不被杀、session 不中断——**你回来 `tmux attach` 就接着干，省去频繁 `/reactivate-team`**。这是强烈推荐、但**非必需**：不装 tmux 也能用 in-process 模式跑完整 agent team 功能。想要"持久**又**不拆多余 pane"，可在 tmux 内启动 claude + 设 `teammateMode: "in-process"`（详见开发者手册"持久化来自 tmux"段）。
 
-> **🍎 macOS 用户**：依赖（`curl` / `tar` / `git` / `bash`）macOS 自带，**直接 `bash install.sh` 即可**。tmux 可 `brew install tmux`，或用 **iTerm2 split-pane**（reactivate-team skill 自动识别），或不装 tmux 用 in-process 兜底。bash 3.2（系统自带）也能跑——用户路径无 bash 4+ 特性。
+> **🍎 macOS 用户**：依赖（`curl` / `tar` / `git` / `bash`）macOS 自带，**直接运行 `npx agent-team-work-zone init`**（macOS 不自带 Node.js，需先安装，例如 `brew install node`）**，或从源码安装：`bash _agent_team_work_zone/install.sh`**。tmux 可 `brew install tmux`，或用 **iTerm2 split-pane**（reactivate-team skill 自动识别），或不装 tmux 用 in-process 兜底。bash 3.2（系统自带）也能跑——用户路径无 bash 4+ 特性。
 
 > [!IMPORTANT]
 > **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
@@ -72,7 +95,7 @@ Bootstrap 会：
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里运行一次 `bootstrap.sh`（安装 skills、hooks 并配置 Claude Code），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`（安装 skills、hooks 并配置 Claude Code；无论当初是用 npm 还是从源码安装的，都用这条命令），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash
@@ -82,6 +105,26 @@ git commit -m "Track the agent team work zone"
 
 > [!CAUTION]
 > 工位里可能有敏感内容（路径、主机名、数据或对话片段）。如果仓库是公开的，push 前先检查或清理，或者把 work zone 放在私有仓库里。
+
+#### 升级
+
+在项目目录下：
+
+```bash
+npx agent-team-work-zone@latest upgrade      # 或：npx agent-team-work-zone@latest upgrade /path/to/your/project
+```
+
+- 全局安装的：先 `npm i -g agent-team-work-zone@latest`，再 `atwz upgrade`。
+- 从源码安装的：`bash _agent_team_work_zone/upgrade.sh` 仍然可用（它会从 GitHub 下载最新版本）。
+- 只更新框架自身的文件，并刷新 `.claude/` 里的 skills 和 hooks。agent 的工作内容不受影响：它们的 checkpoint、工作日志和待办，meeting room 里的文档，团队登记表和 `settings.conf` 都保持原样。（框架在每个 agent 的 README 里维护的那段守则会更新。）
+- 每次升级都会再合并一次 `.claude/settings.json`，规则与安装时相同：在 `SessionStart`、`TeammateIdle`、`SessionEnd` 上，框架的 hook 替换你原有的；你在这三个事件上有自己的 hook 时，会先把 `settings.json` 备份为 `.claude/settings.json.bak.<UTC 时间>`。
+- 升级到新的大版本时会要求你确认。没有终端时加 `--yes`（用 `upgrade.sh` 时设置 `ATWZ_ASSUME_YES=1`）。
+- 升级会重新运行安装脚本。在终端里，它可能再次询问两个写在 `~/.claude/settings.json` 里的全局 Claude Code 设置：成员显示方式和 Auto 权限模式。想保持原来的选择，显示模式选「不修改」，Auto 权限模式选「不启用（保持当前权限模式）」。
+- **每次升级之后，都要重启 Claude Code 会话，并对每个正在运行的团队执行 `/reactivate-team`。** 已经在运行的会话和成员，可能仍在用启动时加载的旧版 skill：我们实际遇到过，升级之后正在运行的成员仍照旧版 `/checkpoint` 的步骤执行，直到重新启动才改过来。
+
+#### 新版本提示
+
+在项目里启动 Claude Code 会话时，如果已有更新的版本发布，会显示一条简短提示，附带升级命令。最新版本号在后台查询，每天最多一次，不会拖慢会话启动。查到新版本后，从下一次会话启动起开始提示，之后每次启动都会提示，直到你升级。查询失败（例如没有网络）时沿用上次查到的版本；如果从未查询成功过，就什么也不显示。要关闭这条提示：设置环境变量 `ATWZ_UPDATE_CHECK=0`，或创建文件 `_agent_team_work_zone/.no_update_check`（把这个文件提交进仓库，就对项目里所有人关闭）。
 
 ### 2. 为每个角色启动对话
 
@@ -383,7 +426,7 @@ cd /path/to/your/project && bash _agent_team_work_zone/resources/scripts/atwz_gi
 
 项目的 `CLAUDE.md` 可以加两个可选段落。首次安装时，若在终端里运行，`bootstrap.sh` 会逐个询问（默认 No）；升级时从不询问，之后想加请看下文。无论哪种情况，install/upgrade 从不修改或删除 CLAUDE.md 中已有的内容；它们只追加——缺少框架段落时追加框架段落，可选段落只在你回答 y 时追加。
 
-- **给用户的消息（格式）**（`resources/claude_md_optional/user_message_format.md`）：不要用消息轰炸你；由 teammate 汇报触发的消息以 **队内简报：** 开头；需要你了解或裁定的内容以标题 **To Be Read By User** 开头，并带一行状态（**需裁定** / **进展** / **更正** / **静默轮**）。英文版的对应标签是 `Team brief` 与 `Decision needed / Progress / Correction / Quiet round`（标题仍是 **To Be Read By User**）。
+- **给用户的消息（格式）**（`resources/claude_md_optional/user_message_format.md`）：不要用消息轰炸你；由 teammate 汇报触发的消息以 **队内简报：** 开头；需要你了解或裁定的内容以单独一行的一级标题 `# To Be Read By User` 开头，下面紧跟一行加粗的状态（**需裁定** / **进展** / **更正** / **静默轮**）。英文版的对应标签是 `Team brief` 与 `Decision needed / Progress / Correction / Quiet round`（标题仍是 `# To Be Read By User`）。
 - **平实用语**（`resources/claude_md_optional/plain_vocabulary.md`）：用平实、严谨的词；不自造比喻性名词；少用简写。它的最后是一份**你否决过的词**，放在 `CLAUDE.md` 里面，所以始终会被加载。你每否决一个词，lead（或扁平工位）就把它加进这份清单；teammate 把要加的词发给自己的 lead。
 
 之后想加某一段，在项目目录下手动追加（若 `CLAUDE.md` 里已有它的 `<!-- ATWZ-OPTIONAL:… -->` 标记就跳过）：

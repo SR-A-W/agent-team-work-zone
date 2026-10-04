@@ -9,7 +9,7 @@
 
 - **Claude Code** ≥ v2.1.178 (adapted for the 2.1.178 agent-teams API; older versions use release v0.1.0)
 - **tmux** ≥ 3.2 (strongly recommended: split-pane display + survives SSH disconnects; not required — falls back to in-process if absent)
-- **jq** (optional, for bootstrap to merge settings.json)
+- **jq** (required: bootstrap uses it to add the framework's hooks to `.claude/settings.json`, and stops without it)
 
 ---
 
@@ -30,7 +30,7 @@
 Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
 
 - **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
-- **Easy migration to a new machine.** Clone the project on another machine, run `bootstrap.sh` there once (it installs the skills and hooks and sets Claude Code up), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Easy migration to a new machine.** Clone the project on another machine, run `bash _agent_team_work_zone/resources/scripts/bootstrap.sh` there once from the project directory (it installs the skills and hooks and sets Claude Code up; this works the same whether you first installed with npm or from source), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
 - **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
 
 ```bash
@@ -48,7 +48,9 @@ git commit -m "Track the agent team work zone"
 ### 1. One-click bootstrap
 
 ```bash
-bash claude_code/zh/_agent_team_work_zone/resources/scripts/bootstrap.sh
+npx agent-team-work-zone init --lang en     # recommended (Node.js 18+); run from your project directory
+# or, if you copied _agent_team_work_zone/ into the project yourself:
+bash _agent_team_work_zone/install.sh
 ```
 
 The script will:
@@ -56,6 +58,7 @@ The script will:
 - Install `resources/skills/` and `resources/agents/` under `.claude/`
 - Create or merge `.claude/settings.json` to enable the experimental agent teams feature
 - Not delete the source directory (unlike the destructive behavior of the old install_skills.sh)
+- On first install, check git: if the project is not in a git repository, or is inside one but not at its root, it tells you. At the root of a repository it asks whether to track `_agent_team_work_zone/` in git (default yes, recommended). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`; delete that line later if you change your mind. Without a terminal it does not ask and changes nothing.
 
 ### 2. Launch an interactive conversation for each role and complete onboarding
 
@@ -480,8 +483,8 @@ The default path is Tier 1 — this keeps `.claude/agents/` always clean, contai
 
 ## Troubleshooting
 
-- **Claude Code version too old**: `bootstrap.sh` will error out. Upgrade to ≥ v2.1.178 (or use [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0))
-- **A skill is missing under `.claude/skills/`**: rerun `bootstrap.sh`; confirm that the source file exists at `resources/skills/<name>/SKILL.md`
+- **Claude Code version too old**: `bootstrap.sh` will error out. Upgrade to ≥ v2.1.178, then run `bash _agent_team_work_zone/resources/scripts/bootstrap.sh` from the project directory (`npx agent-team-work-zone init` will not run again, because `_agent_team_work_zone/` is already there); or use [release v0.1.0](https://github.com/SR-A-W/agent-team-work-zone/releases/tag/v0.1.0)
+- **A skill is missing under `.claude/skills/`**: from the project directory, rerun `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`; confirm that the source file exists at `resources/skills/<name>/SKILL.md`
 - **Skill modifications don't take effect**: Claude Code loads skills when a session starts. Restart the session or refresh via the `/agents` command
 - **Never edit `.claude/skills/` or `.claude/agents/` directly**: these are runtime derived copies and will be overwritten by the next bootstrap. **The source is in `resources/`; edit only the source**
 <!-- REFERENCE:END -->

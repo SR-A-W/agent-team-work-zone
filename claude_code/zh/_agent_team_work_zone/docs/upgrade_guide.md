@@ -13,7 +13,7 @@ cat _agent_team_work_zone/VERSION
 
 版本号遵循语义化规则 `vMAJOR.MINOR.PATCH`：
 
-- **MAJOR (X)**：破坏性架构变更
+- **MAJOR (X)**：破坏性变更，或安装与升级方式的重大变化（升级时会要求确认）
 - **MINOR (Y)**：新增功能（新 skill / agent / hook），向后兼容
 - **PATCH (Z)**：文档修订、bug 修复，完全向后兼容
 
@@ -91,6 +91,46 @@ bash _agent_team_work_zone/upgrade.sh
 5. 清理暂存区（保留 `.upgrade/README.md` 作为目录占位）
 
 **全程无参数、无配置文件、无残留。** 失败时退出非零并保留暂存区供调试，临时下载目录由 EXIT trap 自动清理。
+
+### 用 npm
+
+框架也以 npm 包 `agent-team-work-zone` 发布（需要 Node.js 18 或更高版本和 `bash`；不支持原生 Windows）。用 `npx agent-team-work-zone <命令>` 运行；或者用 `npm i -g agent-team-work-zone` 装一次，之后用短名 `atwz <命令>`：
+
+```bash
+npx agent-team-work-zone init [项目目录] --lang zh   # 新项目：铺好 _agent_team_work_zone/ 并运行 bootstrap
+npx agent-team-work-zone upgrade [项目目录]          # 已有安装：升级到包里自带的版本
+npx agent-team-work-zone --version                   # 包版本及其自带的框架版本
+```
+
+`[项目目录]` 是项目根目录；省略时用当前目录，支持 `~` 和相对路径，目录必须已经存在。
+
+全局安装时只装主包 `agent-team-work-zone`——装好就有 `atwz` 命令。单独的 `atwz` 包只给 `npx atwz` 用，不要和主包同时全局安装（两者都提供 `atwz` 命令）。
+
+`upgrade` 使用包内自带的模板（不联网下载），然后跑与一键脚本相同的迁移链和 `bootstrap.sh`。它从 `_agent_team_work_zone/upgrade.sh` 判断安装的语言；判断不出来时请加 `--lang zh|en`。当前目录已有 `_agent_team_work_zone/` 时 `init` 会拒绝运行。
+
+### 从本地目录升级
+
+`bash _agent_team_work_zone/upgrade.sh` 也可以不下载，直接使用一个已解开的新版模板目录：
+
+```bash
+UPGRADE_SOURCE_DIR=/path/to/claude_code/zh/_agent_team_work_zone bash _agent_team_work_zone/upgrade.sh
+```
+
+### 主版本升级
+
+升级跨过主版本（例如 v1.x → v2.x）时，调度脚本会先打印这一版改了什么，再请你确认（默认 No）：
+
+- 升级会覆盖框架文件（`resources/`、`docs/`、`README.md` 的框架段、`CHANGELOG.md`、`upgrade.sh`）。你在工位和 `meeting_room/` 里写的内容、注册表（`TEAMMATE_INFO.json`）、`settings.conf` 不受影响；各 README 里由框架维护的守则段会被刷新（旧块有备份）；`.claude/settings.json` 会重新合并：框架在 `SessionStart`、`TeammateIdle`、`SessionEnd` 上的 hook 会替换你在这三个事件上的 hook（你有自己的 hook 时，会先把 `settings.json` 备份为 `settings.json.bak.<时间戳>`）。
+- **升级本身不做备份。** 升级前先把 `_agent_team_work_zone/` 提交到 git，需要时就能回滚（见"如何回滚"）。
+- 没有终端时升级会被取消（退出码 3），除非你用 `ATWZ_ASSUME_YES=1` 确认（npm 方式：`upgrade --yes`）。
+
+### 升级之后
+
+升级完成后请重启 Claude Code 会话，并对正在运行的团队执行 `/reactivate-team`——已在运行的会话和成员可能仍在用旧版 skill。
+
+### 新版本提示
+
+每次 Claude Code 会话开始时，`resources/scripts/check_update.sh`（由 `bootstrap.sh` 安装的 SessionStart hook）会把已安装的 `VERSION` 与 npm 包 `agent-team-work-zone` 的最新版本比较，落后时打印一段简短提示。它只提示，从不自动升级。它最多 24 小时联网查一次，而且在后台进行，会话启动不用等它；结果缓存在 `_agent_team_work_zone/.upgrade/update_check`。没有网络或没有 `curl` 时保持静默。关闭方法：设置 `ATWZ_UPDATE_CHECK=0`，或创建文件 `_agent_team_work_zone/.no_update_check`（把它提交进仓库，就对项目里所有人关闭）。
 
 ### Fork 用户
 
