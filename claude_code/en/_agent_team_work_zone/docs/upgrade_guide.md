@@ -99,14 +99,17 @@ The framework is also published as the npm package `agent-team-work-zone` (needs
 ```bash
 npx agent-team-work-zone init [project-dir] --lang en   # new project: lays out _agent_team_work_zone/ and runs bootstrap
 npx agent-team-work-zone upgrade [project-dir]          # existing install: upgrades to the version inside the package
+npx agent-team-work-zone reconfigure [project-dir]      # existing install: asks the install-time questions again
 npx agent-team-work-zone --version                      # package version and the framework version it carries
 ```
 
 `[project-dir]` is the project root; it defaults to the current directory, accepts `~` and relative paths, and must already exist.
 
-For a global install, install only the main package `agent-team-work-zone` — it already provides the `atwz` command. The separate `atwz` package exists only for `npx atwz`; do not install it globally next to the main package (both provide an `atwz` command).
+Use `npx agent-team-work-zone <command>` for a one-off run; if you use it often, install it once with `npm i -g agent-team-work-zone`, which also gives you the short command `atwz <command>`.
 
-`upgrade` uses the templates shipped in the package (nothing is downloaded) and then runs the same migration chain and `bootstrap.sh` as the one-button script. It detects the install's language from `_agent_team_work_zone/upgrade.sh`; pass `--lang zh|en` if it cannot. `init` refuses to run where `_agent_team_work_zone/` already exists.
+`upgrade` uses the templates shipped in the package (nothing is downloaded) and then runs the same migration chain and `bootstrap.sh` as the one-button script. It detects the install's language from `_agent_team_work_zone/upgrade.sh`; if it cannot, it asks you to choose (in a terminal) or stops and asks for `--lang zh|en` (without one). `init` refuses to run where `_agent_team_work_zone/` already exists.
+
+An upgrade does not ask the install-time questions (optional `CLAUDE.md` sections, git tracking, teammate display mode, auto permission mode); your current choices are kept. To change them, run `npx agent-team-work-zone reconfigure` (source install: `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`). It runs the installed `bootstrap.sh` again in reconfigure mode — no reinstall, no download, no upgrade — and changes nothing inside `_agent_team_work_zone/`. Installs from before this command existed need an upgrade first: with an older install, `npx agent-team-work-zone reconfigure` refuses and says so, but the source command `bootstrap.sh --reconfigure` silently ignores the option and just re-runs the setup without asking anything.
 
 ### Upgrading from a local directory
 

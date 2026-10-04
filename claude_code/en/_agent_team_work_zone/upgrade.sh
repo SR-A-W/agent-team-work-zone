@@ -36,12 +36,14 @@ TEMPLATE_PATH_IN_ARCHIVE="agent-team-work-zone-main/claude_code/en/_agent_team_w
 # -------- Minimal inline print helpers (common.sh is in staged source, not here) --------
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     _R=$'\033[0m'; _B=$'\033[1m'; _RED=$'\033[31m'; _GRN=$'\033[32m'; _YLW=$'\033[33m'; _CYN=$'\033[36m'
+    # warning colour: mirrors __C_WARN in resources/scripts/migrations/common.sh — keep in sync
+    if [ "$(tput colors 2>/dev/null || echo 0)" -ge 256 ] 2>/dev/null; then _WRN=$'\033[1;38;5;202m'; else _WRN=$'\033[1;31m'; fi
 else
-    _R=""; _B=""; _RED=""; _GRN=""; _YLW=""; _CYN=""
+    _R=""; _B=""; _RED=""; _GRN=""; _YLW=""; _CYN=""; _WRN=""
 fi
 _header() { printf '%s==================================================%s\n%s  %s%s\n%s==================================================%s\n' "$_B" "$_R" "$_B$_CYN" "$1" "$_R" "$_B" "$_R"; }
 _ok()     { printf '%s✓%s %s\n' "$_GRN" "$_R" "$1"; }
-_warn()   { printf '%s⚠%s %s\n' "$_YLW" "$_R" "$1"; }
+_warn()   { printf '%s⚠ %s%s\n' "$_WRN" "$1" "$_R"; }
 _err()    { printf '%s✗%s %s\n' "$_RED" "$_R" "$1"; }
 _step()   { printf '  → %s\n' "$1"; }
 

@@ -99,14 +99,17 @@ bash _agent_team_work_zone/upgrade.sh
 ```bash
 npx agent-team-work-zone init [项目目录] --lang zh   # 新项目：铺好 _agent_team_work_zone/ 并运行 bootstrap
 npx agent-team-work-zone upgrade [项目目录]          # 已有安装：升级到包里自带的版本
+npx agent-team-work-zone reconfigure [项目目录]      # 已有安装：重新询问安装时的问题
 npx agent-team-work-zone --version                   # 包版本及其自带的框架版本
 ```
 
 `[项目目录]` 是项目根目录；省略时用当前目录，支持 `~` 和相对路径，目录必须已经存在。
 
-全局安装时只装主包 `agent-team-work-zone`——装好就有 `atwz` 命令。单独的 `atwz` 包只给 `npx atwz` 用，不要和主包同时全局安装（两者都提供 `atwz` 命令）。
+偶尔用一次就用 `npx agent-team-work-zone <命令>`；常用的话用 `npm i -g agent-team-work-zone` 装一次，之后也可以用短命令 `atwz <命令>`。
 
-`upgrade` 使用包内自带的模板（不联网下载），然后跑与一键脚本相同的迁移链和 `bootstrap.sh`。它从 `_agent_team_work_zone/upgrade.sh` 判断安装的语言；判断不出来时请加 `--lang zh|en`。当前目录已有 `_agent_team_work_zone/` 时 `init` 会拒绝运行。
+`upgrade` 使用包内自带的模板（不联网下载），然后跑与一键脚本相同的迁移链和 `bootstrap.sh`。它从 `_agent_team_work_zone/upgrade.sh` 判断安装的语言；判断不出来时，在终端里会让你选择，没有终端时会停下并要求加 `--lang zh|en`。当前目录已有 `_agent_team_work_zone/` 时 `init` 会拒绝运行。
+
+升级不会询问安装时的问题（可选 `CLAUDE.md` 段落、git 纳入、teammate 显示模式、auto 权限模式），沿用你现有的选择。要修改，请运行 `npx agent-team-work-zone reconfigure`（源码安装：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`）。它以重新设置模式再次运行已安装的 `bootstrap.sh`——不重装、不下载、不升级——也不改动 `_agent_team_work_zone/` 里的任何内容。这个命令出现之前的安装需要先升级：对更老的安装，`npx agent-team-work-zone reconfigure` 会拒绝并说明原因，而源码命令 `bootstrap.sh --reconfigure` 会悄悄忽略这个选项，只按普通方式重跑一遍设置、不提任何问题。
 
 ### 从本地目录升级
 

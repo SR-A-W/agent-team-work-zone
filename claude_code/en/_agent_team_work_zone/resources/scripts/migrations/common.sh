@@ -19,8 +19,14 @@ if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     __C_GREEN=$'\033[32m'
     __C_YELLOW=$'\033[33m'
     __C_CYAN=$'\033[36m'
+    # Warnings: bold orange-red (256-colour 202); bold red where 256 colours are not available.
+    if [ "$(tput colors 2>/dev/null || echo 0)" -ge 256 ] 2>/dev/null; then
+        __C_WARN=$'\033[1;38;5;202m'
+    else
+        __C_WARN=$'\033[1;31m'
+    fi
 else
-    __C_RESET=""; __C_BOLD=""; __C_RED=""; __C_GREEN=""; __C_YELLOW=""; __C_CYAN=""
+    __C_RESET=""; __C_BOLD=""; __C_RED=""; __C_GREEN=""; __C_YELLOW=""; __C_CYAN=""; __C_WARN=""
 fi
 
 print_header() {
@@ -31,9 +37,15 @@ print_header() {
 }
 
 print_success() { printf '%s✓%s %s\n' "$__C_GREEN" "$__C_RESET" "$1"; }
-print_warn()    { printf '%s⚠%s %s\n' "$__C_YELLOW" "$__C_RESET" "$1"; }
+# print_warn <text> [prefix] — the whole "⚠ <text>" line in the warning colour; the
+# optional prefix (e.g. indentation) is printed before it, uncoloured.
+print_warn()    { printf '%s%s⚠ %s%s\n' "${2:-}" "$__C_WARN" "$1" "$__C_RESET"; }
 print_error()   { printf '%s✗%s %s\n' "$__C_RED"    "$__C_RESET" "$1"; }
 print_step()    { printf '  → %s\n' "$1"; }
+
+# recommended <text> — menu text for a recommended option, in bold green. Menus are drawn
+# on the terminal (choose_option writes to /dev/tty), so only NO_COLOR is checked here.
+recommended()   { if [ -z "${NO_COLOR:-}" ]; then printf '\033[1;32m%s\033[0m' "$1"; else printf '%s' "$1"; fi; }
 
 # -------- cp_framework_files: pre-flight-checked whole-dir overwrite --------
 #

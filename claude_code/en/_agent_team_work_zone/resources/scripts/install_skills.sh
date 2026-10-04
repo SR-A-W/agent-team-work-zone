@@ -22,6 +22,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./migrations/common.sh
+. "$SCRIPT_DIR/migrations/common.sh"   # print_warn
 # scripts lives under resources, so template root is 2 levels up
 TEMPLATE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
@@ -52,7 +54,7 @@ if [ -d "$SKILLS_SRC" ]; then
     done
     echo "[install_skills] $skill_count skill(s) synced"
 else
-    echo "[install_skills] ⚠ skills source not found at $SKILLS_SRC"
+    print_warn "skills source not found at $SKILLS_SRC" "[install_skills] "
 fi
 
 echo ""
@@ -72,7 +74,7 @@ if [ -d "$AGENTS_SRC" ]; then
     done
     echo "[install_skills] $agent_count agent(s) synced"
 else
-    echo "[install_skills] ⚠ agents source not found at $AGENTS_SRC"
+    print_warn "agents source not found at $AGENTS_SRC" "[install_skills] "
 fi
 
 echo "[install_skills] done (sources preserved; do not edit .claude/ directly)"

@@ -30,7 +30,7 @@
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh`（安装 skills、hooks 并配置 Claude Code；无论当初是用 npm 还是从源码安装的，都用这条命令），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone reconfigure`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash

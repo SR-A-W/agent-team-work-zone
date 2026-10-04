@@ -21,6 +21,9 @@
 # Usage:
 #   cd /path/to/your/project
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh
+#   bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure
+#       (on an existing install: ask the install-time questions again; nothing under
+#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone reconfigure` runs)
 #
 # Development environment (dogfooding inside the agent-team-work-zone repo):
 #   cd /path/to/agent-team-work-zone
@@ -31,7 +34,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Shared output helpers (print_warn, recommended, ...).
+# shellcheck source=./migrations/common.sh
+. "$SCRIPT_DIR/migrations/common.sh"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+
+# --reconfigure: re-run the install-time questions on an existing install (see Usage).
+ATWZ_RECONFIGURE=0
+case "${1:-}" in
+    "") ;;
+    --reconfigure) ATWZ_RECONFIGURE=1 ;;
+    *) echo "Unknown option: $1 (the only option is --reconfigure)" >&2; exit 2 ;;
+esac
+# How to ask the install-time questions again later (printed where a question is skipped).
+RESETUP_CMD="npx agent-team-work-zone reconfigure (source install: bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure)"
 
 echo "=================================================="
 echo "  _agent_team_work_zone bootstrap"
@@ -193,22 +209,23 @@ if command -v tmux >/dev/null 2>&1; then
         fi
 
         echo "✓ tmux $TMUX_VERSION inside session, PATH/socket consistent (>= $TMUX_MIN)"
-        echo "  → tmux split-pane mode is available. At step 6 below, choose 'auto' to"
-        echo "    get one pane per teammate (idle/stuck ones stay visible). CC v2.1.179+"
-        echo "    default is in-process (single terminal)."
+        echo "  → tmux split-pane mode is available. On first install, choose 'auto' in the"
+        echo "    display-mode menu below to get one pane per teammate (idle/stuck ones stay"
+        echo "    visible); to change it later, run: $RESETUP_CMD"
+        echo "    CC v2.1.179+ default is in-process (single terminal)."
     else
         # Not inside tmux: tmux is only a latent prereq for split-pane view.
         if version_ge "$TMUX_VERSION_NUM" "$TMUX_MIN"; then
             echo "✓ tmux $TMUX_VERSION (>= $TMUX_MIN; split-panes mode available)"
         else
-            echo "⚠ tmux $TMUX_VERSION is < $TMUX_MIN."
+            print_warn "tmux $TMUX_VERSION is < $TMUX_MIN."
             echo "  in-process teammate mode works fine without tmux. But if you"
             echo "  later run Claude Code INSIDE tmux for split-pane team view,"
             echo "  upgrade to >= $TMUX_MIN first (older → 'size invalid' at spawn)."
         fi
     fi
 else
-    echo "⚠ tmux not found — STRONGLY RECOMMENDED (but not required)."
+    print_warn "tmux not found — STRONGLY RECOMMENDED (but not required)."
     echo "  Teams run in in-process mode by default (full functionality, no tmux)."
     echo "  Running Claude Code INSIDE tmux gives two wins:"
     echo "    (1) survives terminal close / SSH disconnect → far fewer /reactivate-team"
@@ -224,7 +241,7 @@ if command -v jq >/dev/null 2>&1; then
     echo "✓ jq $JQ_VERSION (used for settings.json merge)"
     HAS_JQ=1
 else
-    echo "⚠ jq not found — settings.json merge will use heredoc fallback if file exists"
+    print_warn "jq not found — settings.json merge will use heredoc fallback if file exists"
 fi
 
 # --- 3b. git check (optional, warning only) ---
@@ -239,7 +256,7 @@ if command -v git >/dev/null 2>&1; then
             echo "· git version not recognised ($GIT_RAW); the optional git lock needs git 2.5 or later" ;;
         *)
             if [ "$GIT_MAJOR" -lt 2 ] || { [ "$GIT_MAJOR" -eq 2 ] && [ "$GIT_MINOR" -lt 5 ]; }; then
-                echo "⚠ git $GIT_VERSION found — the optional git lock (atwz_git_lock.sh, also used by checkpoint commit mode) needs git 2.5 or later; everything else works"
+                print_warn "git $GIT_VERSION found — the optional git lock (atwz_git_lock.sh, also used by checkpoint commit mode) needs git 2.5 or later; everything else works"
             else
                 echo "✓ git $GIT_VERSION"
             fi ;;
@@ -283,7 +300,7 @@ EOF
         rm -f "$RESOLVED"
         echo "  ✓ merged teammate-persistence hooks into $SETTINGS_JSON"
     elif [ ! "$HAS_JQ" -eq 1 ]; then
-        echo "  ⚠ jq unavailable — hooks NOT merged. Manually copy contents of"
+        print_warn "jq unavailable — hooks NOT merged. Manually copy contents of" "  "
         echo "    $HOOKS_TEMPLATE into $SETTINGS_JSON (merge the \"hooks\" key),"
         echo "    replacing {{TEMPLATE_REL}} with ${TEMPLATE_ROOT#$PROJECT_ROOT/}"
         exit 1
@@ -329,7 +346,7 @@ else
             rm -f "$RESOLVED"
             echo "  ↻ merged teammate-persistence hooks into $SETTINGS_JSON"
             if [ -n "$SETTINGS_BAK" ]; then
-                echo "  ⚠ You had $USER_HOOKS hook(s) of your own on SessionStart / TeammateIdle / SessionEnd;"
+                print_warn "You had $USER_HOOKS hook(s) of your own on SessionStart / TeammateIdle / SessionEnd;" "  "
                 echo "    on those three events the framework's hooks have replaced them. Your previous"
                 echo "    settings are saved in:"
                 echo "      $SETTINGS_BAK"
@@ -337,7 +354,7 @@ else
             fi
         fi
     else
-        echo "  ⚠ $SETTINGS_JSON already exists and jq is not available."
+        print_warn "$SETTINGS_JSON already exists and jq is not available." "  "
         echo "    Neither the env flag nor hooks could be merged automatically."
         echo "    Manually ensure:"
         echo "      1. { \"env\": { \"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS\": \"1\" } }"
@@ -354,7 +371,7 @@ CLAUDE_TEMPLATE="$TEMPLATE_ROOT/resources/CLAUDE.md.template"
 CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
 
 if [ ! -f "$CLAUDE_TEMPLATE" ]; then
-    echo "  ⚠ $CLAUDE_TEMPLATE not found — skipping CLAUDE.md install"
+    print_warn "$CLAUDE_TEMPLATE not found — skipping CLAUDE.md install" "  "
 else
     # Extract the language-specific first ## header for idempotency (no hardcoding)
     CLAUDE_FIRST_HEADER="$(awk '/^## /{print; exit}' "$CLAUDE_TEMPLATE")"
@@ -370,28 +387,38 @@ else
         printf '\n' >> "$CLAUDE_MD"
         awk '/^## /{found=1} found{print}' "$CLAUDE_TEMPLATE" >> "$CLAUDE_MD"
         CLAUDE_MD_FIRST_INSTALL=1
-        echo "  ⚠ Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them."
+        print_warn "Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them." "  "
     fi
 fi
 echo ""
 
-# --- 5b. Optional CLAUDE.md sections (interactive, default No) ---
-# One [y/N] question per file in resources/claude_md_optional/. Asked only on a first
-# install (this run put the framework sections into CLAUDE.md), only with a terminal,
-# and never during an upgrade (the migration dispatcher sets ATWZ_SKIP_OPTIONAL_SECTIONS=1;
-# and an upgrade finds the framework sections already present, so it is not a first
-# install either). On an explicit y the section is APPENDED, once: it is skipped if its
-# "<!-- ATWZ-OPTIONAL:<id> -->" marker is already in CLAUDE.md. Existing CLAUDE.md
-# content is never modified; nothing else is created.
+# Which questions this run asks (5b optional sections, 5c git, 6 display mode, 7 auto permission):
+#   upgrade      ATWZ_SKIP_OPTIONAL_SECTIONS=1 (set by the migration dispatcher) → none
+#   reconfigure  --reconfigure                                                → all (with a terminal)
+#   first        this run put the framework sections into CLAUDE.md          → all
+#   rerun        any other run                                               → none
+if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" = "1" ]; then RUN_KIND=upgrade
+elif [ "$ATWZ_RECONFIGURE" = "1" ]; then RUN_KIND=reconfigure
+elif [ "$CLAUDE_MD_FIRST_INSTALL" = "1" ]; then RUN_KIND=first
+else RUN_KIND=rerun
+fi
+
+# --- 5b. Optional CLAUDE.md sections (strongly recommended, default Yes) ---
+# One Yes/No menu (default Yes) per file in resources/claude_md_optional/.
+#   first install: terminal → menu; no terminal → added, with a note on how to remove it
+#   reconfigure:   terminal → menu; no terminal → not handled (nothing added)
+#   upgrade / rerun: never added, never asked
+# A section is APPENDED once: skipped if its "<!-- ATWZ-OPTIONAL:<id> -->" marker is already
+# in CLAUDE.md. Existing CLAUDE.md content is never modified; a "no" is not recorded anywhere.
 OPTIONAL_DIR="$TEMPLATE_ROOT/resources/claude_md_optional"
 if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     echo "--- Optional CLAUDE.md sections ---"
-    if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" = "1" ]; then
-        printf '%s\n' "$(printf '  ↻ Optional CLAUDE.md sections: not asked during an upgrade. To add one later: cat "%s/resources/claude_md_optional/<file>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
-    elif [ "$CLAUDE_MD_FIRST_INSTALL" != "1" ]; then
-        printf '%s\n' "$(printf '  ↻ Optional CLAUDE.md sections: only offered on first install. To add one later: cat "%s/resources/claude_md_optional/<file>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
-    elif [ ! -t 0 ]; then
-        echo "  ↻ Optional CLAUDE.md sections: no terminal — not added (default No)."
+    if [ "$RUN_KIND" = upgrade ]; then
+        echo "  ↻ Optional CLAUDE.md sections: not asked during an upgrade. To add them, run: $RESETUP_CMD"
+    elif [ "$RUN_KIND" = rerun ]; then
+        echo "  ↻ Optional CLAUDE.md sections: only offered on first install. To add them, run: $RESETUP_CMD"
+    elif [ "$RUN_KIND" = reconfigure ] && [ ! -t 0 ]; then
+        echo "  ↻ Optional CLAUDE.md sections: not handled (no terminal). To add them, run reconfigure in a terminal."
     else
         for id in user_message_format plain_vocabulary; do
             snippet="$OPTIONAL_DIR/$id.md"
@@ -401,14 +428,20 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
                 printf '  ↻ optional "%s" section already in CLAUDE.md — skipping\n' "$title"
                 continue
             fi
-            printf 'Add the optional "%s" section to CLAUDE.md? [y/N] ' "$title" >/dev/tty
-            answer=""
-            IFS= read -r answer </dev/tty || answer=""
-            case "$answer" in
-                y|Y|yes|YES|Yes)
+            if [ -t 0 ]; then
+                OPT_IDX=$(choose_option 0 \
+                    "$(printf 'Add the optional "%s" section to CLAUDE.md? (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):' "$title")" \
+                    "$(recommended "Yes — add it (strongly recommended)")" \
+                    "No  — skip")
+            else
+                OPT_IDX=0   # first install without a terminal: added by default
+            fi
+            case "$OPT_IDX" in
+                0)
                     printf '\n' >> "$CLAUDE_MD"
                     cat "$snippet" >> "$CLAUDE_MD"
-                    printf '  ✓ appended the optional "%s" section to CLAUDE.md\n' "$title" ;;
+                    printf '  ✓ appended the optional "%s" section to CLAUDE.md\n' "$title"
+                    [ -t 0 ] || printf '    (no terminal: added by default; to remove it, delete the section marked <!-- ATWZ-OPTIONAL:%s --> from CLAUDE.md)\n' "$id" ;;
                 *)
                     printf '  · not added: "%s"\n' "$title" ;;
             esac
@@ -417,29 +450,35 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     echo ""
 fi
 
-# --- 5c. Git tracking of the work zone (first install only, never on upgrade) ---
-# Same first-install test as 5b. Needs git (3b already reported if it is missing).
+# --- 5c. Git tracking of the work zone (first install and reconfigure; never on upgrade) ---
+# Same run-kind test as 5b. Needs git (3b already reported if it is missing).
 #   - project not inside a git repository  → warning + why tracking it helps
 #   - inside a repository but not its root → warning: keep the work zone at the project root
-#   - at the repository root               → ask whether to track _agent_team_work_zone/ (default Y);
-#     n → append "/_agent_team_work_zone/" to the PROJECT ROOT .gitignore (created if missing —
-#     the user asked for it), append-only and idempotent; no terminal → treated as Y, nothing written.
-if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" != "1" ] && [ "$CLAUDE_MD_FIRST_INSTALL" = "1" ] \
-   && command -v git >/dev/null 2>&1; then
+#   - at the repository root               → menu: track _agent_team_work_zone/? (default Yes);
+#     No → append "/_agent_team_work_zone/" to the PROJECT ROOT .gitignore (created if missing —
+#     the user asked for it), append-only and idempotent; Yes never removes that line (it says how);
+#     no terminal → first install: treated as Yes, nothing written; reconfigure: nothing changed.
+if { [ "$RUN_KIND" = first ] || [ "$RUN_KIND" = reconfigure ]; } && command -v git >/dev/null 2>&1; then
     echo "--- git ---"
     GIT_TOP="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
     PROJECT_REAL="$(cd "$PROJECT_ROOT" && pwd -P)"
     if [ -z "$GIT_TOP" ]; then
-        echo "⚠ This project is not in a git repository."
+        print_warn "This project is not in a git repository."
         echo "  Tracking _agent_team_work_zone/ in git backs up your agents' project memory and lets you roll it back, bring the team up on another machine, and work with other people through git push / pull. To start: git init"
     elif [ "$(cd "$GIT_TOP" && pwd -P)" != "$PROJECT_REAL" ]; then
-        printf '%s\n' "$(printf '⚠ This project is inside the git repository %s but is not its root.' "$GIT_TOP")"
+        print_warn "$(printf 'This project is inside the git repository %s but is not its root.' "$GIT_TOP")"
         echo "  Keep _agent_team_work_zone/ at the project root — the root of the repository — and start Claude Code there."
     else
         TRACK_ANSWER="y"
         if [ -t 0 ]; then
-            printf 'Track _agent_team_work_zone/ in git? (strongly recommended) [Y/n] ' >/dev/tty
-            IFS= read -r TRACK_ANSWER </dev/tty || TRACK_ANSWER=""
+            TRACK_IDX=$(choose_option 0 \
+                "Track _agent_team_work_zone/ in git? (strongly recommended) (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+                "$(recommended "Yes — track it in git (strongly recommended)")" \
+                "No  — keep it out of git (add it to .gitignore)")
+            [ "$TRACK_IDX" = 1 ] && TRACK_ANSWER="n"
+        elif [ "$RUN_KIND" = reconfigure ]; then
+            TRACK_ANSWER="keep"
+            echo "· No terminal: git tracking of _agent_team_work_zone/ not changed."
         else
             echo "· No terminal: _agent_team_work_zone/ is left to be tracked in git (recommended). To keep it out of git instead: echo '/_agent_team_work_zone/' >> .gitignore"
         fi
@@ -452,121 +491,134 @@ if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" != "1" ] && [ "$CLAUDE_MD_FIRST_INSTALL
                     echo "✓ Added /_agent_team_work_zone/ to .gitignore at the project root."
                     echo "  Your agents' project memory now has no git history: no backup or rollback through git, and the optional checkpoint saving in git will skip. To change your mind, remove that line from .gitignore."
                 else
-                    echo "⚠ Could not update the project's .gitignore; add the line /_agent_team_work_zone/ yourself if you want it untracked."
+                    print_warn "Could not update the project's .gitignore; add the line /_agent_team_work_zone/ yourself if you want it untracked."
                 fi ;;
+            keep) ;;
             *)
-                echo "✓ Good. Commit it when ready: git add _agent_team_work_zone && git commit -m 'Add agent-team-work-zone'" ;;
+                if [ -f "$PROJECT_ROOT/.gitignore" ] && grep -qxF '/_agent_team_work_zone/' "$PROJECT_ROOT/.gitignore"; then
+                    echo "· /_agent_team_work_zone/ is listed in the project's .gitignore, so the work zone is still not tracked. To track it, remove that line (and the comment above it) from .gitignore, then: git add _agent_team_work_zone && git commit -m 'Track agent-team-work-zone'"
+                else
+                    echo "✓ Good. Commit it when ready: git add _agent_team_work_zone && git commit -m 'Add agent-team-work-zone'"
+                fi ;;
         esac
     fi
     echo ""
 fi
 
-# --- 6. Display mode selection (interactive, optional) ---
-# Since CC v2.1.179, the default changed from "auto" (tmux panes) to "in-process"
-# (single terminal). teammateMode is a user-level setting — only takes effect in
-# the global ~/.claude/settings.json (project/local level is ignored by CC).
-echo "--- Teammate display mode (optional) ---"
-echo ""
-echo "CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch teammate)."
-echo "Inside tmux, choose 'auto' to get a split pane per teammate."
-echo "⚠ Writes to global ~/.claude/settings.json (affects all your projects)."
-echo ""
-
-if [ -t 0 ]; then
-    DISPLAY_MODE_IDX=$(choose_option 2 \
-        "Display mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
-        "auto       — split pane per teammate in tmux/iTerm2, single terminal otherwise" \
-        "in-process — always single terminal, Shift+Down to switch (works everywhere)" \
-        "no change  — keep current setting")
-    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
-    mkdir -p "$HOME/.claude"
-    case "$DISPLAY_MODE_IDX" in
-        0)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
-                else
-                    printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
-                fi
-                echo "  ✓ set \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
-            else
-                echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"auto\""
-            fi
-            ;;
-        1)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
-                else
-                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
-                fi
-                echo "  ✓ set \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
-            else
-                echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"in-process\""
-            fi
-            ;;
-        *)
-            echo "  ↻ no change to display mode."
-            ;;
-    esac
+# --- 6 and 7 are asked on a first install and on reconfigure (same run-kind test as 5b/5c);
+# never on an upgrade or a later re-run, so they do not overwrite settings chosen earlier. ---
+if [ "$RUN_KIND" = upgrade ] || [ "$RUN_KIND" = rerun ]; then
+    echo "--- Teammate display mode and auto permission mode ---"
+    echo "  ↻ Display mode and auto permission mode keep their current settings. To change them, run: $RESETUP_CMD"
+    echo ""
 else
-    echo "  (non-interactive shell — skipped; display mode unchanged)"
-fi
-echo ""
+    # --- 6. Display mode selection (interactive, optional) ---
+    # Since CC v2.1.179, the default changed from "auto" (tmux panes) to "in-process"
+    # (single terminal). teammateMode is a user-level setting — only takes effect in
+    # the global ~/.claude/settings.json (project/local level is ignored by CC).
+    echo "--- Teammate display mode (optional) ---"
+    echo ""
+    echo "CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch teammate)."
+    echo "Inside tmux, choose 'auto' to get a split pane per teammate."
+    print_warn "Writes to global ~/.claude/settings.json (affects all your projects)."
+    echo ""
 
-# --- 7. Enable auto permission mode (interactive, recommended) ---
-# Teammates INHERIT the lead's permission mode at spawn — per-teammate permission
-# modes cannot be set individually. permissions.defaultMode="auto" makes the lead
-# (and every teammate it spawns) start in auto mode, so teammates don't stall on
-# permission prompts in panes you aren't watching.
-# ⚠ CC explicitly ignores this setting at project/local level — it only takes
-#    effect in the global ~/.claude/settings.json. This step always writes global.
-echo "--- Auto permission mode (recommended) ---"
-echo ""
-echo "Teammates inherit the lead's permission mode at spawn — no per-teammate override."
-echo "\"permissions.defaultMode\":\"auto\" makes the lead and all teammates start in auto,"
-echo "preventing permission-prompt stalls in panes you aren't watching."
-echo "⚠ This setting only takes effect in the global ~/.claude/settings.json"
-echo "  (project/local level is explicitly ignored by CC)."
-echo ""
-
-if [ -t 0 ]; then
-    AUTO_PERM_IDX=$(choose_option 0 \
-        "Auto permission mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
-        "enable auto permission mode (recommended — write to ~/.claude/settings.json)" \
-        "skip (leave permission mode as-is)")
-    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
-    mkdir -p "$HOME/.claude"
-    case "$AUTO_PERM_IDX" in
-        0)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+    if [ -t 0 ]; then
+        DISPLAY_MODE_IDX=$(choose_option 2 \
+            "Display mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+            "auto       — split pane per teammate in tmux/iTerm2, single terminal otherwise" \
+            "in-process — always single terminal, Shift+Down to switch (works everywhere)" \
+            "no change  — keep current setting")
+        GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+        mkdir -p "$HOME/.claude"
+        case "$DISPLAY_MODE_IDX" in
+            0)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ set \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
                 else
-                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
+                    print_warn "jq unavailable — cannot safely merge JSON." "  "
+                    echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"auto\""
                 fi
-                echo "  ✓ set \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
-                echo "    revert anytime: delete that key, or use Shift+Tab per session."
-            else
-                echo "  ⚠ jq unavailable — cannot safely merge JSON."
-                echo "    Manually add to $GLOBAL_SETTINGS:"
-                echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
-            fi
-            ;;
-        *)
-            echo "  ↻ skipped; permission mode unchanged."
-            echo "    To use auto: switch the lead to auto with Shift+Tab before spawning."
-            ;;
-    esac
-else
-    echo "  (non-interactive shell — skipped; permission mode unchanged)"
+                ;;
+            1)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ set \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
+                else
+                    print_warn "jq unavailable — cannot safely merge JSON." "  "
+                    echo "    Manually add to $GLOBAL_SETTINGS:  \"teammateMode\": \"in-process\""
+                fi
+                ;;
+            *)
+                echo "  ↻ no change to display mode."
+                ;;
+        esac
+    else
+        echo "  (non-interactive shell — skipped; display mode unchanged)"
+    fi
+    echo ""
+
+    # --- 7. Enable auto permission mode (interactive, recommended) ---
+    # Teammates INHERIT the lead's permission mode at spawn — per-teammate permission
+    # modes cannot be set individually. permissions.defaultMode="auto" makes the lead
+    # (and every teammate it spawns) start in auto mode, so teammates don't stall on
+    # permission prompts in panes you aren't watching.
+    # ⚠ CC explicitly ignores this setting at project/local level — it only takes
+    #    effect in the global ~/.claude/settings.json. This step always writes global.
+    echo "--- Auto permission mode (recommended) ---"
+    echo ""
+    echo "Teammates inherit the lead's permission mode at spawn — no per-teammate override."
+    echo "\"permissions.defaultMode\":\"auto\" makes the lead and all teammates start in auto,"
+    echo "preventing permission-prompt stalls in panes you aren't watching."
+    print_warn "This setting only takes effect in the global ~/.claude/settings.json"
+    echo "  (project/local level is explicitly ignored by CC)."
+    echo ""
+
+    if [ -t 0 ]; then
+        AUTO_PERM_IDX=$(choose_option 0 \
+            "Auto permission mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
+            "$(recommended "enable auto permission mode (recommended — write to ~/.claude/settings.json)")" \
+            "skip (leave permission mode as-is)")
+        GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+        mkdir -p "$HOME/.claude"
+        case "$AUTO_PERM_IDX" in
+            0)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ set \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
+                    echo "    revert anytime: delete that key, or use Shift+Tab per session."
+                else
+                    print_warn "jq unavailable — cannot safely merge JSON." "  "
+                    echo "    Manually add to $GLOBAL_SETTINGS:"
+                    echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
+                fi
+                ;;
+            *)
+                echo "  ↻ skipped; permission mode unchanged."
+                echo "    To use auto: switch the lead to auto with Shift+Tab before spawning."
+                ;;
+        esac
+    else
+        echo "  (non-interactive shell — skipped; permission mode unchanged)"
+    fi
+    echo ""
 fi
-echo ""
 
 echo "=================================================="
 echo "  Bootstrap complete"
@@ -581,9 +633,9 @@ echo "  3. For existing sessions, run /sync to pick up new skills"
 echo ""
 echo "Teammate display mode:"
 echo "  • CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch)."
-echo "  • To change, re-run bootstrap and choose at step 6."
+echo "  • To change it later, run: $RESETUP_CMD"
 echo ""
-echo "⚠ Do not directly edit .claude/skills/ or .claude/agents/ —"
+print_warn "Do not directly edit .claude/skills/ or .claude/agents/ —"
 echo "  those are installed copies. Edit the sources in"
 echo "  $TEMPLATE_ROOT/resources/ instead and re-run bootstrap."
 echo ""

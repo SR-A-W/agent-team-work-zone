@@ -4,6 +4,28 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v1.1.0 (2026-10-04)
+
+MINOR (backward compatible): **a `reconfigure` command, arrow-key menus for every question, clearer warnings, and recommended `CLAUDE.md` sections added by default**.
+
+### Added
+- **`reconfigure`**: `npx agent-team-work-zone reconfigure [project-dir]` (or `atwz reconfigure`; source install: `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`). It re-runs the setup on an existing install: re-syncs the framework skills, agents and hooks, merges `.claude/settings.json` (backing it up first if you had your own hooks on `SessionStart`, `TeammateIdle` or `SessionEnd`), adds any missing framework sections to `CLAUDE.md`, and asks again every install-time question (the two optional sections, git tracking, display mode, auto permission mode; as on a first install, the auto permission menu defaults to Enable, so pressing Enter through `reconfigure` turns it on). It is not a reinstall and not an upgrade: it uses the version already installed, and it does not change anything inside `_agent_team_work_zone/`. It needs an install of v1.1.0 or later; upgrade an older install first.
+
+### Changed
+- **Every question during install and upgrade is an arrow-key menu** (↑/↓ to move, Enter to confirm, number keys to pick): the language, the optional sections, git tracking, and the source installer's question about an existing `.claude/`. Defaults are unchanged except for the optional sections (below). Without a terminal nothing is asked and defaults apply, as before.
+- **The two optional `CLAUDE.md` sections** ("Messages to the user (format)" and "Plain vocabulary") are now strongly recommended and **added by default on a first install**, also when there is no terminal (the installer then prints how to remove them: delete the section marked `<!-- ATWZ-OPTIONAL:<id> -->`). **An upgrade never adds them and never asks**, so after upgrading, your agents keep writing to you as before; to add them, run `reconfigure` in a terminal. `reconfigure` without a terminal leaves them alone. They are only ever appended; existing `CLAUDE.md` content is never changed or removed.
+- **Upgrades no longer ask about display mode and auto permission mode.** These are asked on a first install and by `reconfigure` only; an upgrade keeps your current settings and tells you how to change them. (Before, pressing Enter through an upgrade could turn auto permission mode on.)
+- **Warnings stand out**: lines starting with ⚠ are bold orange-red, and options marked as recommended are green. Colours appear only in a terminal and never when `NO_COLOR` is set; logs and pipes get plain text.
+- **npm `upgrade`**: if it cannot tell whether the install is the Chinese or the English edition, it shows a language menu (without a terminal it still asks for `--lang`).
+
+### Fixed
+- v1.0.0 described a separate npm package named `atwz` so that `npx atwz …` would work. npm does not accept that name, so that package does not exist. The `atwz` command itself is unchanged: install the main package once with `npm i -g agent-team-work-zone`, then use `atwz <command>`; for one-off use, run `npx agent-team-work-zone <command>`. The npm README, the `help` text and the guides are corrected.
+
+### Migration (v1.0.0 → v1.1.0)
+- `npx agent-team-work-zone@latest upgrade`, or `bash _agent_team_work_zone/upgrade.sh`. No user data is migrated and the work rules did not change, so no `.bak` files are created. The upgrade does not add the optional `CLAUDE.md` sections and does not touch your display-mode or permission settings; run `reconfigure` afterwards if you want to change any install-time choice.
+
+---
+
 ## v1.0.0 (2026-10-04)
 
 MAJOR (no breaking change): **install and upgrade with npm**. How your agent teams work is unchanged; this release adds a new way to install and upgrade the framework, a notice when a newer version is out, and a git check on first install. The major version marks the new distribution channel. `bash _agent_team_work_zone/upgrade.sh` keeps working as before.
@@ -13,7 +35,7 @@ MAJOR (no breaking change): **install and upgrade with npm**. How your agent tea
   - `npx agent-team-work-zone init [project-dir] [--lang zh|en]` sets up `_agent_team_work_zone/` in a project (the current directory if none is given) and runs the installer. If the project already has a `.claude/` directory, it merges into it: framework skills and agents are added or updated by name, your own are kept, and `.claude/settings.json` is merged (the framework's `SessionStart`, `TeammateIdle` and `SessionEnd` hooks replace any you had for those three events; if you had any, your original file is first saved as `.claude/settings.json.bak.<timestamp>` and the installer prints its path). It refuses if the work zone already exists. Without `--lang` it asks when run in a terminal, and uses English otherwise.
   - `npx agent-team-work-zone upgrade [project-dir] [--yes]` upgrades an existing install from the package itself, with no download. It detects the installed language.
   - `--version` and `help`.
-  - Install it once with `npm i -g agent-team-work-zone` to get the short command `atwz` (`atwz init`, `atwz upgrade`). A small package named `atwz` also exists so that `npx atwz …` works; install only one of the two globally.
+  - Install it once with `npm i -g agent-team-work-zone` to get the short command `atwz` (`atwz init`, `atwz upgrade`). A small package named `atwz` also exists so that `npx atwz …` works; install only one of the two globally. *(Corrected in v1.1.0: npm did not accept that package name, so it does not exist.)*
 - **New-version notice**: when Claude Code starts, a hook compares your version with the latest published one and, if yours is older, prints the upgrade commands (npm and source) and the reminder to restart sessions afterwards. It looks up the latest version at most once a day, in the background (once a newer version is found, every session start shows the notice until you upgrade), and stays silent on any failure, so it never slows down or blocks a session. Turn it off with `ATWZ_UPDATE_CHECK=0` or by creating `_agent_team_work_zone/.no_update_check`.
 - **Git check on first install**: if the project is not in a git repository, or the work zone is not at the repository root, the installer warns. At the repository root it asks whether to track `_agent_team_work_zone/` in git (strongly recommended; default yes). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`. Without a terminal it does not ask and leaves tracking on. Upgrades never ask.
 - `UPGRADE_SOURCE_DIR=<dir> bash _agent_team_work_zone/upgrade.sh` upgrades from a local copy of the framework instead of downloading it.
@@ -34,7 +56,7 @@ MAJOR (no breaking change): **install and upgrade with npm**. How your agent tea
 - A skill or agent of your own that has the same name as a framework one is replaced by the framework's, without a backup. Rename yours (or back it up) before installing.
 - Hooks you add again to `SessionStart`, `TeammateIdle` or `SessionEnd` are replaced again at the next install or upgrade (a new `settings.json.bak.<timestamp>` is made each time). Hooks on other events are kept.
 - `jq` is required by the installer and the upgrade (to write and merge `.claude/settings.json`); without it they stop with exit code 1. The installer's own `jq` check still calls it optional, which is wrong.
-- Installing both `agent-team-work-zone` and `atwz` globally fails because both provide the `atwz` command; install only one.
+- Installing both `agent-team-work-zone` and `atwz` globally fails because both provide the `atwz` command; install only one. *(No longer applies: see v1.1.0.)*
 - The new scripts were checked for macOS by reading the code; they have not yet been run on a Mac.
 
 ### Migration (v0.5.0 → v1.0.0)

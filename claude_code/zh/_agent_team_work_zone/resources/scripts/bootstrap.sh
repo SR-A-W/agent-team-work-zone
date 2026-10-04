@@ -21,6 +21,9 @@
 # 用法:
 #   cd /path/to/your/project
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh
+#   bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure
+#       (on an existing install: ask the install-time questions again; nothing under
+#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone reconfigure` runs)
 #
 # 开发环境（在 agent-team-work-zone 仓库内 dogfood）:
 #   cd /path/to/agent-team-work-zone
@@ -31,7 +34,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Shared output helpers (print_warn, recommended, ...).
+# shellcheck source=./migrations/common.sh
+. "$SCRIPT_DIR/migrations/common.sh"
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+
+# --reconfigure: re-run the install-time questions on an existing install (see Usage).
+ATWZ_RECONFIGURE=0
+case "${1:-}" in
+    "") ;;
+    --reconfigure) ATWZ_RECONFIGURE=1 ;;
+    *) echo "未知参数：$1（唯一可用的参数是 --reconfigure）" >&2; exit 2 ;;
+esac
+# How to ask the install-time questions again later (printed where a question is skipped).
+RESETUP_CMD="npx agent-team-work-zone reconfigure（源码安装：bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure）"
 
 echo "=================================================="
 echo "  _agent_team_work_zone bootstrap"
@@ -193,22 +209,22 @@ if command -v tmux >/dev/null 2>&1; then
         fi
 
         echo "✓ tmux $TMUX_VERSION inside session, PATH/socket consistent (>= $TMUX_MIN)"
-        echo "  → tmux split-pane mode is available. At step 6 below, choose 'auto' to"
-        echo "    get one pane per teammate (idle/stuck ones stay visible). CC v2.1.179+"
-        echo "    default is in-process (single terminal)."
+        echo "  → 可以使用 tmux 分屏模式：首次安装时在下面的显示模式菜单里选 auto，每个 teammate"
+        echo "    一个窗格（空闲/卡住的也看得见）；之后要改请运行：$RESETUP_CMD"
+        echo "    CC v2.1.179+ 默认是 in-process（单终端）。"
     else
         # Not inside tmux: tmux is only a latent prereq for split-pane view.
         if version_ge "$TMUX_VERSION_NUM" "$TMUX_MIN"; then
             echo "✓ tmux $TMUX_VERSION (>= $TMUX_MIN; split-panes mode available)"
         else
-            echo "⚠ tmux $TMUX_VERSION is < $TMUX_MIN."
+            print_warn "tmux $TMUX_VERSION is < $TMUX_MIN."
             echo "  in-process teammate mode works fine without tmux. But if you"
             echo "  later run Claude Code INSIDE tmux for split-pane team view,"
             echo "  upgrade to >= $TMUX_MIN first (older → 'size invalid' at spawn)."
         fi
     fi
 else
-    echo "⚠ tmux not found — STRONGLY RECOMMENDED (but not required)."
+    print_warn "tmux not found — STRONGLY RECOMMENDED (but not required)."
     echo "  Teams run in in-process mode by default (full functionality, no tmux)."
     echo "  Running Claude Code INSIDE tmux gives two wins:"
     echo "    (1) survives terminal close / SSH disconnect → far fewer /reactivate-team"
@@ -224,7 +240,7 @@ if command -v jq >/dev/null 2>&1; then
     echo "✓ jq $JQ_VERSION (used for settings.json merge)"
     HAS_JQ=1
 else
-    echo "⚠ jq not found — settings.json merge will use heredoc fallback if file exists"
+    print_warn "jq not found — settings.json merge will use heredoc fallback if file exists"
 fi
 
 # --- 3b. git check (optional, warning only) ---
@@ -239,7 +255,7 @@ if command -v git >/dev/null 2>&1; then
             echo "· 无法识别 git 版本（$GIT_RAW）；可选的 git 锁需要 git 2.5 或更高" ;;
         *)
             if [ "$GIT_MAJOR" -lt 2 ] || { [ "$GIT_MAJOR" -eq 2 ] && [ "$GIT_MINOR" -lt 5 ]; }; then
-                echo "⚠ git $GIT_VERSION —— 可选的 git 锁（atwz_git_lock.sh，checkpoint 的 commit 模式也会用到）需要 git 2.5 或更高；其他功能不受影响"
+                print_warn "git $GIT_VERSION —— 可选的 git 锁（atwz_git_lock.sh，checkpoint 的 commit 模式也会用到）需要 git 2.5 或更高；其他功能不受影响"
             else
                 echo "✓ git $GIT_VERSION"
             fi ;;
@@ -283,7 +299,7 @@ EOF
         rm -f "$RESOLVED"
         echo "  ✓ merged teammate-persistence hooks into $SETTINGS_JSON"
     elif [ ! "$HAS_JQ" -eq 1 ]; then
-        echo "  ⚠ jq unavailable — env flag written, but hooks NOT merged."
+        print_warn "jq unavailable — env flag written, but hooks NOT merged." "  "
         echo "    Manually copy the \"hooks\" block from:"
         echo "      $HOOKS_TEMPLATE"
         echo "    into $SETTINGS_JSON, replacing {{TEMPLATE_REL}} with:"
@@ -331,7 +347,7 @@ else
             rm -f "$RESOLVED"
             echo "  ↻ merged teammate-persistence hooks into $SETTINGS_JSON"
             if [ -n "$SETTINGS_BAK" ]; then
-                echo "  ⚠ You had $USER_HOOKS hook(s) of your own on SessionStart / TeammateIdle / SessionEnd;"
+                print_warn "You had $USER_HOOKS hook(s) of your own on SessionStart / TeammateIdle / SessionEnd;" "  "
                 echo "    on those three events the framework's hooks have replaced them. Your previous"
                 echo "    settings are saved in:"
                 echo "      $SETTINGS_BAK"
@@ -339,7 +355,7 @@ else
             fi
         fi
     else
-        echo "  ⚠ $SETTINGS_JSON already exists and jq is not available."
+        print_warn "$SETTINGS_JSON already exists and jq is not available." "  "
         echo "    Neither the env flag nor hooks could be merged automatically."
         echo "    Manually ensure:"
         echo "      1. { \"env\": { \"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS\": \"1\" } }"
@@ -356,7 +372,7 @@ CLAUDE_TEMPLATE="$TEMPLATE_ROOT/resources/CLAUDE.md.template"
 CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
 
 if [ ! -f "$CLAUDE_TEMPLATE" ]; then
-    echo "  ⚠ $CLAUDE_TEMPLATE not found — skipping CLAUDE.md install"
+    print_warn "$CLAUDE_TEMPLATE not found — skipping CLAUDE.md install" "  "
 else
     # Extract the language-specific first ## header for idempotency (no hardcoding)
     CLAUDE_FIRST_HEADER="$(awk '/^## /{print; exit}' "$CLAUDE_TEMPLATE")"
@@ -372,28 +388,38 @@ else
         printf '\n' >> "$CLAUDE_MD"
         awk '/^## /{found=1} found{print}' "$CLAUDE_TEMPLATE" >> "$CLAUDE_MD"
         CLAUDE_MD_FIRST_INSTALL=1
-        echo "  ⚠ Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them."
+        print_warn "Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them." "  "
     fi
 fi
 echo ""
 
-# --- 5b. Optional CLAUDE.md sections (interactive, default No) ---
-# One [y/N] question per file in resources/claude_md_optional/. Asked only on a first
-# install (this run put the framework sections into CLAUDE.md), only with a terminal,
-# and never during an upgrade (the migration dispatcher sets ATWZ_SKIP_OPTIONAL_SECTIONS=1;
-# and an upgrade finds the framework sections already present, so it is not a first
-# install either). On an explicit y the section is APPENDED, once: it is skipped if its
-# "<!-- ATWZ-OPTIONAL:<id> -->" marker is already in CLAUDE.md. Existing CLAUDE.md
-# content is never modified; nothing else is created.
+# Which questions this run asks (5b optional sections, 5c git, 6 display mode, 7 auto permission):
+#   upgrade      ATWZ_SKIP_OPTIONAL_SECTIONS=1 (set by the migration dispatcher) → none
+#   reconfigure  --reconfigure                                                → all (with a terminal)
+#   first        this run put the framework sections into CLAUDE.md          → all
+#   rerun        any other run                                               → none
+if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" = "1" ]; then RUN_KIND=upgrade
+elif [ "$ATWZ_RECONFIGURE" = "1" ]; then RUN_KIND=reconfigure
+elif [ "$CLAUDE_MD_FIRST_INSTALL" = "1" ]; then RUN_KIND=first
+else RUN_KIND=rerun
+fi
+
+# --- 5b. Optional CLAUDE.md sections (strongly recommended, default Yes) ---
+# One Yes/No menu (default Yes) per file in resources/claude_md_optional/.
+#   first install: terminal → menu; no terminal → added, with a note on how to remove it
+#   reconfigure:   terminal → menu; no terminal → not handled (nothing added)
+#   upgrade / rerun: never added, never asked
+# A section is APPENDED once: skipped if its "<!-- ATWZ-OPTIONAL:<id> -->" marker is already
+# in CLAUDE.md. Existing CLAUDE.md content is never modified; a "no" is not recorded anywhere.
 OPTIONAL_DIR="$TEMPLATE_ROOT/resources/claude_md_optional"
 if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     echo "--- 可选 CLAUDE.md 段落 ---"
-    if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" = "1" ]; then
-        printf '%s\n' "$(printf '  ↻ 可选 CLAUDE.md 段落：升级时不询问。以后要加：cat "%s/resources/claude_md_optional/<文件>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
-    elif [ "$CLAUDE_MD_FIRST_INSTALL" != "1" ]; then
-        printf '%s\n' "$(printf '  ↻ 可选 CLAUDE.md 段落：只在首次安装时询问。以后要加：cat "%s/resources/claude_md_optional/<文件>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
-    elif [ ! -t 0 ]; then
-        echo "  ↻ 可选 CLAUDE.md 段落：没有终端，不追加（默认 No）。"
+    if [ "$RUN_KIND" = upgrade ]; then
+        echo "  ↻ 可选 CLAUDE.md 段落：升级时不询问。要加入请运行：$RESETUP_CMD"
+    elif [ "$RUN_KIND" = rerun ]; then
+        echo "  ↻ 可选 CLAUDE.md 段落：只在首次安装时询问。要加入请运行：$RESETUP_CMD"
+    elif [ "$RUN_KIND" = reconfigure ] && [ ! -t 0 ]; then
+        echo "  ↻ 可选 CLAUDE.md 段落：未处理（没有终端）。在终端里运行 reconfigure 可加入。"
     else
         for id in user_message_format plain_vocabulary; do
             snippet="$OPTIONAL_DIR/$id.md"
@@ -403,14 +429,20 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
                 printf '  ↻ CLAUDE.md 里已有可选段落「%s」——跳过\n' "$title"
                 continue
             fi
-            printf '是否把可选段落「%s」追加到 CLAUDE.md？[y/N] ' "$title" >/dev/tty
-            answer=""
-            IFS= read -r answer </dev/tty || answer=""
-            case "$answer" in
-                y|Y|yes|YES|Yes)
+            if [ -t 0 ]; then
+                OPT_IDX=$(choose_option 0 \
+                    "$(printf '是否把可选段落「%s」追加到 CLAUDE.md？(↑↓ 切换，回车确认，数字键快选):' "$title")" \
+                    "$(recommended "Yes — 追加（强烈推荐）")" \
+                    "No  — 不追加")
+            else
+                OPT_IDX=0   # first install without a terminal: added by default
+            fi
+            case "$OPT_IDX" in
+                0)
                     printf '\n' >> "$CLAUDE_MD"
                     cat "$snippet" >> "$CLAUDE_MD"
-                    printf '  ✓ 已把可选段落「%s」追加到 CLAUDE.md\n' "$title" ;;
+                    printf '  ✓ 已把可选段落「%s」追加到 CLAUDE.md\n' "$title"
+                    [ -t 0 ] || printf '    （没有终端：按默认加入；要去掉，删除 CLAUDE.md 里带 <!-- ATWZ-OPTIONAL:%s --> 标记的段落）\n' "$id" ;;
                 *)
                     printf '  · 未追加：「%s」\n' "$title" ;;
             esac
@@ -419,29 +451,35 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     echo ""
 fi
 
-# --- 5c. Git tracking of the work zone (first install only, never on upgrade) ---
-# Same first-install test as 5b. Needs git (3b already reported if it is missing).
+# --- 5c. Git tracking of the work zone (first install and reconfigure; never on upgrade) ---
+# Same run-kind test as 5b. Needs git (3b already reported if it is missing).
 #   - project not inside a git repository  → warning + why tracking it helps
 #   - inside a repository but not its root → warning: keep the work zone at the project root
-#   - at the repository root               → ask whether to track _agent_team_work_zone/ (default Y);
-#     n → append "/_agent_team_work_zone/" to the PROJECT ROOT .gitignore (created if missing —
-#     the user asked for it), append-only and idempotent; no terminal → treated as Y, nothing written.
-if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" != "1" ] && [ "$CLAUDE_MD_FIRST_INSTALL" = "1" ] \
-   && command -v git >/dev/null 2>&1; then
+#   - at the repository root               → menu: track _agent_team_work_zone/? (default Yes);
+#     No → append "/_agent_team_work_zone/" to the PROJECT ROOT .gitignore (created if missing —
+#     the user asked for it), append-only and idempotent; Yes never removes that line (it says how);
+#     no terminal → first install: treated as Yes, nothing written; reconfigure: nothing changed.
+if { [ "$RUN_KIND" = first ] || [ "$RUN_KIND" = reconfigure ]; } && command -v git >/dev/null 2>&1; then
     echo "--- git ---"
     GIT_TOP="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
     PROJECT_REAL="$(cd "$PROJECT_ROOT" && pwd -P)"
     if [ -z "$GIT_TOP" ]; then
-        echo "⚠ 这个项目不在 git 仓库里。"
+        print_warn "这个项目不在 git 仓库里。"
         echo "  把 _agent_team_work_zone/ 纳入 git，agent 的项目记忆就有了备份、可以回滚，换一台机器能拉起同一支团队，多人也能通过 git push / pull 协作。开始：git init"
     elif [ "$(cd "$GIT_TOP" && pwd -P)" != "$PROJECT_REAL" ]; then
-        printf '%s\n' "$(printf '⚠ 这个项目在 git 仓库 %s 里，但不是仓库的根目录。' "$GIT_TOP")"
+        print_warn "$(printf '这个项目在 git 仓库 %s 里，但不是仓库的根目录。' "$GIT_TOP")"
         echo "  _agent_team_work_zone/ 应放在项目根目录（即仓库根目录），并在那里启动 Claude Code。"
     else
         TRACK_ANSWER="y"
         if [ -t 0 ]; then
-            printf '是否把 _agent_team_work_zone/ 纳入 git？（强烈推荐）[Y/n] ' >/dev/tty
-            IFS= read -r TRACK_ANSWER </dev/tty || TRACK_ANSWER=""
+            TRACK_IDX=$(choose_option 0 \
+                "是否把 _agent_team_work_zone/ 纳入 git？（强烈推荐）(↑↓ 切换，回车确认，数字键快选):" \
+                "$(recommended "Yes — 纳入 git（强烈推荐）")" \
+                "No  — 不纳入（写进 .gitignore）")
+            [ "$TRACK_IDX" = 1 ] && TRACK_ANSWER="n"
+        elif [ "$RUN_KIND" = reconfigure ]; then
+            TRACK_ANSWER="keep"
+            echo "· 没有终端：_agent_team_work_zone/ 的 git 纳入设置未改动。"
         else
             echo "· 没有终端：_agent_team_work_zone/ 按默认纳入 git（推荐）。如果不想纳入：echo '/_agent_team_work_zone/' >> .gitignore"
         fi
@@ -454,117 +492,130 @@ if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" != "1" ] && [ "$CLAUDE_MD_FIRST_INSTALL
                     echo "✓ 已在项目根目录的 .gitignore 里加入 /_agent_team_work_zone/。"
                     echo "  这样 agent 的项目记忆就没有 git 历史：不能通过 git 备份或回滚，可选的 checkpoint git 保存也会跳过。改主意的话，从 .gitignore 里删掉这一行即可。"
                 else
-                    echo "⚠ 无法更新项目的 .gitignore；如果不想纳入 git，请自己加一行 /_agent_team_work_zone/。"
+                    print_warn "无法更新项目的 .gitignore；如果不想纳入 git，请自己加一行 /_agent_team_work_zone/。"
                 fi ;;
+            keep) ;;
             *)
-                echo "✓ 好。准备好后提交它：git add _agent_team_work_zone && git commit -m 'Add agent-team-work-zone'" ;;
+                if [ -f "$PROJECT_ROOT/.gitignore" ] && grep -qxF '/_agent_team_work_zone/' "$PROJECT_ROOT/.gitignore"; then
+                    echo "· 项目的 .gitignore 里有 /_agent_team_work_zone/ 这一行，所以工作区仍未纳入 git。要纳入，请从 .gitignore 删掉这一行（及其上方的注释），然后：git add _agent_team_work_zone && git commit -m 'Track agent-team-work-zone'"
+                else
+                    echo "✓ 好。准备好后提交它：git add _agent_team_work_zone && git commit -m 'Add agent-team-work-zone'"
+                fi ;;
         esac
     fi
     echo ""
 fi
 
-# --- 6. 显示模式选择（交互，可选）---
-# CC v2.1.179 起默认从 "auto"（tmux 分面板）改为 "in-process"（单终端）。
-# teammateMode 为用户级设置，只在全局 ~/.claude/settings.json 生效。
-echo "--- 显示模式选择（可选）---"
-echo ""
-echo "CC v2.1.179+ 默认显示模式为 in-process（单终端，Shift+Down 切换 teammate）。"
-echo "在 tmux 内运行时，选 auto 可开启分面板（每个 teammate 独立面板）。"
-echo "⚠ 写入全局 ~/.claude/settings.json（影响你所有项目）。"
-echo ""
-
-if [ -t 0 ]; then
-    DISPLAY_MODE_IDX=$(choose_option 2 \
-        "显示模式 (↑↓ 切换，回车确认，数字键快选):" \
-        "auto       — tmux/iTerm2 分面板，否则单终端（在 tmux 里推荐）" \
-        "in-process — 始终单终端，Shift+Down 切换（任何终端可用）" \
-        "不修改     — 保留现状")
-    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
-    mkdir -p "$HOME/.claude"
-    case "$DISPLAY_MODE_IDX" in
-        0)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
-                else
-                    printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
-                fi
-                echo "  ✓ 已设置 \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
-            else
-                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
-                echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"auto\""
-            fi
-            ;;
-        1)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
-                else
-                    printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
-                fi
-                echo "  ✓ 已设置 \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
-            else
-                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
-                echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"in-process\""
-            fi
-            ;;
-        *)
-            echo "  ↻ 不修改显示模式，保留现状。"
-            ;;
-    esac
+# --- 6 and 7 are asked on a first install and on reconfigure (same run-kind test as 5b/5c);
+# never on an upgrade or a later re-run, so they do not overwrite settings chosen earlier. ---
+if [ "$RUN_KIND" = upgrade ] || [ "$RUN_KIND" = rerun ]; then
+    echo "--- Teammate 显示模式与 auto 权限模式 ---"
+    echo "  ↻ 显示模式和 auto 权限沿用现有设置；要修改请运行：$RESETUP_CMD"
+    echo ""
 else
-    echo "  （非交互 shell，跳过；显示模式保持不变）"
-fi
-echo ""
+    # --- 6. 显示模式选择（交互，可选）---
+    # CC v2.1.179 起默认从 "auto"（tmux 分面板）改为 "in-process"（单终端）。
+    # teammateMode 为用户级设置，只在全局 ~/.claude/settings.json 生效。
+    echo "--- 显示模式选择（可选）---"
+    echo ""
+    echo "CC v2.1.179+ 默认显示模式为 in-process（单终端，Shift+Down 切换 teammate）。"
+    echo "在 tmux 内运行时，选 auto 可开启分面板（每个 teammate 独立面板）。"
+    print_warn "写入全局 ~/.claude/settings.json（影响你所有项目）。"
+    echo ""
 
-# --- 7. 启用 auto 权限模式（交互，推荐）---
-# Teammate 在 spawn 时继承 lead 的权限模式，无法为每个 teammate 单独设置。
-# permissions.defaultMode="auto" 让 lead（及其 spawn 的所有 teammate）以 auto
-# 模式启动，避免 teammate 在无人关注的面板中被权限提示卡住。
-# ⚠ CC 明确忽略项目级/本地级的此项设置；只有写入全局 ~/.claude/settings.json 才生效。
-echo "--- Auto 权限模式（推荐）---"
-echo ""
-echo "Teammate 在 spawn 时继承 lead 的权限模式，无法单独设置。"
-echo "\"permissions.defaultMode\":\"auto\" 让 lead 及所有 teammate 以 auto 模式启动，"
-echo "避免 teammate 在无人关注的面板中被权限提示卡住。"
-echo "⚠ 此设置仅在全局 ~/.claude/settings.json 生效（项目级被 CC 明确忽略）。"
-echo ""
-
-if [ -t 0 ]; then
-    AUTO_PERM_IDX=$(choose_option 0 \
-        "Auto 权限模式 (↑↓ 切换，回车确认，数字键快选):" \
-        "启用 auto 权限模式（推荐，写入 ~/.claude/settings.json）" \
-        "不启用（保持当前权限模式）")
-    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
-    mkdir -p "$HOME/.claude"
-    case "$AUTO_PERM_IDX" in
-        0)
-            if [ "$HAS_JQ" -eq 1 ]; then
-                if [ -f "$GLOBAL_SETTINGS" ]; then
-                    TMP="$(mktemp)"
-                    jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+    if [ -t 0 ]; then
+        DISPLAY_MODE_IDX=$(choose_option 2 \
+            "显示模式 (↑↓ 切换，回车确认，数字键快选):" \
+            "auto       — tmux/iTerm2 分面板，否则单终端（在 tmux 里推荐）" \
+            "in-process — 始终单终端，Shift+Down 切换（任何终端可用）" \
+            "不修改     — 保留现状")
+        GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+        mkdir -p "$HOME/.claude"
+        case "$DISPLAY_MODE_IDX" in
+            0)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.teammateMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "teammateMode": "auto"\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ 已设置 \"teammateMode\":\"auto\" → $GLOBAL_SETTINGS"
                 else
-                    printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
+                    print_warn "jq 不可用，无法自动合并 JSON。" "  "
+                    echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"auto\""
                 fi
-                echo "  ✓ 已设置 \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
-                echo "    如需还原：删除该键，或用 Shift+Tab 临时切换。"
-            else
-                echo "  ⚠ jq 不可用，无法自动合并 JSON。"
-                echo "    请手动在 $GLOBAL_SETTINGS 中添加:"
-                echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
-            fi
-            ;;
-        *)
-            echo "  ↻ 不启用，权限模式保持不变。"
-            echo "    如需：在 spawn lead 前用 Shift+Tab 手动切到 auto 模式。"
-            ;;
-    esac
-else
-    echo "  （非交互 shell，跳过；权限模式保持不变）"
+                ;;
+            1)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.teammateMode = "in-process"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "teammateMode": "in-process"\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ 已设置 \"teammateMode\":\"in-process\" → $GLOBAL_SETTINGS"
+                else
+                    print_warn "jq 不可用，无法自动合并 JSON。" "  "
+                    echo "    请手动在 $GLOBAL_SETTINGS 中添加: \"teammateMode\": \"in-process\""
+                fi
+                ;;
+            *)
+                echo "  ↻ 不修改显示模式，保留现状。"
+                ;;
+        esac
+    else
+        echo "  （非交互 shell，跳过；显示模式保持不变）"
+    fi
+    echo ""
+
+    # --- 7. 启用 auto 权限模式（交互，推荐）---
+    # Teammate 在 spawn 时继承 lead 的权限模式，无法为每个 teammate 单独设置。
+    # permissions.defaultMode="auto" 让 lead（及其 spawn 的所有 teammate）以 auto
+    # 模式启动，避免 teammate 在无人关注的面板中被权限提示卡住。
+    # ⚠ CC 明确忽略项目级/本地级的此项设置；只有写入全局 ~/.claude/settings.json 才生效。
+    echo "--- Auto 权限模式（推荐）---"
+    echo ""
+    echo "Teammate 在 spawn 时继承 lead 的权限模式，无法单独设置。"
+    echo "\"permissions.defaultMode\":\"auto\" 让 lead 及所有 teammate 以 auto 模式启动，"
+    echo "避免 teammate 在无人关注的面板中被权限提示卡住。"
+    print_warn "此设置仅在全局 ~/.claude/settings.json 生效（项目级被 CC 明确忽略）。"
+    echo ""
+
+    if [ -t 0 ]; then
+        AUTO_PERM_IDX=$(choose_option 0 \
+            "Auto 权限模式 (↑↓ 切换，回车确认，数字键快选):" \
+            "$(recommended "启用 auto 权限模式（推荐，写入 ~/.claude/settings.json）")" \
+            "不启用（保持当前权限模式）")
+        GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+        mkdir -p "$HOME/.claude"
+        case "$AUTO_PERM_IDX" in
+            0)
+                if [ "$HAS_JQ" -eq 1 ]; then
+                    if [ -f "$GLOBAL_SETTINGS" ]; then
+                        TMP="$(mktemp)"
+                        jq '.permissions.defaultMode = "auto"' "$GLOBAL_SETTINGS" >"$TMP" && mv "$TMP" "$GLOBAL_SETTINGS"
+                    else
+                        printf '{\n  "permissions": {\n    "defaultMode": "auto"\n  }\n}\n' >"$GLOBAL_SETTINGS"
+                    fi
+                    echo "  ✓ 已设置 \"permissions.defaultMode\":\"auto\" → $GLOBAL_SETTINGS"
+                    echo "    如需还原：删除该键，或用 Shift+Tab 临时切换。"
+                else
+                    print_warn "jq 不可用，无法自动合并 JSON。" "  "
+                    echo "    请手动在 $GLOBAL_SETTINGS 中添加:"
+                    echo "      \"permissions\": { \"defaultMode\": \"auto\" }"
+                fi
+                ;;
+            *)
+                echo "  ↻ 不启用，权限模式保持不变。"
+                echo "    如需：在 spawn lead 前用 Shift+Tab 手动切到 auto 模式。"
+                ;;
+        esac
+    else
+        echo "  （非交互 shell，跳过；权限模式保持不变）"
+    fi
+    echo ""
 fi
-echo ""
 
 echo "=================================================="
 echo "  Bootstrap complete"
@@ -579,9 +630,9 @@ echo "  3. For existing sessions, run /sync to pick up new skills"
 echo ""
 echo "Teammate 显示模式:"
 echo "  • CC v2.1.179+ 默认 in-process（单终端，Shift+Down 切换）。"
-echo "  • 如需修改，重新运行 bootstrap 在步骤 6 选择即可。"
+echo "  • 以后要修改，请运行：$RESETUP_CMD"
 echo ""
-echo "⚠ Do not directly edit .claude/skills/ or .claude/agents/ —"
+print_warn "Do not directly edit .claude/skills/ or .claude/agents/ —"
 echo "  those are installed copies. Edit the sources in"
 echo "  $TEMPLATE_ROOT/resources/ instead and re-run bootstrap."
 echo ""
