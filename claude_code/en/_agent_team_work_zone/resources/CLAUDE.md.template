@@ -28,12 +28,17 @@ and `TEAMMATE_INFO.json` registry. Its skills (`/onboard`, `/spawn-team`, `/chec
   can be reactivated from it.
 - **The lead coordinates; teammates implement.** The lead spends its context on decisions
   and review, not implementation.
-- **Read teammate signals from reports, not heartbeats or files.** As lead, judge a
-  teammate's progress only by its SendMessage report. An `idle_notification` is a
-  heartbeat, not a status — a no-op; wait for the report. Never poll a teammate's files
+- **Read teammate signals from reports, not heartbeats or half-written files.** As lead,
+  judge a teammate's progress by its SendMessage report. An `idle_notification` is a
+  heartbeat, not a status — a no-op; wait for the report. A heartbeat summary of the form
+  `[to X] …` summarizes a message it sent to someone else; it is not a report to you: don't cite
+  it, act on it, or record conclusions from it. Never read a teammate's working files
   mid-task to decide done/stuck: edits land on disk asynchronously, so you would read a
-  stale snapshot and misjudge. To check, ping (SendMessage) and wait; verify artifacts
-  only after the report.
+  stale snapshot and misjudge. To check, ping (SendMessage) and wait. **Messages can
+  arrive hours late: no report ≠ no work.** Once an agreed deadline has passed and a ping
+  goes unanswered, you may inspect landed state (git log, finished artifacts) — still
+  never its in-progress files; and never tell the user a cause for its silence that you
+  have not verified.
 
 ## Coding Engineering Principles
 

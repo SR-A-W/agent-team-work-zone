@@ -1,3 +1,18 @@
 # 升级暂存区：仅在升级时由用户临时填充，不入仓库
 .upgrade/*
 !.upgrade/README.md
+
+# teammate 的"已启动"标记：每个 spawn/reactivate prompt 第 0 步写入；属运行时状态，不入仓库。
+*_team/teammates/*/.started
+
+# 其他运行期文件：hook 日志、idle hook 的计数器、每次写入都会重写的注册表备份（git 已保留历史），
+# 以及写入中断时可能留下的临时文件。守则备份（*.rules.bak.*、*.teammate_rules.bak.*）
+# 保持纳入管理：其中可能有用户内容。
+.hook_logs/
+*_team/teammates/*/.checkpoint_nudge_count
+*_team/TEAMMATE_INFO.json.bak
+*_team/.info.??????
+**/.README.md.??????
+# 改写 VERSION 或 settings.conf 时被中断而留下的临时文件。
+/.VERSION.??????
+/settings.conf.??????

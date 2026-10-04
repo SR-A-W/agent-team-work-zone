@@ -140,8 +140,27 @@ fi
 # No mtime (file missing / stat failed) → pass
 [ -n "$wc_mtime" ] || exit 0
 
+# ---- Post-spawn grace: reference time = the LATER of working-context.md mtime and
+# .started mtime. Step 0 of every spawn/reactivate prompt has the teammate write
+# teammates/<name>/.started, so right after a (re)spawn the old working-context.md does not
+# trigger an immediate nudge. This keeps the bound on unsaved work: right after a respawn the
+# teammate's whole state IS working-context.md (nothing unsaved predates .started), so
+# "time since the later of last save / this spawn" is exactly the window of work at risk —
+# it is nudged at its first idle N minutes after spawn unless it checkpointed meanwhile.
+# .started absent (legacy workstation) / unreadable / non-numeric → ref stays wc_mtime =
+# the previous behaviour. A stale .started from an earlier spawn is older than wc → no effect.
+ref_mtime="$wc_mtime"
+started_file="$teammate_ws/.started"
+if [ -f "$started_file" ]; then
+    started_mtime=$(stat -c %Y "$started_file" 2>/dev/null || stat -f %m "$started_file" 2>/dev/null || echo "")
+    case "$started_mtime" in
+        (''|*[!0-9]*) ;;
+        (*) [ "$started_mtime" -gt "$ref_mtime" ] && ref_mtime="$started_mtime" ;;
+    esac
+fi
+
 now_epoch=$(date -u +%s)
-age=$((now_epoch - wc_mtime))
+age=$((now_epoch - ref_mtime))
 
 if [ "$age" -lt "$CHECKPOINT_INTERVAL_SEC" ]; then
     # fresh: last save < N minutes ago. Let it idle and clear the nudge counter
@@ -168,7 +187,7 @@ fi
 echo $((nudge_count + 1)) > "$nudge_file" 2>/dev/null || true
 
 # exit 2: block this teammate's idle, feed the stderr straight to it, forcing /checkpoint first
-mins=$((age / 60))
+mins=$(( (now_epoch - wc_mtime) / 60 ))   # message reports time since the last SAVE (not since spawn)
 threshold_min=$((CHECKPOINT_INTERVAL_SEC / 60))
 echo "[checkpoint reminder] You (${teammate_name}) last saved to working-context.md ~${mins} minutes ago (threshold ${threshold_min} min). Before going idle, run /checkpoint NOW to persist your current working state, so an unexpected session loss (SSH drop / crash) doesn't lose your latest work. This is required by Rule 13. Once the checkpoint completes you may idle normally and will not be reminded again. If you are a temporary subagent (not a resident teammate), or you have no file-write tool, IGNORE this reminder, idle normally, and report the situation to whoever spawned you. Do not retry." >&2
 exit 2

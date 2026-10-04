@@ -1,3 +1,19 @@
 # Upgrade staging area: filled in temporarily by the user only during an upgrade; not committed.
 .upgrade/*
 !.upgrade/README.md
+
+# Teammate "started" marker: written by step 0 of every spawn/reactivate prompt; runtime state, not committed.
+*_team/teammates/*/.started
+
+# Other runtime-only files: hook logs, the idle hook's counter, the registry backup that is
+# rewritten on every write (git already keeps the history), and temp files that an
+# interrupted write can leave behind. Rules backups (*.rules.bak.*, *.teammate_rules.bak.*)
+# stay tracked: they can hold user content.
+.hook_logs/
+*_team/teammates/*/.checkpoint_nudge_count
+*_team/TEAMMATE_INFO.json.bak
+*_team/.info.??????
+**/.README.md.??????
+# Temp files from an interrupted rewrite of VERSION or settings.conf.
+/.VERSION.??????
+/settings.conf.??????

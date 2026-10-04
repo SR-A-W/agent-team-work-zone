@@ -142,6 +142,8 @@ For each teammate in the **wake set** (Step 1 already filtered it by invocation 
 
 **3.1 Prepare spawn prompt** (key: guide the teammate to read its workstation and self-recover):
 
+> **Fill in `{project_root}` with an ABSOLUTE path** — the absolute directory that contains `_agent_team_work_zone/` directly — normally the directory your own session was started in. `git rev-parse --show-toplevel` is only a hint: use its output only after checking that `_agent_team_work_zone/` is directly inside it, because when the project is a subdirectory of a larger repository it points to the outer repository. A teammate's working directory is not necessarily the project root (observed: a teammate process ran in `…/_agent_team_work_zone/<team>`) and `CLAUDE_PROJECT_DIR` is not set in its Bash, so relative paths in the prompt can fail — the `.started` write would then fail silently.
+
 ```
 You are {name}, a teammate previously active on team '{team_name}'. Your previous
 Claude Code session was terminated (not by shutdown_request — by session
@@ -151,8 +153,13 @@ and you have no memory of your prior work.
 
 Before doing anything else:
 
-1. Read _agent_team_work_zone/{team_name}/teammates/{name}/README.md — your role definition
-2. Read _agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
+0. FIRST — before reading anything — record that you have started:
+   date -u +%Y-%m-%dT%H:%M:%SZ > {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/.started
+   (This lets the lead tell "never started" from "busy in a long turn". Write this file
+   only here, once per spawn.) If this write fails, carry on, but end your receipt line
+   with " .started write FAILED: <error>".
+1. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/README.md — your role definition
+2. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
    last checkpoint. It has TWO parts: Part A = a 9-section current-state snapshot (the
    authoritative "where things stand now"); Part B = an append-only work journal with
    recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read
@@ -160,24 +167,31 @@ Before doing anything else:
    to recover recent context and conversation. (Older format with only 9 sections and no
    Part B is fine — just use the snapshot.) Trust this document — the previous spawn of
    you wrote it for you.
-3. Read _agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
+3. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
    promises you must honor.
-4. Optionally read _agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
+4. Optionally read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
    completed.md for additional context if working-context points to them.
 5. If your README.md has an old full rules section (heading matches `## Work Rules` or
-   `## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block), replace that
-   old section (from that heading through the next `## ` heading of the same level, or
-   through end of file — heading included) with the content of
-   _agent_team_work_zone/resources/teammate_rules.md; otherwise, if your README.md does NOT
+   `## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block): FIRST copy
+   that old section exactly (from that heading through the next `## ` heading of the same
+   level, or through end of file — heading included) to
+   {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/README.md.teammate_rules.bak.<UTC timestamp>
+   (timestamp from `date -u +%Y%m%d%H%M%S`) — it may contain your own notes written after
+   the rules; THEN replace that old section with the content of
+   {project_root}/_agent_team_work_zone/resources/teammate_rules.md; otherwise, if your README.md does NOT
    contain a <!-- TEAMMATE_RULES:START --> block, copy that block from the same file and
    append it to the end of your own README.md (you may only edit your own file).
+6. Rule changes: if {project_root}/_agent_team_work_zone/{team_name}/RULES_LEDGER.md exists, read it; record every rule whose id is not yet in the "## Team rule changes" section of your README (create that section directly above the <!-- TEAMMATE_RULES:START --> line; if your README has no such line, put the section at the end of your README; never inside or below that block), and end your receipt line with " ACK <id>, <id>…" (or " Rules: up to date").
 
 If working-context.md looks corrupted, empty, or is missing sections, DO NOT
 invent content — message the team lead via SendMessage asking for guidance
 before starting work.
 
 After reading, use the SendMessage tool to send the team lead exactly one line:
-"Resumed from checkpoint at {last_checkpoint_time}. Ready."
+"Resumed from checkpoint at {last_checkpoint_time}. Ready. Model: <model name>, ID: <model ID>"
+Quote the model name and ID exactly as your system prompt states them; if it does not
+state them, write "Model: not stated" — do not guess. If step 5 made a backup, append
+" Rules healed; old section backed up to <backup file>." to that same line.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -205,7 +219,18 @@ Agent(
 
 Binary judgment:
 - **Success**: received that teammate's SendMessage receipt in the current session (containing "Resumed from checkpoint at X. Ready.") → mark success
-- **Failure / unknown**: no SendMessage receipt received (including timeout) → warn the user, let the user decide (retry spawn / check working-context.md for damage / or /remove-teammate); **do not assume success**
+- **Failure / unknown**: no SendMessage receipt received (including timeout) → follow "No receipt after ~10 minutes" below, then warn the user and let the user decide (retry spawn / check working-context.md for damage / or /remove-teammate); **do not assume success**
+
+**Model check (on success)**: the receipt ends with `Model: <name>, ID: <id>`, quoted by the teammate from its own system prompt. Record the ID in Step 4 as `model_resolved`. Compare it with the registry `model` and with the `Model` line of the teammate's README: an alias (`haiku` / `sonnet` / `opus`) matches if the ID contains it (case-insensitive); a specific ID must be equal. On a mismatch, **flag it** in the Step 5 report — do not edit the registry `model` (it records what was requested; an alias may be intentional) and do not edit the teammate's README (rule #1; ask the teammate to correct it at its next /checkpoint). If the receipt says `Model: not stated` or has no ID, leave `model_resolved` unset and report "model unconfirmed". This is a **cross-check, not a guarantee** — the ID is self-reported from the system prompt.
+
+**Rules backup (on success)**: if the receipt also says `Rules healed; old section backed up to <file>`, the teammate's README had an old rules section that was replaced; the backup holds that old section, including any user notes that sat after the rules. Mention it in the Step 5 report so the user can restore anything that was not a rule. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
+
+**No receipt after ~10 minutes — find out why, never auto-respawn.** Before spawning, note the time of each Agent call (the "spawn time") to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`). Then, for a teammate with no receipt:
+1. **If the team runs in tmux split panes (best-effort)**: look up its pane — `jq '.members[] | {name, tmuxPaneId, backendType}' ~/.claude/teams/<current session-level team>/config.json` — and read it with `tmux capture-pane -p -t <tmuxPaneId>`. That config file and field are Claude Code internals, not a documented interface: if the file or field is missing or the capture fails, go straight to step 2, and **never treat a failed lookup as evidence about the teammate**. If the pane shows a confirmation prompt, tell the user: "<name> is waiting on a confirmation in its pane — please confirm it there." Do not respawn.
+2. **Check `teammates/<name>/.started`** (written by step 0 of the spawn prompt):
+   - **absent, or its mtime is older than this spawn time** (a leftover from an earlier spawn) → the teammate never ran step 0: stuck on a startup confirmation or a tool-permission prompt, or the launch failed — or its step-0 write failed (a single missing file is weak evidence). Tell the user.
+   - **present and newer than this spawn time, but no receipt** → it started and is working, possibly in one long turn (messages to a teammate reach it only when its turn ends — observed in split-pane mode on Claude Code 2.1.283; in-process mode untested). Wait, or check what it has produced (artifacts, `git log`).
+3. **In every case, report to the user** with the possible causes (waiting on a confirmation, still busy, dead). **Never respawn automatically** — a second spawn of the same name while the first is still alive produces a suffixed `<name>-2` and two copies. Respawn only when the user says so.
 
 > **Important**: disk artifacts (`working-context.md`'s content and mtime) only tell you the state **before** reactivate; they can NEVER serve as the criterion for whether **this** reactivate succeeded — spawn success or failure, these static files look the same and do not reflect this run's runtime fact. See this skill's opening "Premise" section.
 
@@ -218,6 +243,7 @@ For each woken teammate (success or failure), update:
   - `revived_count` += 1
   - `status` set to `active` (if it was `benched` / `idle`, promote it too)
   - If it was `benched`: **delete** the `benched_at` and `bench_reason` fields
+  - `model_resolved` → the model ID from the receipt (optional field; leave it unchanged if the receipt gave no ID)
 - Failure:
   - `status` → `failed_to_reactivate`
   - Do not update spawned_at (if it was benched, keep the benched fields for a later retry)
@@ -227,13 +253,17 @@ Globally:
 
 jq example (for each successful teammate, replacing N=name) — **validated atomic write**: self-generated UTC timestamp + `jq --arg` (auto-escapes, so a stray ASCII quote in a free-text field can't break the JSON) + write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written and the original file is preserved.
 ```bash
-jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+info=_agent_team_work_zone/<your_team>/TEAMMATE_INFO.json
+# temp file next to the registry (atomic mv, no shared /tmp name), seeded with cp -p so the registry keeps its file mode
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates |= map(if .name == $name then .spawned_at = $ts | .revived_count += 1 | .status = "active" | del(.benched_at, .bench_reason) else . end) | .updated_at = $ts' \
-   "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+   "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
+If the receipt gave a model ID, add `--arg mid "<ID>"` and `| .model_resolved = $mid` inside the same `if .name == $name then … end` branch.
 
 ### Step 5: Report to user
 
@@ -243,8 +273,11 @@ Output summary:
 Team <team_name> reactivated:
 
 ✅ Successfully resumed (N):
-- <name1>: "Resumed from checkpoint at <ts>. Ready."
+- <name1>: "Resumed from checkpoint at <ts>. Ready." — model ID: <id | unconfirmed>
 - <name2>: ...
+
+⚠ Model mismatch (only if any): <name>: registry `<model>` / README `<model>` vs reported `<id>`
+⚠ Rules backup (only if any): <name>: old rules section saved to <file> — check it for your own notes
 
 ❌ Failed to reactivate (M):
 - <name3>: <reason>

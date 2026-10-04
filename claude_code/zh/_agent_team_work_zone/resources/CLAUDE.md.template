@@ -27,10 +27,13 @@ Agent Teams 能力之上**：一支 agent 团队把工作状态保存在文件�
 - **保持 checkpoint 最新。** Teammate 写 working-context.md，以便未来的 spawn 能据此
   重新激活。
 - **lead 协调，teammate 实现。** lead 把自己的上下文花在决策与评审上，而非实现。
-- **从报告读 teammate 信号，别看心跳或文件。** 作为 lead，判断 teammate 的进度只认它的
-  SendMessage 报告。`idle_notification` 是心跳、不是状态 —— 当 no-op，静等报告。绝不在
-  teammate 干活途中轮询它的文件来判断"做完没/卡没卡"：改动是异步落盘的，你会读到旧快照
-  而误判。要查就 ping（SendMessage）等回复；产物等报告到了再验。
+- **从报告读 teammate 信号，别看心跳或半成品文件。** 作为 lead，判断 teammate 的进度以它的
+  SendMessage 报告为准。`idle_notification` 是心跳、不是状态 —— 当 no-op，静等报告；形如
+  `[to X] …` 的心跳摘要是它发给别人的一条消息的摘要，不是给你的报告，不引用、不据此行动或记结论。
+  绝不在 teammate 干活途中读它的工作文件来判断"做完没/卡没卡"：改动是异步落盘的，你会读到
+  旧快照而误判。要查就 ping（SendMessage）等回复。**消息可能晚到数小时：没收到报告 ≠ 没干活。**
+  约定的截止时间已过且 ping 无回音时，可以查已落地的状态（git log、已完成的产物），但仍不读
+  它正在写的文件；未经核实，不对用户说它沉默的原因。
 
 ## Coding Engineering Principles
 

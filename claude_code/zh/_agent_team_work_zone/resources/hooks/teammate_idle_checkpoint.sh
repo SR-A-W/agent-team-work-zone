@@ -2,7 +2,7 @@
 #
 # teammate_idle_checkpoint.sh — TeammateIdle hook（fires in LEAD session）
 #
-# 新机制（v0.2.3）：working-context.md mtime 闸门 + exit 2 逼 checkpoint。
+# 新机制（v0.2.3）：按 working-context.md 的修改时间做检查，未通过就以 exit 2 拦下 idle、逼它先 checkpoint。
 #
 #   teammate 干完一轮、即将 idle → 本 hook 在 lead session 触发，payload 带 teammate_name。
 #   定位该 teammate 工位的 working-context.md，按"距上次落盘多久"决策：
@@ -10,7 +10,7 @@
 #     - 距上次落盘 ≥ N 分钟                    → stderr 写"先跑 /checkpoint" + exit 2。
 #         exit 2 会【阻塞该 teammate 的 idle 并把 stderr 直接喂给它】，逼它在 idle 前多做
 #         一轮 = 跑真 /checkpoint。checkpoint 覆盖写 working-context.md → mtime 刷新 →
-#         下次 idle 闸门判 fresh → exit 0，循环自然刹住。
+#         下次 idle 时检查判为 fresh → exit 0，循环自然刹住。
 #
 # 为什么这条路对 in-process teammate 也成立（旧 flag + UserPromptSubmit 链路对它从不工作）：
 #   本 hook 全程只在【写侧】(TeammateIdle，payload 带 teammate 身份) 动作；exit 2 的 stderr
@@ -49,7 +49,7 @@ command -v jq >/dev/null 2>&1 || exit 0
 # Debug：把 payload 写到临时 log（排查 hook schema 时取消注释）
 # echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $payload" >> /tmp/teammate_idle_hook.log
 
-# ---- subagent 闸门（机制性主防线）----
+# ---- 对 subagent 的拦截（机制性主防线）----
 # TeammateIdle payload 仅在 hook 触发于【subagent 调用内部】时才带 agent_id（官方 hook 文档：
 # "present only inside a subagent call"）。teammate 派生的 subagent 绝不该被逼去 checkpoint
 # 父 teammate 的工位——在任何 teammate 定向逻辑之前就提前退出。fail-open 不变：无 agent_id
@@ -121,7 +121,7 @@ fi
 wc_file="$teammate_ws/working-context.md"
 nudge_file="$teammate_ws/.checkpoint_nudge_count"
 
-# ---- 闸门：working-context.md mtime（主时间戳，每次 checkpoint 必被覆盖写）----
+# ---- 检查：working-context.md mtime（主时间戳，每次 checkpoint 必被覆盖写）----
 # Linux 用 stat -c %Y；BSD/macOS fallback stat -f %m
 wc_mtime=""
 if [ -f "$wc_file" ]; then
@@ -130,8 +130,26 @@ fi
 # 取不到 mtime（文件不存在/stat 失败）→ 放行
 [ -n "$wc_mtime" ] || exit 0
 
+# ---- spawn 后宽限：参照时间 = working-context.md mtime 与 .started mtime 中较晚者。
+# 每个 spawn/reactivate prompt 的第 0 步让 teammate 写 teammates/<name>/.started，
+# 所以刚（重）spawn 时旧的 working-context.md 不会立即触发提醒。未保存工作的上界不变：
+# 刚重生时 teammate 的全部状态就是 working-context.md（.started 之前没有未保存的工作），
+# "距最近一次落盘 / 本次 spawn 中较晚者"恰好就是有丢失风险的工作窗口——
+# 若期间没 checkpoint，spawn 后满 N 分钟的第一次 idle 照常提醒。
+# .started 不存在（旧工位）/ 读不到 / 非数字 → 参照仍为 wc_mtime = 原行为。
+# 上一次 spawn 留下的旧 .started 比 wc 更早 → 不起作用。
+ref_mtime="$wc_mtime"
+started_file="$teammate_ws/.started"
+if [ -f "$started_file" ]; then
+    started_mtime=$(stat -c %Y "$started_file" 2>/dev/null || stat -f %m "$started_file" 2>/dev/null || echo "")
+    case "$started_mtime" in
+        (''|*[!0-9]*) ;;
+        (*) [ "$started_mtime" -gt "$ref_mtime" ] && ref_mtime="$started_mtime" ;;
+    esac
+fi
+
 now_epoch=$(date -u +%s)
-age=$((now_epoch - wc_mtime))
+age=$((now_epoch - ref_mtime))
 
 if [ "$age" -lt "$CHECKPOINT_INTERVAL_SEC" ]; then
     # fresh：距上次落盘 < N 分钟。放它 idle，并清掉 nudge 计数（循环已刹住）。
@@ -156,7 +174,7 @@ fi
 echo $((nudge_count + 1)) > "$nudge_file" 2>/dev/null || true
 
 # exit 2：阻塞该 teammate 的 idle，stderr 直接喂给它，逼它在 idle 前跑 /checkpoint
-mins=$((age / 60))
+mins=$(( (now_epoch - wc_mtime) / 60 ))   # 提示里报"距上次落盘"（不是距 spawn）
 threshold_min=$((CHECKPOINT_INTERVAL_SEC / 60))
 echo "[checkpoint 提醒] 你（${teammate_name}）距上次 /checkpoint 落盘已约 ${mins} 分钟（阈值 ${threshold_min} 分钟）。在进入 idle 之前，请立刻运行 /checkpoint，把当前工作状态写入 working-context.md，以防会话意外中断（SSH 断 / 崩溃）导致最新工作丢失。这是 Rule 13 规定的义务。完成 checkpoint 后即可正常 idle，不会再被重复提醒。 如果你是临时 subagent（不是常驻 teammate），或你没有文件写入工具，请忽略本提醒、正常 idle，并把情况回报给派生你的人。不要重试。" >&2
 exit 2

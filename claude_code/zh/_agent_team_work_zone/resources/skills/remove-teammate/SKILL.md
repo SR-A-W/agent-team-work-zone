@@ -142,14 +142,16 @@ info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 name="<昵称>"
 reason="<原因>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
+# 临时文件建在注册表旁边（mv 是原子的，也不与别人共用 /tmp 下的同名文件），并用 cp -p 先复制一份，让注册表保持原有的文件权限
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .offboarded_teammates += [{name: $n, offboarded_at: $ts, reason: $r}] |
   .active_teammates |= map(select(.name != $n)) |
   .updated_at = $ts
-' "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+' "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 **不删除** teammate 的工位目录 `_agent_team_work_zone/<SELF>_team/teammates/<昵称>/`——保留原位作为历史审计（Rule 1 低耦合 + 便于日后如果相同任务重启可参考历史 working-context.md）。

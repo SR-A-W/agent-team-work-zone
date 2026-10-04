@@ -16,11 +16,11 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 
 | Operation | Writes | Reads |
 |---|---|---|
-| `/spawn-team` | ✅ Initializes or overwrites `active_teammates` array | - |
-| `/add-teammate` | ✅ Appends to `active_teammates` | - |
+| `/spawn-team` | ✅ Initializes or overwrites `active_teammates` array; writes `model_resolved` from each Ready receipt | - |
+| `/add-teammate` | ✅ Appends to `active_teammates`; writes `model_resolved` from the Ready receipt | - |
 | `/remove-teammate` | ✅ Moves member from `active_teammates` to `offboarded_teammates` | - |
 | `/bench-teammate` | ✅ Sets member `status` to `benched`, writes `benched_at`/`bench_reason` (**stays in** `active_teammates`) | - |
-| `/reactivate-team` | ✅ Updates `revived_count`, `spawned_at`, `status`; `<name>` waking a benched one clears `benched_at`/`bench_reason` | ✅ |
+| `/reactivate-team` | ✅ Updates `revived_count`, `spawned_at`, `status`, `model_resolved`; `<name>` waking a benched one clears `benched_at`/`bench_reason` | ✅ |
 | `/checkpoint` (teammate-called) | **Does not write** (as of schema v2 a teammate never touches this registry; see below) | - |
 | `/evaluate-team` | - | ✅ Authoritative source |
 | `/sync` (team lead recovery path) | - | ✅ Detects whether reactivate is needed |
@@ -88,6 +88,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 | `status` | string | See status enum below |
 | `benched_at` | ISO8601 string | **Optional**, present only when `status=benched`: time temporarily benched by /bench-teammate. Deleted on wake |
 | `bench_reason` | string | **Optional**, present only when `status=benched`: bench reason (human-readable one-liner). Deleted on wake |
+| `model_resolved` | string | **Optional**: the exact model ID the teammate quoted from its own system prompt in its latest Ready / Resumed receipt (e.g. `claude-opus-5-5`), written by the lead on spawn / add / reactivate. `model` records what was **requested** (often an alias like `opus`); `model_resolved` records what it **resolved to**. The lead flags a mismatch with `model` or the teammate README's model line but edits neither. Self-reported, so a cross-check, not a guarantee. Absent on legacy entries and when the receipt gave no ID — readers must tolerate its absence |
 
 ### `role_source` object
 
@@ -135,6 +136,8 @@ Schema change rules:
 
 - **Minor change** (new optional fields, new status values): edit in place; `schema_version` stays
 - **Major change** (rename fields, change semantics, remove fields): bump `schema_version` and add migration logic in every read/write skill
+
+**`model_resolved` (added within v2)**: a new optional field, i.e. a minor change — `schema_version` stays 2 and no migration is needed; registries without it keep working unchanged.
 
 **v1 → v2 (removed `last_checkpoint_at`)**: this is a "remove field" major change, so `schema_version` bumps to 2. But **no data migration is needed** — nothing reads `last_checkpoint_at` as authoritative anymore (`/reactivate-team` switched to `working-context.md` mtime); a legacy install still carrying the field is simply **tolerated and ignored**, and v2 never writes it.
 

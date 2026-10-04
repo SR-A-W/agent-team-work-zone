@@ -618,6 +618,44 @@ refresh_reference_section() {
         "$(basename "$tgt") reference section refreshed"
 }
 
+# -------- append_missing_lines: add missing lines to a user file, append-only --------
+#
+# Usage:
+#   append_missing_lines <file> <header_comment> <line>...
+#
+# For files the user owns and may have edited (e.g. the install's .gitignore).
+# Each <line> is compared with the file's lines after stripping trailing
+# whitespace / CR; only lines not already present are appended, at the end, in
+# the order given, under one <header_comment> line. Nothing is rewritten,
+# reordered or deleted; the file keeps its mode (plain >> append). Already
+# complete → no-op, file untouched. Missing file → not created, nothing
+# printed, return 1 (the caller checks for the file first and tells the user).
+# A write error prints a warning and returns 1. Sets APPEND_MISSING_COUNT to
+# the number of lines appended (0 when the file was already complete).
+append_missing_lines() {
+    local file="$1" header="$2"; shift 2
+    local missing=() l
+    APPEND_MISSING_COUNT=0
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+    for l in "$@"; do
+        if ! awk -v want="$l" '{ sub(/[ \t\r]+$/, "") } $0 == want { found = 1; exit } END { exit !found }' "$file"; then
+            missing+=("$l")
+        fi
+    done
+    [ "${#missing[@]}" -eq 0 ] && return 0
+    {
+        # make sure we start on a fresh line
+        if [ -s "$file" ] && [ -n "$(tail -c 1 "$file")" ]; then printf '\n'; fi
+        printf '\n%s\n' "$header"
+        printf '%s\n' "${missing[@]}"
+    } >> "$file" 2>/dev/null || { print_warn "Could not append to $file — left as is"; return 1; }
+    APPEND_MISSING_COUNT=${#missing[@]}
+    print_success "$(basename "$file"): appended ${#missing[@]} missing line(s): $file"
+    return 0
+}
+
 # -------- Version helpers --------
 #
 # parse_version <vX.Y.Z> → sets globals MAJOR / MINOR / PATCH

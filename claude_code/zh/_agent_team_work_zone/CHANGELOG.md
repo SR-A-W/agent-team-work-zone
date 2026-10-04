@@ -4,6 +4,69 @@
 
 ---
 
+## v0.5.0 (2026-10-04)
+
+MINOR（向后兼容）：**能区分"根本没启动"的 teammate 并让它保持可达、共享工作目录的守则、可选的 checkpoint git 保存与 git 锁、广播规则变更的 skill、可选的 CLAUDE.md 段落，以及不碰你自己文件的升级**。
+
+要求：可选的 git 锁需要 git 2.5 或更高版本；其他功能不需要。
+
+### 变更
+- TeammateIdle checkpoint hook：计时起点改为 `working-context.md` mtime 与 `.started` 中较晚的一个，刚唤回的 teammate 第一次空闲时不再被要求 checkpoint；提醒文字仍报告距上次保存的时间；没有 `.started` 时行为不变。
+- spawn / reactivate prompt 里的守则自愈：替换 teammate README 中旧的完整守则段之前，先把它原样备份到 `README.md.teammate_rules.bak.<UTC 时间戳>`，并在回执里报告；lead 转告用户。
+- spawn / add / reactivate prompt 改用绝对路径 `<project_root>`：teammate 的工作目录不一定是项目根，其 Bash 里也没有 `CLAUDE_PROJECT_DIR`。
+- `CLAUDE.md.template`（仅新安装）："从报告读 teammate 信号"原则加入：消息可能晚到数小时、`[to X]` 心跳摘要不是报告、约定截止已过且 ping 无回音时可以查已落地的状态（`git log`、已完成的产物）、不对用户说未经核实的沉默原因。
+- `/checkpoint` 新增最后一步：项目开启时执行 git 保存，确认行里带上结果；确认步骤变为 Step 6。
+- `/spawn-team`、`/add-teammate`、`/reactivate-team` 的 prompt 让 teammate 读本团队的 `RULES_LEDGER.md`、记下尚未记录的规则并在回执里确认；lead 据回执填写账本。
+- README skills 表：`loop` 一行改为"监控时定时唤醒（见第 13 条）"，新增 `/broadcast-rule` 一行，"仅限 team lead"的说明也包含它。
+- 模板 `.gitignore` 还忽略 teammate 启动标记、hook 日志、idle hook 的计数器、注册表备份，以及写入中断时可能留下的临时文件；守则备份仍纳入管理，因为其中可能有用户内容。
+- `bootstrap.sh`：git 低于 2.5 时打印警告（只有可选的 git 锁需要它），没装 git 时提示一行。
+
+### 新增
+- 派生和唤回 prompt 新增第 0 步：teammate 在读任何文件之前先写 `teammates/<名字>/.started`（当前 UTC 时间），让 lead 能区分"根本没启动"和"在忙"。
+- Ready / Resumed 回执末尾加 `Model: <名称>, ID: <ID>`（照抄 teammate 自己的系统提示，没有则写 `Model: not stated`）；lead 把 ID 记入注册表新增的可选字段 `model_resolved`，与申请的模型或 teammate README 不一致时标出，但两边都不改。`schema_version` 仍为 2；没有该字段的注册表照常可用。
+- `/spawn-team`、`/add-teammate`、`/reactivate-team` 新增"无回执"处理：约 10 分钟无回执时，lead 先尽力读 tmux 面板，再拿 `.started` 与派生时间比对，然后把可能原因告诉用户；绝不自动重派。
+- tracker agent 新增"盯守告警"模式（模式 B）：低成本的 Haiku teammate 用 `/loop` 等一个结果，检查之间空闲，只在出结果、出异常或停止时给 lead 发消息，必须给出 `stop_when`。
+- 工作守则（README 守则块）：
+  - 第 1 条：共享工作目录与暂存区纪律——按显式路径提交；禁用 `git add -A` / `commit -a` / `stash` / `pull --rebase` / 非快进合并；用 `pull --ff-only`；不删除已存在的 `.git/index.lock`（一直不消失就告诉 lead）；共享 checkout 里提交、合并、拉取时使用 git 锁；
+  - 第 7 条：决策来源（谁提议、谁批准、引原话；成员之间的约定在 lead 裁定前只是提议），以及裁定要写明作废哪些工作；
+  - 第 13 条 teammate 部分：保持可达（盯作业就用 `/loop` 排定唤醒再结束回合——队友消息只在回合结束时送达），以及 `.started` 与模型 ID 回执义务；
+  - 第 13 条 lead 部分：成员沉默时（消息可能晚到数小时；截止已过且 ping 无回音时只查已落地状态；`[to X]` 心跳摘要不是报告；不自动重派，向用户列出可能原因；用 `/loop` 等待；派生后核对 `.started` 与模型 ID），以及给正在干活的成员发更正时合并成一条完整消息。
+- teammate 守则（`teammate_rules.md`，会进每个 teammate 的 README）：加入"本块由框架维护、升级时整体替换、旧块备份为 `README.md.teammate_rules.bak.<时间戳>`"的说明；新增第 8 条（用 `/loop` 保持可达）、第 9 条（决策来源）、第 10 条（共享工作目录与暂存区，以及 git 锁）。
+- README 新增「开始之前」一节，用户手册的「快速开始」部分也加入同样的说明：`_agent_team_work_zone/` 要放在项目目录里，并且总在这个目录下启动 Claude Code（常见错误是在 HPC 登录节点的 home 目录里直接启动 `claude`；把 home 目录本身当作项目仍然可以）；强烈推荐把 `_agent_team_work_zone/` 纳入 git（agent 的项目记忆得到备份、可以回滚；可以在另一台机器上拉起同一支团队；多位开发者的团队可以通过 `git push` / `git pull` 协调），并提醒公开仓库注意敏感内容。
+- 用户手册新增"已知局限"一节：队友消息只在回合结束时送达；子代理无法运行 `/loop`（Explore 上观察到）；一次内存事故可清空全队（同一受限作业，或同进程模式）；同一系统账号的资源框架看不到，不要按进程名杀进程；跨仓库使用 `meeting_room/` 没有约定；不支持每个 teammate 独立的 git worktree。
+- checkpoint 的 git 保存（可选，默认关闭）。每个项目单独开启：`bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh enable`。之后每次 `/checkpoint` 还会把 teammate 的工位文件存进 git，checkpoint 不会因 `git stash`、一次坏的合并或误覆盖而丢失。
+  - `snapshot` 模式（默认）：文件存到私有引用 `refs/atwz/checkpoints/<team>/<name>`；你的分支、`HEAD`、`git status` 和共享暂存区都不受影响，提交历史里看不到它。
+  - `commit` 模式：把工位文件提交到当前分支，这个提交只包含这些文件（删除也会提交）；暂存区里的其他内容保持原样；提交钩子照常运行。
+  - 设置存在 `_agent_team_work_zone/settings.conf`（`checkpoint_git = off | snapshot | commit`），把它提交进仓库，其他机器就共用同一设置；命令有 `enable` / `disable` / `status`，`enable` 会立刻告诉你在这里是否生效。
+  - 每次保存都会重新检查能否保存，并在 checkpoint 确认里给出一行 `saved …` 或 `skipped: …`；checkpoint 不会因为 git 而失败。
+  - `list` / `restore` 找回已保存的版本；与之不同的当前文件会先另存为 `<文件>.before-restore.<UTC 时间>`。
+  - 快照只留在本机：框架从不 push 它们，普通 `git push` 只推分支，新 clone 也不会取到。
+- 共享 checkout 的 git 锁：`cd <项目根目录> && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …` 让所有 agent 的 git 命令一次只跑一个：别的 git 操作在进行时就等待（从不删除 `.git/index.lock`），最多等 3 分钟，超时以退出码 75 放弃；同一台机器上已存在超过 10 分钟、且持有它的进程已经退出的锁会被清除。commit 模式自动使用这把锁。
+- `/broadcast-rule`（team lead 用）：把一条规则变更以一条完整消息发给每个在线 teammate；teammate 把它记进自己 README 的「## Team rule changes」一节并回复 `ACK` 加该规则的编号（例如 `ACK R-20261004-1`）；lead 在 `TEAMMATE_INFO.json` 旁维护一份常设的 `RULES_LEDGER.md`；不在线或尚未派生的 teammate 在派生或唤回时读账本，并在回执里确认。
+- 可选的 `CLAUDE.md` 段落，在 `resources/claude_md_optional/`：「给用户的消息（格式）」（由 teammate 汇报触发的消息以**队内简报**开头；需要用户读的内容以 **To Be Read By User** 加一行状态开头：需裁定 / 进展 / 更正 / 静默轮）与「平实用语」（平实的词、不自造名词、少用简写，并附一份写在其中的用户禁用词清单）。首次安装时 `bootstrap.sh` 逐段询问（`[y/N]`，默认不加；没有终端时跳过）；回答 y 才追加，且只追加一次——`CLAUDE.md` 里已有该段的 `<!-- ATWZ-OPTIONAL:<id> -->` 标记就跳过。install/upgrade 从不修改或删除 CLAUDE.md 中已有的内容；它们只追加——缺少框架段落时追加框架段落，可选段落只在你回答 y 时追加。
+
+### 修复
+- 注册表写入（`/spawn-team`、`/add-teammate`、`/reactivate-team`、`/bench-teammate`、`/remove-teammate`）：临时文件改为在注册表旁用 `mktemp` 创建（原为共用的 `/tmp/info.json`，两个写入方可能互相覆盖，`/tmp` 与项目不在同一文件系统时最后的移动也不是原子的）；用 `cp -p` 预填，注册表保留原有权限；失败时删除临时文件。
+- `/add-teammate`：注册表不存在时按 schema v2 初始化（原文写的是 v1）。
+- `/add-teammate` 创建新 teammate 的 README 时就写入 teammate 守则块（带标记），与 `/spawn-team` 一致——之后的升级才能刷新它。
+- `/reactivate-team` 第 4 步：jq 示例补上 `info=…` 定义（原来未定义就使用，配合 `mktemp` 会把临时文件建在当前目录）。
+
+### 已知问题
+- 两个新脚本对 macOS（bash 3.2 与 BSD 工具）的兼容性只做了代码阅读，还没有在 Mac 上实际运行过。
+- git 锁只协调经由它运行的命令，不经过它直接运行的 `git` 命令不会被拦住。另一台机器留下的锁从不自动清除：那台机器崩溃后需要手动删除（在此之前，等待者会以退出码 75 放弃）。同一台机器上的过期锁要过 10 分钟才会被清除。
+- checkpoint 快照只在本机（不 push、不随 clone 带走），换一台机器时帮不上忙；把 `_agent_team_work_zone/` 纳入 git 才行。`restore` 无法重建被整个删掉的工位目录。`git push --mirror` 或显式推送 `refs/*` 会把快照推出去。
+- `.before-restore.*` 副本会一直留在工位里，直到你自己删除。
+
+### Migration（v0.4.0 → v0.5.0）
+- **必做**：`bash _agent_team_work_zone/upgrade.sh`。它覆盖框架文件（`resources/`、`docs/`、`CHANGELOG.md`），刷新顶层 README 的框架 / 守则 / 参考资料三块，刷新每个带守则块的 lead / 扁平工位 README 的守则块，以及每个已有 `TEAMMATE_RULES` 块的 teammate README 的该块（都带备份），追加新的 `.gitignore` 规则，写 VERSION，并重新运行 `bootstrap.sh`（它会装上新的 `/broadcast-rule` skill）。没有该块的 teammate README 不动，下次派生或唤回时补上；块上方的内容从不改动。
+- **会留下备份**：本版守则正文和 teammate 守则正文都有改动，所以每个被刷新的 README 旁边都会多一份备份——`README.md.rules.bak.<时间戳>`（顶层 README 与 lead / 扁平工位）或 `README.md.teammate_rules.bak.<时间戳>`（teammate）。它们不会被自动清理。
+- **`.gitignore`**：在 `_agent_team_work_zone/.gitignore` 里只追加以下规则，且只追加缺少的，放在一行注释下面：`*_team/teammates/*/.started`、`.hook_logs/`、`*_team/teammates/*/.checkpoint_nudge_count`、`*_team/TEAMMATE_INFO.json.bak`、`*_team/.info.??????`、`**/.README.md.??????`、`/.VERSION.??????`、`/settings.conf.??????`。你自己的行不会被改写、重排或删除。安装里没有 `.gitignore` 时不新建，升级会打印模板版在哪里以及它会忽略哪些文件。
+- **不会碰**：升级从不创建、修改或删除 `_agent_team_work_zone/settings.conf`、任何 `<team>_team/RULES_LEDGER.md` 或任何 `TEAMMATE_INFO.json`，也从不修改 `CLAUDE.md` 中已有的内容（只在缺少框架段落时追加）。无用户数据迁移：没有 `model_resolved` 字段的注册表照常可用。
+- **可选的 CLAUDE.md 段落在升级时不询问。** 要加的话：`printf '\n' >> CLAUDE.md && cat _agent_team_work_zone/resources/claude_md_optional/<文件>.md >> CLAUDE.md`（文件：`user_message_format.md`、`plain_vocabulary.md`）。
+- **git**：可选的 git 锁需要 git 2.5 或更高版本，版本更低时 `bootstrap.sh` 会提示。checkpoint 的 git 保存保持关闭，直到你运行 `atwz_checkpoint_git.sh enable`。
+
+---
+
 ## v0.4.0 (2026-10-04)
 
 MINOR（向后兼容）：**checkpoint 安全——teammate 不再写共享注册表、注册表写入改为校验式、子代理不再被卷进 checkpoint 循环；以及升级刷新不再悄悄丢掉你的内容**。

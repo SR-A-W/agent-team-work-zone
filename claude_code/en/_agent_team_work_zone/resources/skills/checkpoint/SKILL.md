@@ -159,12 +159,23 @@ If this checkpoint is because you **just completed a task** (trigger=`task_compl
 
 `completed.md` is an **append-only log**; never overwrite prior entries.
 
-### Step 5: Confirm
+### Step 5: Git save (only if the project enabled it)
+
+Run, with the ABSOLUTE path of the workstation you just wrote:
+
+    bash <workstation>/../../../resources/scripts/atwz_checkpoint_git.sh save <workstation>
+
+(`<workstation>` = the absolute directory containing the working-context.md you just wrote — your spawn prompt gives it as an absolute path; never use a relative one, because your working directory is not necessarily the project root.) The script decides everything itself:
+if the project has not enabled checkpoint git saving, it prints nothing; otherwise it prints exactly one line (`saved …` or `skipped: <reason>`).
+It always exits 0 — never retry it, never "fix" a skip, never run other git commands as part of /checkpoint. Copy its line, if any,
+into the confirmation below. To recover a saved copy later: `atwz_checkpoint_git.sh list <workstation>` / `restore <workstation> [file…]`.
+
+### Step 6: Confirm
 
 Output **one line** confirmation to lead/user (**name who wrote it + the path**, so whoever spawned you can spot an out-of-bounds write at a glance):
 
 ```
-Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.
+Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.[ <script line, if any>]
 ```
 
 **Do not** read the snapshot content back to the user — they can read the file themselves.

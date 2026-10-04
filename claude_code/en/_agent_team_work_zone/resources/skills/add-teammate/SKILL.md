@@ -64,7 +64,7 @@ Path: `_agent_team_work_zone/<SELF>_team/teammates/<teammate-name>/`
 
 Create 5 files (the 5 teammate self-maintained files mandated by Rule 13):
 
-- **`README.md`** — role definition: write the nickname, model, scope, no-go zones, deliverables, plan-mode gating description collected in Phase 3, plus (optional) an empty `## Checkpoint Instructions` section for later customization
+- **`README.md`** — role definition: write the nickname, model, scope, no-go zones, deliverables, plan-mode gating description collected in Phase 3, plus (optional) an empty `## Checkpoint Instructions` section for later customization; **and append the full content of `resources/teammate_rules.md` (including the `<!-- TEAMMATE_RULES:START/END -->` markers) to the end of the file**
 - **`working-context.md`** — initial placeholder:
   ```markdown
   # Working Context — <teammate-name>
@@ -76,7 +76,7 @@ Create 5 files (the 5 teammate self-maintained files mandated by Rule 13):
 
 ### 4b. Append to TEAMMATE_INFO.json
 
-Append an entry to the `active_teammates` array in `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json` (if the file doesn't exist, first initialize it per schema v1 — see `docs/teammate_info_schema.md`):
+Append an entry to the `active_teammates` array in `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json` (if the file doesn't exist, first initialize it per schema v2 — see `docs/teammate_info_schema.md`):
 
 ```json
 {
@@ -99,31 +99,46 @@ Also update the top-level `updated_at`.
 jq example (if available) — **validated atomic write**: `jq --argjson` auto-escapes (so a stray ASCII quote in a free-text field can't break the JSON) + a self-generated UTC timestamp; write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written and the original file is preserved. **Do not hand-write / hand-edit the JSON.**
 ```bash
 info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
-jq --argjson entry '<json object>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+# temp file next to the registry (atomic mv, no shared /tmp name), seeded with cp -p so the registry keeps its file mode
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --argjson entry '<json object>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates += [$entry] | .updated_at = $ts' \
-   "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+   "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 ## Phase 5: Generate add-teammate spawn prompt
+
+> **Replace `<project_root>` with an ABSOLUTE path** — the absolute directory that contains `_agent_team_work_zone/` directly — normally the directory your own session was started in. `git rev-parse --show-toplevel` is only a hint: use its output only after checking that `_agent_team_work_zone/` is directly inside it, because when the project is a subdirectory of a larger repository it points to the outer repository. A teammate's working directory is not necessarily the project root, so relative paths can fail.
 
 ```
 I want to add a new teammate to the existing <SELF> team:
 
 <nickname> (model: <model>)
+Step 0 for the new teammate — before reading anything, record that you have started:
+date -u +%Y-%m-%dT%H:%M:%SZ > <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<nickname>/.started
+(Lets the lead tell "never started" from "busy". Write it only here, once per spawn. If the write
+fails, carry on, but end the Ready receipt with " .started write FAILED: <error>".)
 Role definition: <reference or filled content>
 Task: <details>
 Plan-mode gating: <YES/NO + approval criteria>
 
-Your workstation is at _agent_team_work_zone/<SELF>_team/teammates/<nickname>/ (5 files
+Your workstation is at <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<nickname>/ (5 files
 — README/working-context/completed/TODO/commitments — already initialized by the lead).
 Maintain it per Rule 13: call /checkpoint to update working-context.md before going idle,
 when prompted, and after task completion.
 
-Its output is written to _agent_team_work_zone/<SELF>_team/roundtable/, collaborating with other
+Its output is written to <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/, collaborating with other
 teammates via mailbox.
+
+Rule changes: if <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md exists, read it; record every rule whose id is not yet in the "## Team rule changes" section of your README (create that section directly above the <!-- TEAMMATE_RULES:START --> line; if your README has no such line, put the section at the end of your README; never inside or below that block), and end your receipt line with " ACK <id>, <id>…" (or " Rules: up to date").
+
+Ready receipt: when set up, the new teammate uses the SendMessage tool to send the lead exactly
+one line: "Ready. Model: <model name>, ID: <model ID>" — quoting the model name and ID exactly
+as its system prompt states them, or "Model: not stated" if it does not (never guess).
+(A plain reply will NOT reach the lead.)
 
 Please spawn this new teammate to join the existing team.
 ```
@@ -161,6 +176,10 @@ In the next message send the Phase 5 prompt; Claude Code's built-in mechanism re
 ✅ team_recipes/<latest>.md amended
 Next: send spawn prompt to Claude Code agent-team mechanism
 ```
+
+**After the spawn — receipt (same handling as `/spawn-team` 6e)**: the spawn time is the time you noted immediately BEFORE spawning to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`); wait for `Ready. Model: <name>, ID: <id>`.
+- **Model check**: write the ID into the new entry as `model_resolved` (optional field; validated jq write as in 4b, `| .model_resolved = $mid` on the matching entry). Compare with the registry `model` and the README model line (alias matches if the ID contains it; a specific ID must be equal); on a mismatch **flag it** to the user, edit neither. `Model: not stated` → leave it unset, report "model unconfirmed". A cross-check, not a guarantee.
+- **No receipt after ~10 minutes**: (1) best-effort tmux pane check (`tmuxPaneId` in `~/.claude/teams/<current session-level team>/config.json` → `tmux capture-pane -p -t <id>`; these are Claude Code internals — on any failure skip to (2), and a failed lookup is never evidence); a confirmation prompt on screen → ask the user to confirm it there. (2) `teammates/<name>/.started` absent or older than the spawn time → never started (or its step-0 write failed); newer but no receipt → working (messages reach it only when its turn ends), wait or check its artifacts. (3) Tell the user the possible causes; **never respawn automatically**. Full procedure: `/reactivate-team` Step 3.3.
 
 ## Notes
 

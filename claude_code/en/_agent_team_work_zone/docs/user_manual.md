@@ -57,6 +57,32 @@ Bootstrap will:
 
 > **🍎 macOS users**: dependencies (`curl` / `tar` / `git` / `bash`) ship with macOS, **just run `bash install.sh`**. tmux via `brew install tmux`, or use **iTerm2 split-pane** (auto-detected by the reactivate-team skill), or skip tmux entirely and rely on in-process. bash 3.2 (the system bash) is fine — the user path uses no bash 4+ features.
 
+> [!IMPORTANT]
+> **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
+>
+> A common mistake is to log in to an HPC cluster (or any server) and start `claude` in your home directory while the work zone sits in a project folder. Then:
+> - the project's hooks and settings in `.claude/` are not loaded, and its skills are not available at startup;
+> - workstation (each agent's folder in the work zone) paths are resolved from the project root, so checkpoints and reactivation (`/reactivate-team`) look in the wrong place;
+> - teammates start in the lead's current directory — if the lead runs in the wrong directory (or its shell has moved into a subdirectory), its teammates start there too and their relative paths fail.
+>
+> So: `cd /path/to/your/project`, then run `claude`. Using your home directory *as* the project is fine, as long as `_agent_team_work_zone/` is directly inside it and you start Claude there. We still strongly recommend a project-specific agent team work zone inside the project directory, with its own separate Claude Code session.
+
+#### Track `_agent_team_work_zone/` in git (strongly recommended)
+
+Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
+
+- **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
+- **Easy migration to a new machine.** Clone the project on another machine, run `bootstrap.sh` there once (it installs the skills and hooks and sets Claude Code up), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
+
+```bash
+git add _agent_team_work_zone
+git commit -m "Track the agent team work zone"
+```
+
+> [!CAUTION]
+> Workstations can contain sensitive material (paths, hostnames, excerpts of data or conversations). For a public repository, review or scrub before pushing, or keep the work zone in a private repository.
+
 ### 2. Launch a conversation for each role
 
 ```bash
@@ -292,6 +318,78 @@ jq '.members[] | {name, tmuxPaneId, backendType}' \
 - **devil-advocate** — adversarial challenge (**opus**, flagship model, no memory)
 - **git-repo-manager** — git management (sonnet)
 
+### Checkpoint git saving (optional)
+
+Every `/checkpoint` can also save the teammate's workstation files in git, so a checkpoint survives a `git stash`, a bad merge or an accidental overwrite. It is **off by default**; turn it on per project.
+
+**Two modes:**
+- **`snapshot`** (recommended): the workstation's files are saved to a private git reference, `refs/atwz/checkpoints/<team>/<name>`. Your branch, `HEAD`, `git status` and the shared staging area are not touched, so nothing shows up in your commits.
+- **`commit`**: the workstation's files are committed on the current branch with a commit that contains only those files (files deleted from the workstation are committed as deletions). Anything else that is staged stays staged and out of the commit. Commit hooks run as usual.
+
+**Turn it on or off** (from the project directory):
+```bash
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh enable            # snapshot mode
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh enable commit     # commit mode
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh disable
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh status
+```
+The setting is stored in `_agent_team_work_zone/settings.conf` (`checkpoint_git = off | snapshot | commit`); you can also edit it by hand. Commit this file, so teammates on other machines share the setting. `enable` tells you at once whether it will have any effect here.
+
+**When it has no effect.** Each save checks again and, if it cannot save, reports one `skipped: …` line instead:
+- the work zone is not inside a git work tree;
+- the workstation's `working-context.md` is ignored by git (for example, `_agent_team_work_zone/` is in your `.gitignore`);
+- nothing changed since the last snapshot.
+
+Files that are untracked but not ignored are saved too, because `git stash -u` would otherwise remove them without a trace. Ignored files and runtime files (`.started`, `.checkpoint_nudge_count`, `*.before-restore.*` copies) are never saved. A checkpoint never fails because of git: the result appears as one extra line in the teammate's checkpoint confirmation.
+
+**Getting a saved copy back:**
+```bash
+S=_agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh
+bash $S list    /abs/path/to/_agent_team_work_zone/<team>/teammates/<name>                     # history
+bash $S restore /abs/path/to/_agent_team_work_zone/<team>/teammates/<name>                     # all files, latest save
+bash $S restore /abs/path/to/_agent_team_work_zone/<team>/teammates/<name> working-context.md --from <rev>
+```
+- A current file that differs from the saved one is first kept as `<file>.before-restore.<UTC time>`; delete those copies once you no longer need them.
+- `--from` takes any revision shown by `list`, for example `refs/atwz/checkpoints/<team>/<name>~3`.
+- With saving turned off, `list` and `restore` still read the snapshot reference. `restore` needs the workstation directory to exist; it cannot recreate a workstation that was deleted entirely.
+- Restoring is done by the workstation's owner (the teammate, at the lead's request) or by you — the lead does not edit a teammate's files.
+- Without the script: `git log refs/atwz/checkpoints/<team>/<name>` shows the history, and `git show refs/atwz/checkpoints/<team>/<name>:_agent_team_work_zone/<team>/teammates/<name>/working-context.md` prints the latest saved copy (`<ref>~N:` for older ones).
+
+**Snapshots stay on your machine.** The framework never pushes them, and a normal `git push` sends only branches. A fresh `git clone` does not bring them either. Only `git push --mirror` or pushing `'refs/*'` explicitly would send them. To delete them: `git update-ref -d refs/atwz/checkpoints/<team>/<name>`, or all at once with `git for-each-ref --format='%(refname)' refs/atwz | xargs -n1 git update-ref -d`.
+
+**The git lock.** Everyone in the project shares one checkout and one staging area, so two commits, merges or pulls at the same moment can interfere. `atwz_git_lock.sh` runs one git command at a time across all agents:
+```bash
+cd /path/to/your/project && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git commit -m "…" -- <path>
+```
+(Run it from the project directory — the one that contains `_agent_team_work_zone/` — so it works even when the project is a subdirectory of a larger repository.)
+It waits while another git operation is running (it never deletes `.git/index.lock`), waits at most 3 minutes, and then gives up with exit code 75. Commit mode uses this lock automatically.
+
+**Requirements:** git 2.5 or later. The scripts are written for bash 3.2 (macOS) and Linux; macOS compatibility was checked by reading the code, not by running it on macOS.
+
+### Changing rules for a running team
+
+Editing a rules file does not reach teammates that are already running: their instructions were fixed when they were spawned. To change a rule for the whole team, ask the lead to send it with **`/broadcast-rule`** (after you agree to the change):
+- every live teammate receives the rule once, in its final wording, records it in a "## Team rule changes" section of its own README, and replies `ACK <id>`;
+- the lead records the rule and every acknowledgement in the team's `RULES_LEDGER.md` (next to `TEAMMATE_INFO.json`);
+- teammates that are offline (benched) or not yet spawned read the ledger when they are reactivated or spawned, and acknowledge in their receipt.
+
+The skill does not edit the framework README or `teammate_rules.md`. A rule that should become permanent framework text is a separate change. To reach other teams, use `meeting_room/` with `to: ALL`.
+
+### Optional CLAUDE.md sections
+
+Two optional sections can be added to your project's `CLAUDE.md`. On first install, `bootstrap.sh` asks about each one when run in a terminal (default No); an upgrade never asks, so to add one later, see below. In both cases, install/upgrade never modify or delete existing CLAUDE.md content; they only append — the framework sections if missing, and optional sections only when you answer y.
+
+- **Messages to the user (format)** (`resources/claude_md_optional/user_message_format.md`): don't flood you with messages; a message triggered by a teammate's report starts with **Team brief:**; anything you should read or decide starts with the heading **To Be Read By User** and a status line (**Decision needed** / **Progress** / **Correction** / **Quiet round**). To use Chinese labels instead, replace `Team brief` with `队内简报` and the four status words with `需裁定 / 进展 / 更正 / 静默轮` (the heading stays **To Be Read By User**).
+- **Plain vocabulary** (`resources/claude_md_optional/plain_vocabulary.md`): plain, precise words; no coined metaphorical names; few abbreviations. It ends with a list of **words you have rejected**, kept inside `CLAUDE.md` so it is always loaded. Each time you reject a word, the lead (or a flat agent) adds it to that list; teammates send additions to their lead.
+
+To add a section later, append it by hand from the project directory (skip it if its `<!-- ATWZ-OPTIONAL:… -->` marker is already in `CLAUDE.md`):
+```bash
+printf '\n' >> CLAUDE.md
+cat _agent_team_work_zone/resources/claude_md_optional/user_message_format.md >> CLAUDE.md
+printf '\n' >> CLAUDE.md
+cat _agent_team_work_zone/resources/claude_md_optional/plain_vocabulary.md >> CLAUDE.md
+```
+
 ---
 
 ## Typical Use Cases
@@ -369,6 +467,18 @@ User: Agreed
 [spawn investigator]
 [investigator produces an INVESTIGATION_REPORT to roundtable/]
 ```
+
+---
+
+## Known Limitations
+
+These are runtime-environment issues the framework does **not** handle. They are not bugs, but they cause real losses; guard against them as each item suggests.
+
+- **Teammates' messages are delivered only when a turn ends.** While a teammate's turn runs, messages from other teammates queue; neither a long blocking tool call (e.g. a shell `until … sleep` loop) nor a chain of short checks lets messages through; only ending the turn does. An agent that must watch a job and stay reachable should schedule a wake-up with `/loop`, then end its turn; ending the turn without a scheduled wake-up leaves the job unwatched. (Observed in split-pane mode on Claude Code 2.1.283; in-process mode untested. Delivery timing differs by message path: cross-session messages and subagent hand-backs can arrive mid-turn, between tool calls.) **Subagents (launched with the Agent tool) lack the scheduling tools `/loop` needs** (observed for an Explore subagent on Claude Code 2.1.283: `loop` is listed among its skills but cannot run; other subagent types untested); give long monitoring to a teammate.
+- **One memory failure can end the whole team.** Two cases: (a) the whole team runs inside one memory-limited job or container (e.g. a SLURM allocation) — all sessions share that limit with the compute they launch, and an out-of-memory (OOM) kill may hit a session; (b) in in-process mode, teammates live in the lead's process, so a lead crash ends them all. Run memory-heavy compute in a separate job or container. Workstation files are unaffected; recover with `/reactivate-team`. (In split-pane mode each teammate is its own process, so on a plain desktop one OOM kills one process.)
+- **Resources shared by the OS account are invisible to the framework.** GPU quotas, conda environments, disk quotas, and background processes are shared per OS account; the framework isolates only directories. Teams or projects under the same account can affect each other with no trace in any workstation. **Never kill processes by name** (`pkill -f`, `killall`, `kill $(pgrep …)`) — you may kill another agent's process. Record the PIDs of what you start and kill only those.
+- **Cross-repository use of `meeting_room/` has no convention.** `meeting_room/` is designed for teams inside one work zone. A team from another repository writing files here works, but write access, naming, and archiving responsibility are undefined; agree on them in advance.
+- **A separate git worktree per teammate is not supported.** Skills and hooks live in the project root's `.claude/`, and `/checkpoint` / `/reactivate-team` read workstations under the project root. Moving a teammate into a worktree splits the persistence layer in two. For git discipline when all agents share one checkout, see Work Rule 1, "Shared working tree and index".
 
 ---
 

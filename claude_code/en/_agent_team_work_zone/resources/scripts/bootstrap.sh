@@ -227,6 +227,27 @@ else
     echo "⚠ jq not found — settings.json merge will use heredoc fallback if file exists"
 fi
 
+# --- 3b. git check (optional, warning only) ---
+# The optional git lock (resources/scripts/atwz_git_lock.sh) needs git >= 2.5
+# (git rev-parse --git-common-dir). Nothing else in the framework needs git.
+if command -v git >/dev/null 2>&1; then
+    GIT_RAW="$(git --version 2>/dev/null)"
+    GIT_VERSION="$(printf '%s\n' "$GIT_RAW" | awk '{print $3}')"
+    GIT_MAJOR="${GIT_VERSION%%.*}"; GIT_REST="${GIT_VERSION#*.}"; GIT_MINOR="${GIT_REST%%.*}"
+    case "$GIT_MAJOR$GIT_MINOR" in
+        *[!0-9]*|"")
+            echo "· git version not recognised ($GIT_RAW); the optional git lock needs git 2.5 or later" ;;
+        *)
+            if [ "$GIT_MAJOR" -lt 2 ] || { [ "$GIT_MAJOR" -eq 2 ] && [ "$GIT_MINOR" -lt 5 ]; }; then
+                echo "⚠ git $GIT_VERSION found — the optional git lock (atwz_git_lock.sh, also used by checkpoint commit mode) needs git 2.5 or later; everything else works"
+            else
+                echo "✓ git $GIT_VERSION"
+            fi ;;
+    esac
+else
+    echo "· git not found — only the optional checkpoint git saving and git lock need it"
+fi
+
 echo ""
 
 # --- 4. Install skills and agents ---
@@ -300,6 +321,7 @@ fi
 
 # --- 5a. Install CLAUDE.md ---
 echo "--- CLAUDE.md ---"
+CLAUDE_MD_FIRST_INSTALL=0   # 1 = this run put the framework sections into CLAUDE.md (first install)
 CLAUDE_TEMPLATE="$TEMPLATE_ROOT/resources/CLAUDE.md.template"
 CLAUDE_MD="$PROJECT_ROOT/CLAUDE.md"
 
@@ -311,6 +333,7 @@ else
 
     if [ ! -f "$CLAUDE_MD" ]; then
         cp "$CLAUDE_TEMPLATE" "$CLAUDE_MD"
+        CLAUDE_MD_FIRST_INSTALL=1
         echo "  ✓ installed CLAUDE.md"
     elif grep -qF "$CLAUDE_FIRST_HEADER" "$CLAUDE_MD" && \
          grep -qF "## Coding Engineering Principles" "$CLAUDE_MD"; then
@@ -318,10 +341,53 @@ else
     else
         printf '\n' >> "$CLAUDE_MD"
         awk '/^## /{found=1} found{print}' "$CLAUDE_TEMPLATE" >> "$CLAUDE_MD"
+        CLAUDE_MD_FIRST_INSTALL=1
         echo "  ⚠ Appended agent-team-work-zone + Coding Engineering Principles sections to your existing CLAUDE.md — review them."
     fi
 fi
 echo ""
+
+# --- 5b. Optional CLAUDE.md sections (interactive, default No) ---
+# One [y/N] question per file in resources/claude_md_optional/. Asked only on a first
+# install (this run put the framework sections into CLAUDE.md), only with a terminal,
+# and never during an upgrade (the migration dispatcher sets ATWZ_SKIP_OPTIONAL_SECTIONS=1;
+# and an upgrade finds the framework sections already present, so it is not a first
+# install either). On an explicit y the section is APPENDED, once: it is skipped if its
+# "<!-- ATWZ-OPTIONAL:<id> -->" marker is already in CLAUDE.md. Existing CLAUDE.md
+# content is never modified; nothing else is created.
+OPTIONAL_DIR="$TEMPLATE_ROOT/resources/claude_md_optional"
+if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
+    echo "--- Optional CLAUDE.md sections ---"
+    if [ "${ATWZ_SKIP_OPTIONAL_SECTIONS:-0}" = "1" ]; then
+        printf '%s\n' "$(printf '  ↻ Optional CLAUDE.md sections: not asked during an upgrade. To add one later: cat "%s/resources/claude_md_optional/<file>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
+    elif [ "$CLAUDE_MD_FIRST_INSTALL" != "1" ]; then
+        printf '%s\n' "$(printf '  ↻ Optional CLAUDE.md sections: only offered on first install. To add one later: cat "%s/resources/claude_md_optional/<file>.md" >> CLAUDE.md' "$TEMPLATE_ROOT")"
+    elif [ ! -t 0 ]; then
+        echo "  ↻ Optional CLAUDE.md sections: no terminal — not added (default No)."
+    else
+        for id in user_message_format plain_vocabulary; do
+            snippet="$OPTIONAL_DIR/$id.md"
+            [ -f "$snippet" ] || continue
+            title="$(awk '/^## /{sub(/^## /, ""); print; exit}' "$snippet")"
+            if grep -qF "<!-- ATWZ-OPTIONAL:$id -->" "$CLAUDE_MD"; then
+                printf '  ↻ optional "%s" section already in CLAUDE.md — skipping\n' "$title"
+                continue
+            fi
+            printf 'Add the optional "%s" section to CLAUDE.md? [y/N] ' "$title" >/dev/tty
+            answer=""
+            IFS= read -r answer </dev/tty || answer=""
+            case "$answer" in
+                y|Y|yes|YES|Yes)
+                    printf '\n' >> "$CLAUDE_MD"
+                    cat "$snippet" >> "$CLAUDE_MD"
+                    printf '  ✓ appended the optional "%s" section to CLAUDE.md\n' "$title" ;;
+                *)
+                    printf '  · not added: "%s"\n' "$title" ;;
+            esac
+        done
+    fi
+    echo ""
+fi
 
 # --- 6. Display mode selection (interactive, optional) ---
 # Since CC v2.1.179, the default changed from "auto" (tmux panes) to "in-process"

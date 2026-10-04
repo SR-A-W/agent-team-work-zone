@@ -39,7 +39,7 @@ mkdir -p "$log_dir" 2>/dev/null || true
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "$timestamp SessionEnd cwd=$cwd" >> "$log_dir/session_end.log" 2>/dev/null || true
 
-# 注：v0.2.3 起自动 checkpoint 由 teammate_idle_checkpoint.sh（TeammateIdle + exit 2 闸门）
+# 注：v0.2.3 起自动 checkpoint 由 teammate_idle_checkpoint.sh（TeammateIdle 检查 + exit 2 拦截）
 # 在 session 活跃时完成；SessionEnd 阶段 context 已收尾、跑不了 skill，故这里不再扫描旧的
 # .checkpoint_pending flag（该机制已退役），仅留时间戳日志供诊断。
 

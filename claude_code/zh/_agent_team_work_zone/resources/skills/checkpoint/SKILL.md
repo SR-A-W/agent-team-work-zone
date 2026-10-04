@@ -3,7 +3,7 @@ name: checkpoint
 description: >
   Teammate 把当前工作状态写到自己工位的 working-context.md：Part A 当前态快照（覆写）
   + Part B 工作日志（追加，含近期对话与关键往来原文），并按需追加 completed.md。
-  由 TeammateIdle hook（working-context.md mtime 闸门 + exit 2 提醒）自动触发，
+  由 TeammateIdle hook（按 working-context.md 的修改时间做检查，未通过就以 exit 2 拦下 idle 并提醒）自动触发，
   或 lead 明确要求，或手动调用。**不是 /compact**——不破坏当前 context。
   Rule 13 规定 teammate 有义务定期调用本 skill。
 disable-model-invocation: false
@@ -142,7 +142,7 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 若本次确无新的对话 / 进展（极少见），可追加一条极简条目注明"无实质进展"，或仅刷新 Part A 跳过 Part B。
 
 > **关于自动提醒的刹车（无需你手动操作）**：本次 checkpoint 写 `working-context.md`
-> 会刷新它的 mtime。`teammate_idle_checkpoint.sh` 的闸门就是看这个 mtime——落盘后它判为
+> 会刷新它的 mtime。`teammate_idle_checkpoint.sh` 做的检查，看的就是这个 mtime——落盘后它判为
 > fresh，下次 idle 不会再提醒你。所以你**不需要**清任何 flag，写完文件即自动止住提醒。
 > （v0.2.3 前的 `.checkpoint_pending` flag 机制已退役。）
 
@@ -156,12 +156,20 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 
 `completed.md` 是 **append-only 日志**，永远不覆盖之前的条目。
 
-### Step 5: 确认
+### Step 5：git 保存（仅当项目开启时）
+
+用你刚写入的工位的**绝对路径**运行：
+
+    bash <工位>/../../../resources/scripts/atwz_checkpoint_git.sh save <工位>
+
+（`<工位>` = 你刚写的 working-context.md 所在目录的绝对路径——你的 spawn prompt 里给的就是绝对路径；不要用相对路径，因为你的工作目录不一定是项目根目录。）是否保存由脚本自己判断：项目没开启时它什么也不输出；开启时只输出一行（`saved …` 或 `skipped: <原因>`）。它永远以 0 退出——不要重试，不要去"修"跳过的原因，不要在 /checkpoint 里另外跑别的 git 命令。若有输出，把这一行带进下面的确认里。日后要找回保存的版本：`atwz_checkpoint_git.sh list <工位>` / `restore <工位> [文件…]`。
+
+### Step 6: 确认
 
 向 lead / user 输出**一行**确认（**带上是谁写的 + 路径**，便于派生你的人一眼看出越权写入）：
 
 ```
-Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.
+Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.[ <script line, if any>]
 ```
 
 **不要**把 snapshot 内容回读给用户——他们可以自己读文件。

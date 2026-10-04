@@ -13,6 +13,36 @@
 
 ---
 
+## 开始之前
+
+> [!IMPORTANT]
+> **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
+>
+> 常见错误：登录 HPC 集群（或任何服务器）后直接在 home 目录里启动 `claude`，而 work zone 却在某个项目文件夹里。这样会：
+> - 项目 `.claude/` 里的 hooks 和设置不会生效，skills 在启动时也用不了；
+> - 工位（每个 agent 在 work zone 里的目录）路径从项目根目录解析，checkpoint 和唤回（`/reactivate-team`）会去错的地方找；
+> - teammate 从 lead 当前所在的目录启动——lead 在错的目录里运行（或它的 shell 切到了某个子目录），派生出的 teammate 也从那里启动，相对路径随之失效。
+>
+> 所以：先 `cd /path/to/your/project`，再运行 `claude`。把 home 目录本身当作项目也可以——只要 `_agent_team_work_zone/` 就在 home 目录下，并且在那里启动 Claude。但我们依然强烈推荐：在项目目录下使用该项目专有的 agent team work zone，并为它单独启动一个 Claude Code session。
+
+### 把 `_agent_team_work_zone/` 纳入 git 管理（强烈推荐）
+
+把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
+
+- **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里运行一次 `bootstrap.sh`（安装 skills、hooks 并配置 Claude Code），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
+
+```bash
+git add _agent_team_work_zone
+git commit -m "Track the agent team work zone"
+```
+
+> [!CAUTION]
+> 工位里可能有敏感内容（路径、主机名、数据或对话片段）。如果仓库是公开的，push 前先检查或清理，或者把 work zone 放在私有仓库里。
+
+---
+
 ## 初始配置
 
 ### 1. 一键 bootstrap
@@ -245,6 +275,12 @@ priority: HIGH | MEDIUM | LOW
 - **Team 边界**：如果你不是某个 team 的 lead 或 teammate，**不要写入该 team 的 roundtable / archive / team_recipes / teammates**
 - **升级和迁移**：扁平工位升级为 team lead **只能由该工位自己**调用 `/promote-to-team`——team lead **不得代劳**为其他 agent 升级工位
 - **帮忙也不行**：即使你觉得对方需要帮助，**也要通过 meeting_room 发 TASK** 让对方自己执行，不要直接动手改
+- **共享工作目录与暂存区**：所有 agent 共用同一个 git checkout——同一个工作目录、同一个暂存区。暂存区里不是你放的东西别动、也别带进你的提交：
+  - 提交前先看 `git diff --cached --stat`；提交一律按显式路径：`git commit -m "…" -- <路径>…`
+  - 禁用 `git add -A` / `git add .` / `git commit -a`（会把别人的改动带进你的提交）
+  - 禁用 `git stash`、`git pull --rebase`、非快进 merge（stash 会收起别人未提交的文件；rebase 或合并失败后的中止、重置会把它们回退）；拉取用 `git pull --ff-only`
+  - 不删除真实存在的 `.git/index.lock`（那是别人的 git 操作正在进行）；若它一直不消失、且没有 git 进程在运行，告诉 lead，不要自己删
+  - 在共享 checkout 里提交、合并、拉取时，优先用 `cd "<项目根目录>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`，其中 `<项目根目录>` 是包含 `_agent_team_work_zone/` 的那个目录的绝对路径（你的 spawn prompt 里给了）；这样在任何工作目录下都能用，项目只是某个更大仓库的子目录时也不例外
 - **违反此条的代价**：被动对象在下次 `/sync` 时会发现自己的工位被改动过却不知道是谁、为什么——这会破坏工作连续性和信任
 
 ### 2. 充分信息
@@ -275,6 +311,9 @@ date: 2026-04-11 15:30
 
 ### 7. 用户是项目负责人
 任务分配和优先级由用户决定，agent 之间不直接指派任务（team lead 对自己 team 内 teammate 除外）。
+
+- **记录决策来源**：把裁定或约定写进文件时，写明谁提议、谁批准；"谁决定的"引用原话，不转述。teammate 之间就契约、接口、字段达成的一致，在 lead 裁定前只是**提议**，记录时标为"提议（待 lead 裁定）"，不写成"X 已裁定"。
+- **裁定改变前提时，说明哪些工作因此作废**：发出裁定的同一条消息里，写明因此不必再做的工作和受影响的人。
 
 ### 8. Meeting room / Roundtable 文件权限
 - **归档权唯一归 issuer（`from`）**：只有文件的发布者（`from` 是你）才能将文件移至 archive。其他任何 agent 均**无归档权**，无论 `to` 是否指向自己。
@@ -339,12 +378,21 @@ date: 2026-04-11 15:30
 - ⚠️ 但**别把自动提醒当唯一保险**：它最多每 15 分钟拦你一次，意外退出仍可能丢最多 ~15 分钟的活。checkpoint 仍是你的**主动义务**——重要进展做完就自觉写，别只等被拦
 - `working-context.md` 是你**对未来自己（下一次 spawn 的你）**的交接文档。写得不好 → 下次的你恢复不了状态
 - `commitments.md` 是你对别人的承诺。这里未完成的事，哪怕 `/checkpoint` 没写到 working-context，下一次的你也要看这个文件接手
+- **保持可达**：队友的消息只在你的回合结束后送达。要盯作业时，用 `/loop` 排定唤醒，然后结束回合；不要在回合里等（shell `until … sleep` 循环，或一长串检查调用）——长时间阻塞的调用和一串短检查都会挡住消息，只有结束回合才能让消息进来。只结束回合、不排定唤醒，作业就没人盯了；用不了 `/loop` 时，结束回合前给 lead 发一句简短状态，由 lead 再 ping 你继续
+- **派生/唤回时**：第一步先写 `teammates/<你的名字>/.started`（内容为当前时间），再读任何文件；回执（`Resumed…` / `Ready`）末尾加 `Model: <名称>, ID: <ID>`，照抄你系统提示里写的，没写就写 `Model: not stated`，不要猜
 
 **如果你是 team lead**：
 
 - `TEAMMATE_INFO.json`（在你工位根下）是你的**注册表**。`/spawn-team` / `/add-teammate` / `/remove-teammate` / `/bench-teammate` / `/reactivate-team` 会自动更新它，**你不要手改**
 - Session 每次重启时（`claude --resume`）注意 `SessionStart` hook 的提醒——如果有 teammate，**立刻运行 `/reactivate-team`**（无参，只恢复 active/idle；benched 临时下线的会被跳过），不要假设它们自己回来了（**Claude Code 不会自动 respawn teammate**）
 - **怀疑 teammate 已死时，先 ping 再下结论（实践中最常翻车的点）**：真实失败几乎从不是"用户误调 `/reactivate-team`"，而是 **lead 没当场确认、却以为 teammate 还活着**。任何静态信号——`SessionStart` hook 文案、`TEAMMATE_INFO` 的 `status:active`、inbox 旧消息、`config.json`——对"活/死"**都不是证据**；**几轮前的旧回执也不算**（回执是时间点信号、会过期，中间一次 teardown 就全废）。所以**每次**基于"活/死"做判断时（**包括"他们还活着、不用 reactivate"这种反向判断**），都要**当场重新 ping、绝不引用旧回执**：`SendMessage` 报 **`No agent named X addressable` = 确定死亡**（最快最硬的判据），成功进 inbox 但无回复 = 未知。**另注：context compaction ≠ session 重启**——压缩同进程、teammate 通常仍活，别被"Session restarted"骗（hook 已按 `source` 分文案，但仍以 ping 为准）
+- **teammate 沉默时怎么判断、怎么做**：
+  - **消息可能晚到数小时**（对方在一个长回合里、在等确认或权限提示等），没收到报告 ≠ 没干活。截止前只认报告，要问就 ping；截止已过且 ping 无回音，可查**已落地的状态**（`git log`、已完成的产物），**不读它正在写的工作文件**
+  - **形如 `[to X] …` 的心跳摘要不是给你的报告**：那是它发给 X 的一条消息的摘要（lead 在自己收到的心跳里观察到过），不引用、不据此行动、不据此记录结论或推断原因；需要其中的信息就向它要原文
+  - **不自动重派沉默的 teammate**：ping 成功进 inbox 却迟迟无回复 = 状态未知，可能是 (a) 在等一个确认或权限提示（分屏模式下可能是它面板里的启动确认界面；工具权限提示会出现在你（lead）的会话里，容易漏看），(b) 在一个长回合里（队友消息要等回合结束才送达），(c) 已死亡。先告诉用户并列出这三种可能，由用户确认后再处理；未经核实，不对用户断言是哪一种。（ping 报 `No agent named X addressable` 则按上一条，确定死亡）
+  - **你自己要等时用 `/loop`**，不在自己的回合里等待——你的回合不结束，teammate 发来的消息同样排队
+  - **派生/唤回后核对两样东西**：teammate 第一步写的 `teammates/<名字>/.started`，以及回执末尾的 `Model: <名称>, ID: <ID>`（用法见 `/spawn-team`、`/reactivate-team`）
+- **给正在干活的成员发更正，合并成一条完整消息**：成员在回合中收不到任何消息——你连发的几条更正会在它回合结束时一起到达，那时它已经按旧指示做完了。更正要自成一体，写明"以本条为准"，等到它的回执再发下一条
 - **临时下线（benched）与按需唤回**：在线 teammate 数量受 Claude Code 上限约束。某 teammate 阶段性用不上、或要腾在线名额时，用 `/bench-teammate` 把它临时下线（保留全量档案 + 工位，`status=benched`，**不**被无参 `/reactivate-team` 唤醒）。反过来，**在任何环节——尤其派活 / 开始某任务前——一旦你判断需要某个 benched 成员的专长，应当即向用户提议唤回**，经用户同意（或用户主动点名）后用 `/reactivate-team <name>` 单独唤回。状态表（active / idle / benched / offboarded）由你维护、**对用户是黑箱**——用户只在"提议—同意"层面参与，不接触状态字段、也不在任何清单里勾选
 - **危险操作前主动让 teammate checkpoint**：自动提醒（`TeammateIdle` + exit 2）只在 teammate **自己即将 idle** 且距上次落盘 > 15 分钟时才触发，且最多挡住 ~15 分钟的丢失窗口。所以重启/关机/长时间挂起前，仍由你 `SendMessage` 逐个让 active teammate 跑 `/checkpoint` 并确认落盘——把自动提醒当兜底、不当唯一保险
 - 不要修改任何 teammate 的工位文件（rule #1）。想让 teammate 做事 → `SendMessage`，不直接改文件
@@ -381,15 +429,16 @@ date: 2026-04-11 15:30
 | add-teammate | `/add-teammate` | team lead 自主 | 在现有 team 中增加一个 teammate |
 | remove-teammate | `/remove-teammate` | team lead 自主 | 让某个 teammate 下岗：优雅交接 + 归档产出 |
 | bench-teammate | `/bench-teammate <name>` | team lead 自主 | 把某个 teammate 临时下线（benched）：最终 checkpoint + 关 session 腾名额，保留全量档案；日后 `/reactivate-team <name>` 唤回 |
+| broadcast-rule | `/broadcast-rule` | team lead 自主（用户同意该规则变更后） | 把一条规则变更发给每个在线 teammate，记进本团队常设的 `RULES_LEDGER.md` 并跟踪确认；不在线的 teammate 在被唤回时补上 |
 
-**重要**：`/evaluate-team`、`/add-teammate`、`/remove-teammate`、`/bench-teammate` 只在 **team lead 上下文**中有效。若当前是扁平工位误调用，skill 会立即报警并拒绝执行。
+**重要**：`/evaluate-team`、`/add-teammate`、`/remove-teammate`、`/bench-teammate`、`/broadcast-rule` 只在 **team lead 上下文**中有效。若当前是扁平工位误调用，skill 会立即报警并拒绝执行。
 
 ### Claude Code 内置 skills（直接使用）
 
 | Skill | 命令 | 用途 |
 |-------|------|------|
 | schedule | `/schedule ...` | 创建定时 remote agent（cron trigger），常用于 team lead 启动 tracker |
-| loop | `/loop <interval> <prompt>` | 在当前 session 内按间隔重复跑一个 prompt（预留给将来的 autonomous mode） |
+| loop | `/loop <interval> <prompt>` | 在当前 session 内按间隔重复跑一个 prompt（监控时定时唤醒，让 agent 在两次检查之间保持可达——见第 13 条） |
 
 ---
 

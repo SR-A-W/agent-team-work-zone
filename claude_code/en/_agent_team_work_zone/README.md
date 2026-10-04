@@ -13,6 +13,36 @@
 
 ---
 
+## Before you start
+
+> [!IMPORTANT]
+> **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
+>
+> A common mistake is to log in to an HPC cluster (or any server) and start `claude` in your home directory while the work zone sits in a project folder. Then:
+> - the project's hooks and settings in `.claude/` are not loaded, and its skills are not available at startup;
+> - workstation (each agent's folder in the work zone) paths are resolved from the project root, so checkpoints and reactivation (`/reactivate-team`) look in the wrong place;
+> - teammates start in the lead's current directory — if the lead runs in the wrong directory (or its shell has moved into a subdirectory), its teammates start there too and their relative paths fail.
+>
+> So: `cd /path/to/your/project`, then run `claude`. Using your home directory *as* the project is fine, as long as `_agent_team_work_zone/` is directly inside it and you start Claude there. We still strongly recommend a project-specific agent team work zone inside the project directory, with its own separate Claude Code session.
+
+### Track `_agent_team_work_zone/` in git (strongly recommended)
+
+Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
+
+- **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
+- **Easy migration to a new machine.** Clone the project on another machine, run `bootstrap.sh` there once (it installs the skills and hooks and sets Claude Code up), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
+
+```bash
+git add _agent_team_work_zone
+git commit -m "Track the agent team work zone"
+```
+
+> [!CAUTION]
+> Workstations can contain sensitive material (paths, hostnames, excerpts of data or conversations). For a public repository, review or scrub before pushing, or keep the work zone in a private repository.
+
+---
+
 ## Initial Setup
 
 ### 1. One-click bootstrap
@@ -245,6 +275,12 @@ Each agent only does what falls within its own responsibilities; no overstepping
 - **Team boundaries**: If you are not a team's lead or teammate, **do not write into that team's roundtable / archive / team_recipes / teammates**.
 - **Promotion and migration**: Upgrading a flat workstation to a team lead **can only be invoked by that workstation itself** via `/promote-to-team`. A team lead **must not act on behalf of** another agent to do the promotion.
 - **Helping out is not an excuse**: Even if you think another agent needs help, **send a TASK via meeting_room** and let them act themselves — do not modify their files directly.
+- **Shared working tree and index**: all agents share one git checkout — the same working tree and the same staging area. Do not touch anything in the index you did not stage, and do not let it into your commit:
+  - Check `git diff --cached --stat` before committing; always commit by explicit path: `git commit -m "…" -- <path>…`
+  - Never `git add -A` / `git add .` / `git commit -a` (they sweep others' changes into your commit)
+  - Never `git stash`, `git pull --rebase`, or a non-fast-forward merge (a stash hides other agents' uncommitted files; aborting or resetting a failed rebase or merge reverts them); pull with `git pull --ff-only`
+  - Never delete an existing `.git/index.lock` (another agent's git operation is in progress); if it persists and no git process is running, tell the lead — do not remove it yourself
+  - For commits, merges and pulls in the shared checkout, prefer `cd "<project root>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`, where `<project root>` is the absolute directory that contains `_agent_team_work_zone/` (your spawn prompt gives it); this works from any working directory, even when the project is a subdirectory of a larger repository
 - **Cost of violating this rule**: The affected agent discovers on their next `/sync` that their workstation was modified without knowing by whom or why — this breaks continuity and trust.
 
 ### 2. Sufficient Information
@@ -275,6 +311,9 @@ Each agent's `README.md` is the anchor for role memory. After context compressio
 
 ### 7. The User is the Project Owner
 Task assignment and priorities are decided by the user; agents do not directly assign tasks to each other (except that a team lead may assign tasks to teammates within their own team).
+
+- **Record where a decision came from**: when you write a ruling or agreement into a file, state who proposed it and who approved it; quote "who decided" verbatim rather than paraphrasing. An agreement between teammates on a contract, interface, or field is a **proposal** until the lead rules — record it as "proposal (pending lead ruling)", never as "X ruled".
+- **When a ruling changes a premise, say which work it cancels**: in the same message as the ruling, list the work that no longer needs doing and who is affected.
 
 ### 8. Meeting Room / Roundtable File Permissions
 - **Archival authority belongs exclusively to the issuer (`from`)**: only the file's publisher (where `from` is you) may move a file to archive. All other agents have **no archival authority**, regardless of whether `to` points to them.
@@ -339,12 +378,21 @@ When receiving a task that requires hands-on work, first judge:
 - ⚠️ But **do not treat the auto-reminder as your only safety net**: it catches you at most once every 15 minutes, so an unexpected exit can still lose up to ~15 minutes of work. Checkpointing remains your **proactive duty** — write one as soon as you finish meaningful progress, don't just wait to be blocked.
 - `working-context.md` is your **handoff document to your future self (the next spawn of you)**. Poorly written → next-you cannot recover state.
 - `commitments.md` records promises you made to others. Anything unfinished here must be picked up by next-you even if `/checkpoint` didn't capture it in working-context.
+- **Stay reachable**: teammates' messages reach you only after your turn ends. To watch a job, schedule a wake-up with `/loop`, then end your turn; do not wait inside the turn (a shell `until … sleep` loop, or a chain of checks) — neither a long blocking call nor a chain of short checks lets messages through; only ending the turn does. Ending the turn without a scheduled wake-up leaves the job unwatched; if you cannot use `/loop`, end the turn with a short status to the lead, who pings you to continue
+- **On spawn / reactivation**: first write `teammates/<your-name>/.started` (the current time) before reading anything; end your receipt (`Resumed…` / `Ready`) with `Model: <name>, ID: <id>` quoted from your own system prompt, or `Model: not stated` if it gives none — don't guess
 
 **If you are a team lead**:
 
 - `TEAMMATE_INFO.json` (at the root of your workstation) is your **registry**. `/spawn-team` / `/add-teammate` / `/remove-teammate` / `/bench-teammate` / `/reactivate-team` update it automatically — **do not edit it by hand**.
 - Every time you start a session (`claude --resume`), pay attention to the `SessionStart` hook's reminder — if there are teammates, **run `/reactivate-team` immediately** (no-arg; restores only active/idle — benched/temporarily-offline ones are skipped). Do not assume they came back on their own (**Claude Code does not automatically respawn teammates**).
 - **When you suspect a teammate is dead, ping before concluding (the most common failure point)**: in practice it's almost never "the user mis-invoked `/reactivate-team`" — it's the **lead failing to confirm and assuming a teammate is still alive**. Any static signal — the `SessionStart` hook's text, `TEAMMATE_INFO`'s `status:active`, old inbox messages, `config.json` — is **evidence of neither life nor death**; **a receipt from several turns ago doesn't count either** (a receipt is point-in-time and expires — one teardown in between voids it). So **every** time you judge live/dead (**including the inverse "they're alive, no need to reactivate"**), **re-ping on the spot and never rely on an earlier receipt**: `SendMessage` returning **`No agent named X addressable` = definitively dead** (the fastest, hardest signal); succeeded-to-inbox but no reply = unknown. **Also: context compaction ≠ session restart** — compaction is same-process and teammates are usually still alive; don't be fooled by "Session restarted" (the hook branches on `source`, but still go by the ping).
+- **When a teammate goes quiet — how to judge and what to do**:
+  - **Messages can arrive hours late** (the teammate is in a long turn, waiting on a confirmation or permission prompt, …): no report ≠ no work. Before a deadline, go by reports and ping if you need to know; once the deadline has passed and a ping goes unanswered, you may inspect **landed state** (`git log`, finished artifacts) — **never its in-progress working files**
+  - **A heartbeat summary of the form `[to X] …` is not a report to you**: it summarizes a message the teammate sent to X (observed in the lead's own idle notifications). Don't cite it, act on it, or record conclusions or inferred causes from it; if you need that information, ask the teammate for the original
+  - **Never auto-respawn a silent teammate**: a ping that reaches the inbox but gets no reply = unknown state — possibly (a) waiting on a confirmation or permission prompt (in split-pane mode possibly a startup confirmation in its own pane; tool-permission prompts appear in your — the lead's — session and are easy to miss), (b) in a long turn (teammate messages wait until its turn ends), or (c) dead. Tell the user first, list these three possibilities, and act after the user confirms; don't assert which one it is without verifying. (A ping that returns `No agent named X addressable` = definitively dead — see the previous bullet)
+  - **When you yourself need to wait, use `/loop`**; not by waiting inside your own turn — while your turn runs, teammates' messages to you queue too
+  - **After a spawn or reactivation, check two things**: the `teammates/<name>/.started` file the teammate writes first, and the `Model: <name>, ID: <id>` at the end of its receipt (usage in `/spawn-team`, `/reactivate-team`)
+- **Send a working teammate one complete correction, not a stream**: a teammate receives nothing mid-turn — corrections you send one after another all arrive together when its turn ends, after it has already acted on the old instruction. Make a correction self-contained, say that it supersedes earlier ones, and wait for the receipt before sending the next
 - **Temporary offline (benched) and on-demand wake**: the number of online teammates is capped by Claude Code. When a teammate is not needed in the current phase, or you need to free an online slot, use `/bench-teammate` to take it temporarily offline (full record + workstation retained, `status=benched`, **not** woken by no-arg `/reactivate-team`). Conversely, **at any point — especially when assigning work / before starting a task — the moment you judge you need a benched member's specialty, immediately propose waking it to the user**, and after the user consents (or names it directly) wake it via `/reactivate-team <name>`. The status table (active / idle / benched / offboarded) is yours to maintain and is **a black box to the user** — the user participates only at the "propose—consent" level, never touching status fields or picking from any list.
 - **Proactively have teammates checkpoint before risky operations**: the automatic reminder (`TeammateIdle` + exit 2) only fires when a teammate is **itself about to go idle** and is >15 minutes past its last save, and it only caps the loss window at ~15 minutes. So before a restart / shutdown / long suspension, still `SendMessage` each active teammate to run `/checkpoint` and confirm it landed — treat the auto-reminder as a backstop, not the only safety net.
 - Do not modify any teammate's workstation files (rule #1). To make a teammate do something → `SendMessage`, never edit their files directly.
@@ -381,15 +429,16 @@ After installation, they can be triggered in a conversation via `/skill_name`. S
 | add-teammate | `/add-teammate` | team lead autonomously | Add a teammate to an existing team |
 | remove-teammate | `/remove-teammate` | team lead autonomously | Retire a teammate: graceful handoff + archive their output |
 | bench-teammate | `/bench-teammate <name>` | team lead autonomously | Temporarily take a teammate offline (benched): final checkpoint + close session to free a slot, keep full record; wake later with `/reactivate-team <name>` |
+| broadcast-rule | `/broadcast-rule` | team lead autonomously (after the user agrees to the rule change) | Send a rule change to every live teammate, record it in the team's standing `RULES_LEDGER.md` and track acknowledgements; teammates who are offline pick it up when they are reactivated |
 
-**Important**: `/evaluate-team`, `/add-teammate`, `/remove-teammate`, and `/bench-teammate` are only valid in **team-lead context**. If mistakenly invoked from a flat workstation, the skill will immediately alert and refuse to execute.
+**Important**: `/evaluate-team`, `/add-teammate`, `/remove-teammate`, `/bench-teammate`, and `/broadcast-rule` are only valid in **team-lead context**. If mistakenly invoked from a flat workstation, the skill will immediately alert and refuse to execute.
 
 ### Claude Code built-in skills (use directly)
 
 | Skill | Command | Purpose |
 |-------|------|------|
 | schedule | `/schedule ...` | Create scheduled remote agents (cron triggers); commonly used by team leads to launch a tracker |
-| loop | `/loop <interval> <prompt>` | Repeatedly run a prompt at intervals within the current session (reserved for future autonomous mode) |
+| loop | `/loop <interval> <prompt>` | Repeatedly run a prompt at intervals within the current session (timed wake-ups while monitoring, so the agent stays reachable between checks — see rule 13) |
 
 ---
 

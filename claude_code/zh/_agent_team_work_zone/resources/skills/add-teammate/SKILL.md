@@ -63,7 +63,7 @@ allowed-tools: Read Write Edit Glob Grep
 
 创建 5 个文件（Rule 13 规定的 teammate 自维护 5 文件）：
 
-- **`README.md`** — 角色定义：写 Phase 3 里收集的昵称、模型、作用域、禁区、交付物、plan-mode gating 说明，以及（可选）一个空的 `## Checkpoint Instructions` 段位供后续定制
+- **`README.md`** — 角色定义：写 Phase 3 里收集的昵称、模型、作用域、禁区、交付物、plan-mode gating 说明，以及（可选）一个空的 `## Checkpoint Instructions` 段位供后续定制；**并将 `resources/teammate_rules.md` 的完整内容（含 `<!-- TEAMMATE_RULES:START/END -->` 标记）追加到文件末尾**
 - **`working-context.md`** — 初始占位：
   ```markdown
   # Working Context — <teammate-name>
@@ -75,7 +75,7 @@ allowed-tools: Read Write Edit Glob Grep
 
 ### 4b. Append 到 TEAMMATE_INFO.json
 
-在 `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json` 的 `active_teammates` 数组尾部追加一条（如果文件不存在，先按 schema v1 初始化 — 参见 `docs/teammate_info_schema.md`）：
+在 `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json` 的 `active_teammates` 数组尾部追加一条（如果文件不存在，先按 schema v2 初始化 — 参见 `docs/teammate_info_schema.md`）：
 
 ```json
 {
@@ -98,29 +98,43 @@ allowed-tools: Read Write Edit Glob Grep
 jq 示例（如果可用）——**带校验的原子写入**：`jq --argjson` 自动转义（杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘、保留原文件。**不要手写/手改 JSON**。
 ```bash
 info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
-jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+# 临时文件建在注册表旁边（mv 是原子的，也不与别人共用 /tmp 下的同名文件），并用 cp -p 先复制一份，让注册表保持原有的文件权限
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates += [$entry] | .updated_at = $ts' \
-   "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+   "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 ## Phase 5: 生成 add-teammate spawn prompt
+
+> **把 `<project_root>` 换成绝对路径**——即直接包含 `_agent_team_work_zone/` 的那个目录的绝对路径——通常就是你自己的 session 启动时所在的目录。`git rev-parse --show-toplevel` 只能作参考：先确认 `_agent_team_work_zone/` 就在它下面再用，因为项目只是某个更大仓库的子目录时，它指向的是外层仓库。teammate 的工作目录不一定是项目根，相对路径可能失效。
 
 ```
 我要向现有的 <SELF> team 增加一个新的 teammate：
 
 <昵称>（模型：<model>）
+新 teammate 的第 0 步——读任何文件之前，先记录"我已启动"：
+date -u +%Y-%m-%dT%H:%M:%SZ > <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<昵称>/.started
+（lead 靠它区分"根本没启动"和"正在忙"。只在这里写，每次 spawn 写一次。写失败也继续，
+但在就绪回执末尾加上 " .started write FAILED: <错误信息>"。）
 角色定义：<引用或填入内容>
 任务：<细节>
 Plan-mode gating: <YES/NO + 批准标准>
 
-你的工位在 _agent_team_work_zone/<SELF>_team/teammates/<昵称>/（README/working-context/
+你的工位在 <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<昵称>/（README/working-context/
 completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维护它：进入 idle 前、
 收到 checkpoint 提醒时、任务完成后调用 /checkpoint 更新 working-context.md。
 
-它的产出写到 _agent_team_work_zone/<SELF>_team/roundtable/，和其他 teammate 通过 mailbox 协作。
+它的产出写到 <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/，和其他 teammate 通过 mailbox 协作。
+
+规则变更：若 <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md 存在，读它；把 id 尚未出现在你 README「## Team rule changes」一节里的规则都记进去（该节建在 <!-- TEAMMATE_RULES:START --> 那一行正上方；若你的 README 里没有这一行，就把这一节放在 README 末尾；不要写在该块里面或下面），并在回执行末尾加上 " ACK <id>, <id>…"（或 " Rules: up to date"）。
+
+就绪回执：准备好后，新 teammate 用 SendMessage 工具给 lead 发恰好一行：
+"Ready. Model: <model name>, ID: <model ID>"——模型名和 ID 按其系统提示原文照抄，
+系统提示里没写就写 "Model: not stated"（不要猜）。（普通回复到不了 lead。）
 
 请 spawn 这个新 teammate 加入现有 team。
 ```
@@ -158,6 +172,10 @@ completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维
 ✅ team_recipes/<latest>.md 已追加 Amendment
 下一步发送 spawn prompt 给 Claude Code agent-team 机制
 ```
+
+**spawn 之后——回执（处理方式同 `/spawn-team` 6e）**：本次 spawn 时间即你在 spawn **之前**立刻记下的时间，精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较）；等待 `Ready. Model: <name>, ID: <id>`。
+- **模型核对**：把 ID 写进新条目的 `model_resolved`（可选字段；按 4b 的带校验 jq 写入，在匹配条目上加 `| .model_resolved = $mid`）。与登记表 `model` 及 README 的模型行比对（别名只要 ID 包含它即一致；具体 ID 须完全相等）；不一致就向用户**标出**，两边都不改。`Model: not stated` → 不写该字段，汇报"模型未确认"。这是交叉核对，不是保证。
+- **约 10 分钟仍无回执**：(1) 尽力而为的 tmux 读屏（在 `~/.claude/teams/<当前 session 级 team>/config.json` 找 `tmuxPaneId` → `tmux capture-pane -p -t <id>`；这些是 Claude Code 内部实现——任何一步失败都跳到 (2)，查找失败绝不当作证据）；屏上是确认界面 → 请用户到那里确认。(2) `teammates/<name>/.started` 不存在或早于本次 spawn 时间 → 根本没启动（或第 0 步写文件失败）；晚于但没回执 → 已在工作（消息只在它的回合结束时送达），继续等或查它的产物。(3) 把可能原因告诉用户；**绝不自动重派**。完整流程见 `/reactivate-team` Step 3.3。
 
 ## 注意事项
 

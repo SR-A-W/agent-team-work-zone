@@ -10,7 +10,7 @@
 #   进程、cwd 都是项目根，认不出当前是 lead 还是哪个 teammate。
 #
 # v0.2.3 起，自动 checkpoint 改由 teammate_idle_checkpoint.sh 单边完成：在带身份的
-#   "写侧"(TeammateIdle) 用 working-context.md mtime 闸门 + exit 2，把提醒的 stderr 直接喂给
+#   "写侧"(TeammateIdle) 按 working-context.md 的修改时间做检查，未通过就以 exit 2 拦下 idle，把提醒的 stderr 直接喂给
 #   正在 idle 的那个 teammate——彻底不经过这条认不出身份的"读侧"。本消费者因此不再需要。
 #
 # 本文件保留为【无害 no-op】（立即 exit 0）：万一某下游 .claude/settings.json 仍残留旧的

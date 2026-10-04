@@ -96,14 +96,16 @@ name="<name>"
 reason="<下线原因>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
-jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
+# 临时文件建在注册表旁边（mv 是原子的，也不与别人共用 /tmp 下的同名文件），并用 cp -p 先复制一份，让注册表保持原有的文件权限
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .active_teammates |= map(
     if .name == $n then .status = "benched" | .benched_at = $ts | .bench_reason = $r else . end
   ) | .updated_at = $ts
-' "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+' "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 **绝不**删除 / 改动它的工位目录 `teammates/<name>/`（working-context.md、completed.md、commitments.md、README.md、TODO.md 全部原样保留）。

@@ -16,11 +16,11 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
 
 | 操作 | 写 | 读 |
 |---|---|---|
-| `/spawn-team` | ✅ 初始化或覆写 `active_teammates` 数组 | - |
-| `/add-teammate` | ✅ append 到 `active_teammates` | - |
+| `/spawn-team` | ✅ 初始化或覆写 `active_teammates` 数组；按各 teammate 的 Ready 回执写 `model_resolved` | - |
+| `/add-teammate` | ✅ append 到 `active_teammates`；按 Ready 回执写 `model_resolved` | - |
 | `/remove-teammate` | ✅ 把成员从 `active_teammates` 移到 `offboarded_teammates` | - |
 | `/bench-teammate` | ✅ 把成员 `status` 置 `benched`、写 `benched_at`/`bench_reason`（**留在** `active_teammates`） | - |
-| `/reactivate-team` | ✅ 更新 `revived_count`、`spawned_at`、`status`；`<name>` 唤回 benched 时清 `benched_at`/`bench_reason` | ✅ |
+| `/reactivate-team` | ✅ 更新 `revived_count`、`spawned_at`、`status`、`model_resolved`；`<name>` 唤回 benched 时清 `benched_at`/`bench_reason` | ✅ |
 | `/checkpoint`（teammate 调用）| **不写**（schema v2 起 teammate 不碰本注册表；见下） | - |
 | `/evaluate-team` | - | ✅ 权威源 |
 | `/sync`（team lead 恢复路径）| - | ✅ 检测是否需要 reactivate |
@@ -88,6 +88,7 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
 | `status` | string | 见下方状态枚举 |
 | `benched_at` | ISO8601 string | **可选**，仅当 `status=benched` 时存在：被 /bench-teammate 临时下线的时间。唤回时删除 |
 | `bench_reason` | string | **可选**，仅当 `status=benched` 时存在：下线原因（人类可读一句话）。唤回时删除 |
+| `model_resolved` | string | **可选**：teammate 在最近一次 Ready / Resumed 回执里、从自己系统提示原样引用的确切模型 ID（如 `claude-opus-5-5`），由 lead 在 spawn / add / reactivate 时写入。`model` 记录的是**请求的**值（常为 `opus` 这类别名），`model_resolved` 记录它**实际解析成**的值。与 `model` 或 teammate README 的模型行不一致时，lead 标出，但两边都不改。属自报，只是交叉核对、不是保证。旧条目、或回执没给 ID 时不存在——读者须容忍缺失 |
 
 ### `role_source` 对象
 
@@ -135,6 +136,8 @@ Schema 变更规则：
 
 - **Minor 变更**（新增可选字段、状态新值）：直接修改，`schema_version` 不升
 - **Major 变更**（重命名字段、改变字段含义、移除字段）：`schema_version` 递增，同时在所有读写 skill 里加 migration 逻辑
+
+**`model_resolved`（v2 内新增）**：新增可选字段，属 minor 变更——`schema_version` 仍为 2，无需 migration；没有该字段的登记表照常工作。
 
 **v1 → v2（移除 `last_checkpoint_at`）**：这是"移除字段"的 major 变更，故 `schema_version` 升到 2。但**无需数据 migration**——已无任何读者把 `last_checkpoint_at` 当权威（`/reactivate-team` 改读 `working-context.md` mtime）；旧装机若仍带该字段，**容忍并忽略**即可，v2 不再写它。
 

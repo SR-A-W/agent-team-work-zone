@@ -57,6 +57,32 @@ Bootstrap 会：
 
 > **🍎 macOS 用户**：依赖（`curl` / `tar` / `git` / `bash`）macOS 自带，**直接 `bash install.sh` 即可**。tmux 可 `brew install tmux`，或用 **iTerm2 split-pane**（reactivate-team skill 自动识别），或不装 tmux 用 in-process 兜底。bash 3.2（系统自带）也能跑——用户路径无 bash 4+ 特性。
 
+> [!IMPORTANT]
+> **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
+>
+> 常见错误：登录 HPC 集群（或任何服务器）后直接在 home 目录里启动 `claude`，而 work zone 却在某个项目文件夹里。这样会：
+> - 项目 `.claude/` 里的 hooks 和设置不会生效，skills 在启动时也用不了；
+> - 工位（每个 agent 在 work zone 里的目录）路径从项目根目录解析，checkpoint 和唤回（`/reactivate-team`）会去错的地方找；
+> - teammate 从 lead 当前所在的目录启动——lead 在错的目录里运行（或它的 shell 切到了某个子目录），派生出的 teammate 也从那里启动，相对路径随之失效。
+>
+> 所以：先 `cd /path/to/your/project`，再运行 `claude`。把 home 目录本身当作项目也可以——只要 `_agent_team_work_zone/` 就在 home 目录下，并且在那里启动 Claude。但我们依然强烈推荐：在项目目录下使用该项目专有的 agent team work zone，并为它单独启动一个 Claude Code session。
+
+#### 把 `_agent_team_work_zone/` 纳入 git 管理（强烈推荐）
+
+把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
+
+- **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里运行一次 `bootstrap.sh`（安装 skills、hooks 并配置 Claude Code），再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
+
+```bash
+git add _agent_team_work_zone
+git commit -m "Track the agent team work zone"
+```
+
+> [!CAUTION]
+> 工位里可能有敏感内容（路径、主机名、数据或对话片段）。如果仓库是公开的，push 前先检查或清理，或者把 work zone 放在私有仓库里。
+
 ### 2. 为每个角色启动对话
 
 ```bash
@@ -296,6 +322,78 @@ Team lead 在 `/spawn-team` 时参考的**模板**，不是 subagent 定义。9 
 - **devil-advocate** — 对抗性挑战（**opus**，旗舰模型，不 memory）
 - **git-repo-manager** — Git 管理（sonnet）
 
+### checkpoint 的 git 保存（可选）
+
+每次 `/checkpoint` 还可以把 teammate 的工位文件存进 git，这样 checkpoint 经得起 `git stash`、一次合并出错或误覆盖。它**默认关闭**，按项目开启。
+
+**两种模式：**
+- **`snapshot`**（推荐）：工位文件保存到一个私有的 git 引用 `refs/atwz/checkpoints/<team>/<name>`。你的分支、`HEAD`、`git status` 和共享暂存区都不受影响，提交里不会出现任何东西。
+- **`commit`**：工位文件以一次只含这些文件的提交，提交到当前分支（从工位里删掉的文件作为删除提交）。其他已暂存的内容保持暂存、不进这次提交。提交 hook 照常运行。
+
+**开启或关闭**（在项目目录下运行）：
+```bash
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh enable            # snapshot 模式
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh enable commit     # commit 模式
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh disable
+bash _agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh status
+```
+设置保存在 `_agent_team_work_zone/settings.conf`（`checkpoint_git = off | snapshot | commit`），也可以手动编辑。请提交这个文件，让其他机器上的 teammate 用同一设置。`enable` 会立刻告诉你它在这里是否生效。
+
+**什么时候不生效。** 每次保存都会重新检查；无法保存时，改为输出一行 `skipped: …`：
+- work zone 不在 git 工作树里；
+- 工位的 `working-context.md` 被 git 忽略（例如 `.gitignore` 里写了 `_agent_team_work_zone/`）；
+- 自上次快照以来没有变化。
+
+未跟踪但没被忽略的文件也会保存，否则 `git stash -u` 会把它们无声无息地拿走。被忽略的文件和运行期文件（`.started`、`.checkpoint_nudge_count`、`*.before-restore.*` 副本）从不保存。checkpoint 绝不会因为 git 而失败：结果作为一行附在 teammate 的 checkpoint 确认里。
+
+**找回保存的版本：**
+```bash
+S=_agent_team_work_zone/resources/scripts/atwz_checkpoint_git.sh
+bash $S list    /abs/path/to/_agent_team_work_zone/<team>/teammates/<name>                     # 历史
+bash $S restore /abs/path/to/_agent_team_work_zone/<team>/teammates/<name>                     # 全部文件，最近一次保存
+bash $S restore /abs/path/to/_agent_team_work_zone/<team>/teammates/<name> working-context.md --from <rev>
+```
+- 当前文件若与保存的版本不同，先另存为 `<文件>.before-restore.<UTC 时间>`；不再需要时删掉这些副本。
+- `--from` 接受 `list` 列出的任何版本，例如 `refs/atwz/checkpoints/<team>/<name>~3`。
+- 保存关闭时，`list` 和 `restore` 仍然读取快照引用。`restore` 要求工位目录存在；整个被删掉的工位它无法重建。
+- 恢复由工位的主人（teammate，应 lead 的要求）或你来做——lead 不改 teammate 的文件。
+- 不用脚本时：`git log refs/atwz/checkpoints/<team>/<name>` 查看历史，`git show refs/atwz/checkpoints/<team>/<name>:_agent_team_work_zone/<team>/teammates/<name>/working-context.md` 打印最近保存的版本（更早的用 `<ref>~N:`）。
+
+**快照只留在你的机器上。** 框架从不 push 它们，普通的 `git push` 只发送分支，新的 `git clone` 也不会带上它们。只有 `git push --mirror` 或显式 push `'refs/*'` 才会发出去。删除它们：`git update-ref -d refs/atwz/checkpoints/<team>/<name>`，或一次全删：`git for-each-ref --format='%(refname)' refs/atwz | xargs -n1 git update-ref -d`。
+
+**git 锁。** 项目里所有人共用一个 checkout 和一个暂存区，两次提交、合并或拉取同时发生会互相干扰。`atwz_git_lock.sh` 让所有 agent 的 git 命令一次只跑一个：
+```bash
+cd /path/to/your/project && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git commit -m "…" -- <路径>
+```
+（在项目目录——也就是包含 `_agent_team_work_zone/` 的那个目录——下运行，这样项目只是某个更大仓库的子目录时也能用。）
+别的 git 操作正在进行时它会等（从不删除 `.git/index.lock`），最多等 3 分钟，然后以退出码 75 放弃。commit 模式会自动使用这把锁。
+
+**要求：**git 2.5 或更高版本。脚本按 bash 3.2（macOS）与 Linux 编写；macOS 兼容性是通过审读代码检查的，没有在 macOS 上实际运行过。
+
+### 给运行中的团队改规则
+
+只改规则文件，到不了已经在运行的 teammate：它们的指示在派生时就固定了。要给整个团队改一条规则，请 lead 用 **`/broadcast-rule`** 发出（在你同意这项变更之后）：
+- 每个在线 teammate 收到一次、用最终措辞写成的规则，把它记进自己 README 的「## Team rule changes」一节，并回复 `ACK <id>`；
+- lead 把规则和每一条确认记在本团队的 `RULES_LEDGER.md`（与 `TEAMMATE_INFO.json` 并列）；
+- 不在线（benched）或尚未派生的 teammate，在被唤回或派生时读这份记录，并在回执里确认。
+
+本 skill 不修改框架 README 或 `teammate_rules.md`。应当成为框架永久文本的规则，是另一项单独的改动。要通知其他团队，用 `meeting_room/`，`to: ALL`。
+
+### 可选的 CLAUDE.md 段落
+
+项目的 `CLAUDE.md` 可以加两个可选段落。首次安装时，若在终端里运行，`bootstrap.sh` 会逐个询问（默认 No）；升级时从不询问，之后想加请看下文。无论哪种情况，install/upgrade 从不修改或删除 CLAUDE.md 中已有的内容；它们只追加——缺少框架段落时追加框架段落，可选段落只在你回答 y 时追加。
+
+- **给用户的消息（格式）**（`resources/claude_md_optional/user_message_format.md`）：不要用消息轰炸你；由 teammate 汇报触发的消息以 **队内简报：** 开头；需要你了解或裁定的内容以标题 **To Be Read By User** 开头，并带一行状态（**需裁定** / **进展** / **更正** / **静默轮**）。英文版的对应标签是 `Team brief` 与 `Decision needed / Progress / Correction / Quiet round`（标题仍是 **To Be Read By User**）。
+- **平实用语**（`resources/claude_md_optional/plain_vocabulary.md`）：用平实、严谨的词；不自造比喻性名词；少用简写。它的最后是一份**你否决过的词**，放在 `CLAUDE.md` 里面，所以始终会被加载。你每否决一个词，lead（或扁平工位）就把它加进这份清单；teammate 把要加的词发给自己的 lead。
+
+之后想加某一段，在项目目录下手动追加（若 `CLAUDE.md` 里已有它的 `<!-- ATWZ-OPTIONAL:… -->` 标记就跳过）：
+```bash
+printf '\n' >> CLAUDE.md
+cat _agent_team_work_zone/resources/claude_md_optional/user_message_format.md >> CLAUDE.md
+printf '\n' >> CLAUDE.md
+cat _agent_team_work_zone/resources/claude_md_optional/plain_vocabulary.md >> CLAUDE.md
+```
+
 ---
 
 ## 典型用例
@@ -371,6 +469,18 @@ Architect: 这是"跑通了但结果反常"的典型场景，需要 investigator
 [spawn investigator]
 [investigator 产出 INVESTIGATION_REPORT 到 roundtable/]
 ```
+
+---
+
+## 已知局限
+
+以下是框架目前**不处理**的运行环境问题。它们不是 bug，但会造成真实损失，请按各条的建议自行防范。
+
+- **队友的消息只在回合结束后送达。** 一个 teammate 的回合不结束，队友发给它的消息就一直排队；长时间阻塞的工具调用（例如 shell 里的 `until … sleep` 循环）和一串短检查都会挡住消息，只有结束回合才能让消息进来。需要盯作业又要保持可达的 agent，用 `/loop` 排定唤醒，然后结束回合；只结束回合而不排定唤醒，作业就没人盯了。（在分屏模式、Claude Code 2.1.283 上观察到；同进程模式未测试。不同消息通道的送达时机不同：跨会话消息和子代理的回传可以在回合中途、工具调用之间送达。）**子代理（Agent 工具临时派出的 subagent）没有 `/loop` 所需的定时工具**（在 Claude Code 2.1.283 上对一个 Explore 子代理观察到：技能列表里有 `loop`，但无法运行；其他子代理类型未测试），长时间监控请交给 teammate。
+- **整个团队可能被一次内存事故清空。** 两种情况：(a) 整个团队跑在同一个有内存上限的作业或容器里（例如一个 SLURM 分配），所有会话和它们启动的计算共享这个上限，一次内存溢出（OOM）被杀的可能是某个会话；(b) 同进程模式下，teammate 运行在 lead 的进程里，lead 崩溃则全员结束。大内存计算请放到独立的作业或容器里。工位文件不受影响，可用 `/reactivate-team` 恢复。（分屏模式下每个 teammate 是独立进程，普通桌面上一次 OOM 只杀一个进程。）
+- **同一系统账号下的资源，框架看不到。** GPU 配额、conda 环境、磁盘配额、后台进程按系统账号共享，框架只隔离目录。同账号下的多个团队或项目可能互相影响，而工位里不会有任何记录。**不要按进程名杀进程**（`pkill -f`、`killall`、`kill $(pgrep …)`），可能杀掉别的 agent 的进程。请记录自己进程的进程号，只杀自己启动的。
+- **跨仓库使用 `meeting_room/` 没有约定。** `meeting_room/` 是为同一个 work zone 内的团队设计的。别的仓库的团队往这里写文件可以工作，但谁有写权限、命名格式、谁负责归档，框架都没有规定，需要双方事先约定。
+- **不支持每个 teammate 用独立的 git worktree。** skills、hooks 装在项目根目录的 `.claude/` 下，`/checkpoint`、`/reactivate-team` 读的也是项目根目录下的工位。把 teammate 搬进 worktree，持久化层会一分为二。所有 agent 共用一个 checkout 时的 git 纪律，见工作守则第 1 条"共享工作目录与暂存区"。
 
 ---
 

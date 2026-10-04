@@ -140,6 +140,8 @@ Team: <team_name>
 
 **3.1 准备 spawn prompt**（关键：引导 teammate 读自己工位自恢复）：
 
+> **`{project_root}` 必须填绝对路径**——即直接包含 `_agent_team_work_zone/` 的那个目录的绝对路径——通常就是你自己的 session 启动时所在的目录。`git rev-parse --show-toplevel` 只能作参考：先确认 `_agent_team_work_zone/` 就在它下面再用，因为项目只是某个更大仓库的子目录时，它指向的是外层仓库。teammate 的工作目录不一定是项目根（实测：某 teammate 进程运行在 `…/_agent_team_work_zone/<team>`），它的 Bash 里也没有 `CLAUDE_PROJECT_DIR`，所以 prompt 里的相对路径可能失效——`.started` 会写失败而无人察觉。
+
 ```
 You are {name}, a teammate previously active on team '{team_name}'. Your previous
 Claude Code session was terminated (not by shutdown_request — by session
@@ -149,8 +151,13 @@ and you have no memory of your prior work.
 
 Before doing anything else:
 
-1. Read _agent_team_work_zone/{team_name}/teammates/{name}/README.md — your role definition
-2. Read _agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
+0. FIRST — before reading anything — record that you have started:
+   date -u +%Y-%m-%dT%H:%M:%SZ > {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/.started
+   (This lets the lead tell "never started" from "busy in a long turn". Write this file
+   only here, once per spawn.) If this write fails, carry on, but end your receipt line
+   with " .started write FAILED: <error>".
+1. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/README.md — your role definition
+2. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
    last checkpoint. It has TWO parts: Part A = a 9-section current-state snapshot (the
    authoritative "where things stand now"); Part B = an append-only work journal with
    recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read
@@ -158,24 +165,31 @@ Before doing anything else:
    to recover recent context and conversation. (Older format with only 9 sections and no
    Part B is fine — just use the snapshot.) Trust this document — the previous spawn of
    you wrote it for you.
-3. Read _agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
+3. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
    promises you must honor.
-4. Optionally read _agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
+4. Optionally read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
    completed.md for additional context if working-context points to them.
 5. If your README.md has an old full rules section (heading matches `## Work Rules` or
-   `## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block), replace that
-   old section (from that heading through the next `## ` heading of the same level, or
-   through end of file — heading included) with the content of
-   _agent_team_work_zone/resources/teammate_rules.md; otherwise, if your README.md does NOT
+   `## 工作守则`, and it is NOT inside a <!-- TEAMMATE_RULES:START --> block): FIRST copy
+   that old section exactly (from that heading through the next `## ` heading of the same
+   level, or through end of file — heading included) to
+   {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/README.md.teammate_rules.bak.<UTC timestamp>
+   (timestamp from `date -u +%Y%m%d%H%M%S`) — it may contain your own notes written after
+   the rules; THEN replace that old section with the content of
+   {project_root}/_agent_team_work_zone/resources/teammate_rules.md; otherwise, if your README.md does NOT
    contain a <!-- TEAMMATE_RULES:START --> block, copy that block from the same file and
    append it to the end of your own README.md (you may only edit your own file).
+6. Rule changes: if {project_root}/_agent_team_work_zone/{team_name}/RULES_LEDGER.md exists, read it; record every rule whose id is not yet in the "## Team rule changes" section of your README (create that section directly above the <!-- TEAMMATE_RULES:START --> line; if your README has no such line, put the section at the end of your README; never inside or below that block), and end your receipt line with " ACK <id>, <id>…" (or " Rules: up to date").
 
 If working-context.md looks corrupted, empty, or is missing sections, DO NOT
 invent content — message the team lead via SendMessage asking for guidance
 before starting work.
 
 After reading, use the SendMessage tool to send the team lead exactly one line:
-"Resumed from checkpoint at {last_checkpoint_time}. Ready."
+"Resumed from checkpoint at {last_checkpoint_time}. Ready. Model: <model name>, ID: <model ID>"
+Quote the model name and ID exactly as your system prompt states them; if it does not
+state them, write "Model: not stated" — do not guess. If step 5 made a backup, append
+" Rules healed; old section backed up to <backup file>." to that same line.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -203,7 +217,18 @@ Agent(
 
 二元判定：
 - **成功**：在本 session 收到该 teammate 的 SendMessage 回执（内容含 "Resumed from checkpoint at X. Ready."）→ 标记成功
-- **失败/状态未知**：未收到 SendMessage 回执（含超时）→ 告警给用户，由用户决定（重试 spawn / 检查 working-context.md 是否损坏 / 或 /remove-teammate 移除）；**不假定成功**
+- **失败/状态未知**：未收到 SendMessage 回执（含超时）→ 先按下方「约 10 分钟仍无回执」排查，再告警给用户，由用户决定（重试 spawn / 检查 working-context.md 是否损坏 / 或 /remove-teammate 移除）；**不假定成功**
+
+**模型核对（成功时）**：回执末尾是 `Model: <name>, ID: <id>`，由 teammate 从自己的系统提示中原样引用。在 Step 4 把该 ID 记为 `model_resolved`。再与登记表的 `model` 及该 teammate README 的「模型 / Model」行比对：别名（`haiku` / `sonnet` / `opus`）只要 ID 中包含它（不分大小写）即算一致；具体 ID 则须完全相等。不一致时，在 Step 5 汇报里**标出**——不改登记表的 `model`（它记录的是 spawn 时请求的值，用别名可能是有意的），也不改 teammate 的 README（rule #1；请该 teammate 在下次 /checkpoint 时自己改）。若回执写的是 `Model: not stated` 或没有 ID，不写 `model_resolved`，汇报"模型未确认"。这只是**交叉核对，不是保证**——ID 是 teammate 从系统提示里自报的。
+
+**守则备份（成功时）**：若回执还带有 `Rules healed; old section backed up to <file>`，说明该 teammate 的 README 里有旧守则区并已被替换；备份里保存着那段旧内容，包括写在守则后面的用户笔记。在 Step 5 汇报里提一句，方便用户把不属于守则的内容恢复回去。 回执若带有 `ACK <id>`（例如 `ACK R-20261004-1`），把 RULES_LEDGER.md 里对应的行填上。
+
+**约 10 分钟仍无回执——查明原因，绝不自动重派。** spawn 前记下每次 Agent 调用的时间（"本次 spawn 时间"），精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较）。对迟迟没有回执的 teammate：
+1. **若团队在 tmux 分屏中运行（尽力而为）**：查它的分屏——`jq '.members[] | {name, tmuxPaneId, backendType}' ~/.claude/teams/<当前 session 级 team>/config.json`——再用 `tmux capture-pane -p -t <tmuxPaneId>` 读屏。该配置文件和字段是 Claude Code 内部实现，不是公开接口：文件或字段不存在、或读屏失败，就直接进入第 2 步，**绝不把查找失败当成关于该 teammate 的证据**。若屏上是确认界面，告诉用户："<name> 停在它分屏的确认界面上，请到那里确认一下。"不重派。
+2. **查看 `teammates/<name>/.started`**（由 spawn prompt 的第 0 步写入）：
+   - **不存在，或其 mtime 早于本次 spawn 时间**（上一次 spawn 留下的旧文件）→ 该 teammate 连第 0 步都没执行：卡在启动确认界面或工具权限确认上，或启动失败——也可能是第 0 步写文件失败（单凭缺一个文件，证据很弱）。告诉用户。
+   - **存在且晚于本次 spawn 时间，但没有回执** → 它已开始工作，可能正处在一个很长的回合里（发给 teammate 的消息只在它的回合结束时送达——在分屏模式、Claude Code 2.1.283 上观察到；同进程模式未测试）。继续等，或查看它已产出的东西（产物、`git log`）。
+3. **任何情况都先告诉用户**，并列出可能原因（停在确认界面、仍在忙、已死亡）。**绝不自动重派**——第一个还活着时再 spawn 同名 teammate，会得到带后缀的 `<name>-2`，变成两份。只有用户明确同意才重派。
 
 > **重要**：磁盘 artifact（`working-context.md` 的内容与 mtime）只能帮你了解 reactivate **之前**的状态，绝不能作为**本次 reactivate 是否成功**的判据——spawn 成功还是失败，这些静态文件都一样，不反映本次运行时事实。见本技能开头"前提"段。
 
@@ -216,6 +241,7 @@ Agent(
   - `revived_count` 加 1
   - `status` 置为 `active`（若原为 `benched` / `idle`，一并转正）
   - 若原为 `benched`：**删除** `benched_at` 和 `bench_reason` 字段
+  - `model_resolved` 写为回执中的模型 ID（可选字段；回执没给 ID 就保持不变）
 - 失败：
   - `status` 改为 `failed_to_reactivate`
   - 不更新 spawned_at（若原为 benched，benched 字段保留，便于稍后重试）
@@ -225,13 +251,17 @@ Agent(
 
 用 jq 示例（对每个成功的 teammate，替换 N=name）——**带校验的原子写入**：self-gen UTC 时间戳 + `jq --arg`（自动转义，杜绝自由文本里的 ASCII 引号破坏 JSON）+ 写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘、保留原文件。
 ```bash
-jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+info=_agent_team_work_zone/<your_team>/TEAMMATE_INFO.json
+# 临时文件建在注册表旁边（mv 是原子的，也不与别人共用 /tmp 下的同名文件），并用 cp -p 先复制一份，让注册表保持原有的文件权限
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates |= map(if .name == $name then .spawned_at = $ts | .revived_count += 1 | .status = "active" | del(.benched_at, .bench_reason) else . end) | .updated_at = $ts' \
-   "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+   "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
+若回执给出了模型 ID，再加 `--arg mid "<ID>"`，并在同一个 `if .name == $name then … end` 分支里加 `| .model_resolved = $mid`。
 
 ### Step 5: 汇报给用户
 
@@ -241,8 +271,11 @@ jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 Team <team_name> reactivated:
 
 ✅ Successfully resumed (N 个):
-- <name1>: "Resumed from checkpoint at <ts>. Ready."
+- <name1>: "Resumed from checkpoint at <ts>. Ready." — model ID: <id | unconfirmed>
 - <name2>: ...
+
+⚠ Model mismatch（仅当存在时）: <name>: registry `<model>` / README `<model>` vs reported `<id>`
+⚠ Rules backup（仅当存在时）: <name>: old rules section saved to <file> — 请检查其中是否有你自己的笔记
 
 ❌ Failed to reactivate (M 个):
 - <name3>: <reason>

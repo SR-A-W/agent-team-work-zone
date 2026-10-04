@@ -97,14 +97,16 @@ name="<name>"
 reason="<bench reason>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
-jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
+# temp file next to the registry (atomic mv, no shared /tmp name), seeded with cp -p so the registry keeps its file mode
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .active_teammates |= map(
     if .name == $n then .status = "benched" | .benched_at = $ts | .bench_reason = $r else . end
   ) | .updated_at = $ts
-' "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+' "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 **Never** delete / alter its workstation directory `teammates/<name>/` (working-context.md, completed.md, commitments.md, README.md, TODO.md all preserved as-is).

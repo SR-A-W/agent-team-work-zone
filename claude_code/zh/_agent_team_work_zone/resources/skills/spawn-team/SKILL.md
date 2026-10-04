@@ -149,8 +149,16 @@ mode: interactive
 
 对 Phase 5 最终阵容中的每个 teammate，单独准备一段 `prompt` 字符串，包含：
 
+> **把 `<project_root>` 换成绝对路径**——即直接包含 `_agent_team_work_zone/` 的那个目录的绝对路径——通常就是你自己的 session 启动时所在的目录。`git rev-parse --show-toplevel` 只能作参考：先确认 `_agent_team_work_zone/` 就在它下面再用，因为项目只是某个更大仓库的子目录时，它指向的是外层仓库。teammate 的工作目录不一定是项目根，它的 Bash 里也没有 `CLAUDE_PROJECT_DIR`，相对路径可能失效（`.started` 会写失败而无人察觉）。
+
 ```
 你是 <昵称>，<team_name> 的 teammate。
+
+## 第 0 步——读任何文件之前
+先记录"我已启动"：
+date -u +%Y-%m-%dT%H:%M:%SZ > <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<昵称>/.started
+（lead 靠它区分"根本没启动"和"正在忙"。这个文件只在这里写，每次 spawn 写一次。
+写失败也继续往下做，但在就绪回执末尾加上 " .started write FAILED: <错误信息>"。）
 
 ## 角色定义
 <角色原型内容 / 引用 subagent persona / 原创 inline persona>
@@ -163,20 +171,31 @@ mode: interactive
 Plan-mode gating：<是/否；若是，说明批准标准>
 
 ## 协作方式
-- 重要里程碑、完成通知、阻塞报告 → 写到 _agent_team_work_zone/<SELF>_team/roundtable/
+- 重要里程碑、完成通知、阻塞报告 → 写到 <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/
   frontmatter 必须包含 kind 字段（TASK / DONE / ERR）
 - 需要联系其他 teammate 或 lead → 通过 Claude Code 内置 mailbox（SendMessage）
 
 ## 工位与持久化（Rule 13）
-你的工位：_agent_team_work_zone/<SELF>_team/teammates/<昵称>/
+你的工位：<project_root>/_agent_team_work_zone/<SELF>_team/teammates/<昵称>/
 lead 已初始化 5 个骨架文件（README / working-context.md / completed.md / TODO.md / commitments.md）。
 进入 idle 前、收到 checkpoint 提醒时、任务完成后 → 调用 /checkpoint 更新 working-context.md。
 这是你跨 session 恢复状态的唯一桥梁（Claude Code 不自动保留 teammate session）。
 若你的工位 README 里有旧的完整守则区（标题匹配 `## 工作守则` 或 `## Work Rules`，且不在
-<!-- TEAMMATE_RULES:START --> 标记内），用 _agent_team_work_zone/resources/teammate_rules.md
-的内容替换掉那个旧守则区（从该标题起，到下一个 `## ` 同级标题之前、或文件末为止，连标题一起
-替换）；否则，若你的工位 README 里没有 <!-- TEAMMATE_RULES:START --> 区块，从该文件复制该区块
-追加到你自己 README 末尾（你只能改自己的文件）。
+<!-- TEAMMATE_RULES:START --> 标记内）：**先**把那个旧守则区原样（从该标题起，到下一个 `## `
+同级标题之前、或文件末为止，连标题一起）复制到工位里的 README.md.teammate_rules.bak.<UTC 时间戳>
+（时间戳用 `date -u +%Y%m%d%H%M%S`）——其中可能有你写在守则后面的自己的笔记；**再**用
+<project_root>/_agent_team_work_zone/resources/teammate_rules.md 的内容替换掉那个旧守则区；否则，若你的工位
+README 里没有 <!-- TEAMMATE_RULES:START --> 区块，从该文件复制该区块追加到你自己 README 末尾
+（你只能改自己的文件）。
+
+规则变更：若 <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md 存在，读它；把 id 尚未出现在你 README「## Team rule changes」一节里的规则都记进去（该节建在 <!-- TEAMMATE_RULES:START --> 那一行正上方；若你的 README 里没有这一行，就把这一节放在 README 末尾；不要写在该块里面或下面），并在回执行末尾加上 " ACK <id>, <id>…"（或 " Rules: up to date"）。
+
+## 就绪回执
+以上完成后，用 SendMessage 工具给 lead 发恰好一行：
+"Ready. Model: <model name>, ID: <model ID>"
+模型名和 ID 按你系统提示里的原文照抄；系统提示里没写，就写 "Model: not stated"——不要猜。
+若上面做了守则备份，在同一行末尾加上 " Rules healed; old section backed up to <备份文件>."
+（普通回复到不了 lead——必须用 SendMessage。）
 ```
 
 ### 6b. 初始化每个 teammate 的工位骨架
@@ -220,10 +239,12 @@ lead 已初始化 5 个骨架文件（README / working-context.md / completed.md
 > **带校验的原子写入**：无论是初始化还是 append，都用 `jq`（`--arg`/`--argjson` 自动转义，杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘。**不要手写/手改 JSON**（会绕过转义）。例（append 一条 `$entry`）：
 > ```bash
 > info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
-> jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+> # 临时文件建在注册表旁边（mv 是原子的，也不与别人共用 /tmp 下的同名文件），并用 cp -p 先复制一份，让注册表保持原有的文件权限
+> tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+>   && jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 >    '.active_teammates += [$entry] | .updated_at = $ts' \
->    "$info" > /tmp/info.json \
->   && jq empty /tmp/info.json && cp "$info" "$info.bak" && mv /tmp/info.json "$info"
+>    "$info" > "$tmp" \
+>   && jq empty "$tmp" && cp "$info" "$info.bak" && mv "$tmp" "$info" || rm -f "$tmp"
 > ```
 
 ### 6d. 保存 team recipe 审计记录
@@ -290,6 +311,10 @@ Agent(
 
 **spawn 顺序**：按执行依赖顺序——可并行的 teammate 可以同时在一条消息里发出多个 Agent 调用，有先后依赖的串行调用。
 
+**回执（模型核对 + 不自动重派）**：在每次 Agent 调用**之前**立刻记下当前时间（"本次 spawn 时间"），精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较），然后等每个 teammate 的 `Ready. Model: <name>, ID: <id>` 回执。
+- **模型核对**：把 ID 写进该 teammate 条目的 `model_resolved`（可选字段；用与 6c 相同的带校验 jq 写入，加 `| .model_resolved = $mid`）。再与登记表 `model` 及 README 的模型行比对——别名（`haiku`/`sonnet`/`opus`）只要 ID 包含它即一致，具体 ID 须完全相等。不一致就向用户**标出**，两边都不改。`Model: not stated` → 不写该字段，汇报"模型未确认"。这是交叉核对，不是保证（ID 是自报的）。回执若提到守则备份，告诉用户备份位置。 回执若带有 `ACK <id>`（例如 `ACK R-20261004-1`），把 RULES_LEDGER.md 里对应的行填上。
+- **约 10 分钟仍无回执**：(1) 尽力而为——若在 tmux 分屏中：在 `~/.claude/teams/<当前 session 级 team>/config.json` 里找它的 `tmuxPaneId`，再 `tmux capture-pane -p -t <id>` 读屏；这些是 Claude Code 内部实现，文件/字段不存在或读屏失败就跳到 (2)，查找失败绝不当作关于该 teammate 的证据；屏上是确认界面 → 请用户到那里确认。(2) 查看 `teammates/<name>/.started`：不存在或早于本次 spawn 时间 → 根本没启动（卡在确认/权限界面，或启动失败）——也可能是第 0 步写文件失败；晚于本次 spawn 时间但没回执 → 已在工作（消息只在它的回合结束时送达），继续等或查它的产物。(3) 一律先把可能原因告诉用户；**绝不自动重派**（第一个还活着时重派同名会得到 `<name>-2`）。完整流程见 `/reactivate-team` Step 3.3。
+
 **spawn 完成后**输出简短确认：
 
 ```
@@ -297,6 +322,7 @@ Agent(
 ✅ TEAMMATE_INFO.json 已初始化/追加（N 个 active_teammates）
 ✅ team_recipes/<timestamp>_<slug>.md 已保存
 ✅ Team spawned: <昵称1>、<昵称2>... 已就位，等待第一条任务指令
+✅ 回执：<name>: model ID <id | 未确认> [⚠ 与登记表/README 不一致：…]
 ```
 
 ---

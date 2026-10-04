@@ -143,14 +143,16 @@ info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 name="<nickname>"
 reason="<reason>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
+# temp file next to the registry (atomic mv, no shared /tmp name), seeded with cp -p so the registry keeps its file mode
+tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+  && jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .offboarded_teammates += [{name: $n, offboarded_at: $ts, reason: $r}] |
   .active_teammates |= map(select(.name != $n)) |
   .updated_at = $ts
-' "$info" > /tmp/info.json \
-  && jq empty /tmp/info.json \
+' "$info" > "$tmp" \
+  && jq empty "$tmp" \
   && cp "$info" "$info.bak" \
-  && mv /tmp/info.json "$info"
+  && mv "$tmp" "$info" || rm -f "$tmp"
 ```
 
 **Do not delete** the teammate's workstation directory `_agent_team_work_zone/<SELF>_team/teammates/<nickname>/` — preserve it as historical audit (Rule 1 low coupling + useful reference if a similar task resumes and old working-context.md needs review).

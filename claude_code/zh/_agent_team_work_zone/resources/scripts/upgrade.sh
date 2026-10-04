@@ -287,7 +287,9 @@ if [ ! -f "$BOOTSTRAP" ]; then
     exit 1
 fi
 
-if ! PROJECT_ROOT="$PROJECT_ROOT_DIR" bash "$BOOTSTRAP"; then
+# ATWZ_SKIP_OPTIONAL_SECTIONS=1: bootstrap must not ask about optional CLAUDE.md
+# sections during an upgrade (they are offered on first install only).
+if ! ATWZ_SKIP_OPTIONAL_SECTIONS=1 PROJECT_ROOT="$PROJECT_ROOT_DIR" bash "$BOOTSTRAP"; then
     echo ""
     print_error "bootstrap.sh exited non-zero — skills / hooks may not be fully refreshed."
     print_error "Framework files are already upgraded. Fix the error above, then run:"
