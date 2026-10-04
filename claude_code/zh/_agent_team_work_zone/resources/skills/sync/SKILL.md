@@ -60,11 +60,11 @@ allowed-tools: Read Write Edit Glob Grep Bash
 如果你是 **team lead**：
 - **读 `TEAMMATE_INFO.json`**（权威的当前 roster 源）
   - 文件不存在 → team 从未 spawn 过 teammate，忽略
-  - `active_teammates` 非空 → 记录下每个 teammate 的 `name` / `status` / `last_checkpoint_at`
+  - `active_teammates` 非空 → 记录下每个 teammate 的 `name` / `status`（"最后 checkpoint 距今多久"取其工位 `working-context.md` 的 mtime——schema v2 起注册表已无 `last_checkpoint_at` 字段）
 - **检测是否需要 reactivate**：Claude Code 不跨 session 自动 respawn teammate。如果 `active_teammates` 里任何条目 `status=active` 或 `status=idle`，**本 session 启动时这些 teammate 并不在**（除非 `/reactivate-team` 刚跑过）。`status=benched` 的临时下线成员**不计入**需要 reactivate——它们本就有意离线，由 lead 按需用 `/reactivate-team <name>` 单独唤回
   - 如果 `SessionStart` hook 已经通过 `additionalContext` 提醒过你（看 session 开头的 system notice），无需重复判断
   - 否则在后续 Phase 6 的行动清单里加一条：**运行 `/reactivate-team` 恢复 N 个 teammate**
-- **检测 stale teammate**：若某 teammate 的 `last_checkpoint_at` 距今 > 24h，标记为"checkpoint 过期"——spawn 记录还在但可能已经失能
+- **检测 stale teammate**：若某 teammate 工位 `working-context.md` 的 mtime 距今 > 24h，标记为"checkpoint 过期"——spawn 记录还在但可能已经失能（schema v2 起以 mtime 为权威，不再读注册表的 `last_checkpoint_at`）
 - 检查 `team_recipes/` 中是否有最近的 team 组建记录（历史参考）
 - 检查是否有待 issuer 归档的 RESOLVED roundtable 文件（`from: <SELF>` 且 status: RESOLVED 的，提示在下次 `/check-inbox` 步骤 9 中处理）
 

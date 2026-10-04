@@ -90,7 +90,7 @@ woken later via /reactivate-team if needed. Thank you.
 
 路径：`_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`。把 `<name>` 那条的 `status` 置为 `benched`，写入 `benched_at` + `bench_reason`，**保留在 `active_teammates` 数组、保留全部其它字段**。更新顶层 `updated_at`。
 
-jq 示例（如果可用）：
+jq 示例（如果可用）——**带校验的原子写入**：`jq --arg` 自动转义（杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘。**不要手写/手改 JSON**。
 ```bash
 name="<name>"
 reason="<下线原因>"
@@ -100,7 +100,10 @@ jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .active_teammates |= map(
     if .name == $n then .status = "benched" | .benched_at = $ts | .bench_reason = $r else . end
   ) | .updated_at = $ts
-' "$info" > /tmp/info.json && mv /tmp/info.json "$info"
+' "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 **绝不**删除 / 改动它的工位目录 `teammates/<name>/`（working-context.md、completed.md、commitments.md、README.md、TODO.md 全部原样保留）。

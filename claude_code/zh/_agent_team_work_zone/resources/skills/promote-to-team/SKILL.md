@@ -85,7 +85,7 @@ TEAMMATE_INFO.json ← Team 注册表（初始空 active_teammates，详见下�
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "team_name": "<english_name>_team",
   "lead_name": "<English Name>",
   "updated_at": "<ISO8601 当前时间>",
@@ -94,7 +94,7 @@ TEAMMATE_INFO.json ← Team 注册表（初始空 active_teammates，详见下�
 }
 ```
 
-这是 Rule 13 规定的 team 注册表，后续 `/spawn-team` / `/add-teammate` / `/reactivate-team` 会读写它，`/checkpoint` 会更新 teammate 自己那条的 `last_checkpoint_at`。Schema 详见 `docs/teammate_info_schema.md`。
+这是 Rule 13 规定的 team 注册表，后续 `/spawn-team` / `/add-teammate` / `/reactivate-team` 会读写它。**teammate 不写本注册表**（schema v2 起花名册 100% 由 lead 写；teammate 的"最后 checkpoint"改由其工位 `working-context.md` 的 mtime 体现）。Schema 详见 `docs/teammate_info_schema.md`。
 
 ### roundtable/README.md 内容
 

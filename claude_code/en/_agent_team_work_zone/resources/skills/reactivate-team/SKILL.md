@@ -93,6 +93,8 @@ In practice it's almost never "the user mis-invoked `/reactivate-team`" — it's
 
 Path: `_agent_team_work_zone/<your_team>/TEAMMATE_INFO.json`
 
+**First action — verify it parses**: **before** reading `active_teammates`, run `jq empty "<path>"` (Windows PowerShell: `Get-Content -Raw -Encoding utf8 <path> | ConvertFrom-Json | Out-Null`). On a parse failure → **stop immediately, spawn NO teammate**, and follow "If TEAMMATE_INFO.json is malformed" below for recovery pointers. Only continue once it parses. (Otherwise a broken JSON surfaces only after spawn — by which time the machine has restarted and the teammates are already all dead: the detection point sits after the irreversible step.)
+
 **No-arg invocation**: from `active_teammates`, filter the **wake set** = `status ∈ {active, idle}` (**excluding `benched`**; `failed_to_reactivate` is the user's call to retry, not auto-included by default):
 - File does not exist → tell the user "This team has never spawned a teammate (TEAMMATE_INFO.json does not exist)"; exit
 - File exists but the wake set is empty → tell the user "No active teammates to restore (all may be offboarded or benched)"; if benched exist, append a read-only FYI (see Step 2), then exit
@@ -112,7 +114,7 @@ Teammates to restore (status ∈ active/idle): N
    - Role source: <role_source.type> (<path or subagent_name>)
    - Model: <model>
    - Originally spawned: <spawned_at>
-   - Last checkpoint: <last_checkpoint_at | "never checkpointed">
+   - Last checkpoint: <"how long ago" computed from working-context.md mtime (authoritative); show the file's `_Last updated:` header timestamp as the human-readable value | "never checkpointed" (no working-context.md)>
    - Previously revived: <revived_count> times
 
 2. <name>
@@ -127,6 +129,8 @@ Confirm to begin reactivation?
 to self-recover. If some teammate's last checkpoint is old, it may not fully recover —
 please decide whether to proceed for such teammates.)
 ```
+
+> **Source of "Last checkpoint" (schema v2)**: as of v2 a teammate **no longer** writes `last_checkpoint_at` into `TEAMMATE_INFO.json` (the field is removed — see `docs/teammate_info_schema.md`). The authoritative "how long ago" comes from that teammate's `working-context.md` **file mtime** (every `/checkpoint` overwrite refreshes it; it is also the idle hook's sole authority); the human-readable timestamp shown is the file's `_Last updated:` header line (model-written by hand, may carry timezone inconsistency, so display-only, not authoritative). A legacy `last_checkpoint_at` left on old installs is **tolerated but ignored**.
 
 > The benched line is purely informational — **do not** have the user pick which to wake here, and **do not** count benched in the "confirm reactivation" scope.
 
@@ -173,7 +177,7 @@ invent content — message the team lead via SendMessage asking for guidance
 before starting work.
 
 After reading, use the SendMessage tool to send the team lead exactly one line:
-"Resumed from checkpoint at {last_checkpoint_at}. Ready."
+"Resumed from checkpoint at {last_checkpoint_time}. Ready."
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -203,7 +207,7 @@ Binary judgment:
 - **Success**: received that teammate's SendMessage receipt in the current session (containing "Resumed from checkpoint at X. Ready.") → mark success
 - **Failure / unknown**: no SendMessage receipt received (including timeout) → warn the user, let the user decide (retry spawn / check working-context.md for damage / or /remove-teammate); **do not assume success**
 
-> **Important**: disk artifacts (`working-context.md` / `last_checkpoint_at`) only tell you the state **before** reactivate; they can NEVER serve as the criterion for whether **this** reactivate succeeded — spawn success or failure, these static files look the same and do not reflect this run's runtime fact. See this skill's opening "Premise" section.
+> **Important**: disk artifacts (`working-context.md`'s content and mtime) only tell you the state **before** reactivate; they can NEVER serve as the criterion for whether **this** reactivate succeeded — spawn success or failure, these static files look the same and do not reflect this run's runtime fact. See this skill's opening "Premise" section.
 
 ### Step 4: Update TEAMMATE_INFO.json
 
@@ -221,11 +225,14 @@ For each woken teammate (success or failure), update:
 Globally:
 - `updated_at` → current time
 
-jq example (for each successful teammate, replacing N=name):
+jq example (for each successful teammate, replacing N=name) — **validated atomic write**: self-generated UTC timestamp + `jq --arg` (auto-escapes, so a stray ASCII quote in a free-text field can't break the JSON) + write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written and the original file is preserved.
 ```bash
 jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates |= map(if .name == $name then .spawned_at = $ts | .revived_count += 1 | .status = "active" | del(.benched_at, .bench_reason) else . end) | .updated_at = $ts' \
-   "$info" > /tmp/info.json && mv /tmp/info.json "$info"
+   "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 ### Step 5: Report to user
@@ -267,7 +274,10 @@ The teammate's spawn prompt already instructs it — on corruption, the teammate
 
 ### If TEAMMATE_INFO.json is malformed
 
-Stop reactivate, tell the user "TEAMMATE_INFO.json parse failed; please check format". Do not attempt auto-repair — let the user intervene.
+Stop reactivate, **spawn NO teammate** (avoid leaving a half-broken team), and tell the user "TEAMMATE_INFO.json parse failed". Do not attempt auto-repair — but give **concrete recovery pointers** (the detection point sits after the irreversible restart, so a ready-made restore command materially shortens the outage):
+- If `TEAMMATE_INFO.json.bak` exists and parses (`jq empty <path>.bak`) → show the diff and give the restore command: `cp _agent_team_work_zone/<your_team>/TEAMMATE_INFO.json.bak _agent_team_work_zone/<your_team>/TEAMMATE_INFO.json` (the `.bak` is produced by the validated write path — see Step 4).
+- Otherwise fall back to git: `git show HEAD:<relative-path>/TEAMMATE_INFO.json` (confirm it parses, then restore from it), and hand the command to the user.
+- Have the user restore and confirm it parses, then re-run `/reactivate-team`.
 
 ### Terminal / tmux (only read if a spawn reports a tmux error, or you want to tune display/persistence)
 

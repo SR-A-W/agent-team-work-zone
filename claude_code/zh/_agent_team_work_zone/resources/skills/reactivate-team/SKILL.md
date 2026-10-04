@@ -92,6 +92,8 @@ working-context.md 是两段式：Part A = 9 节当前态快照；Part B = 追�
 
 路径：`_agent_team_work_zone/<your_team>/TEAMMATE_INFO.json`
 
+**第一步动作——先校验能否解析**：在读 `active_teammates` **之前**，先跑 `jq empty "<路径>"`（Windows PowerShell：`Get-Content -Raw -Encoding utf8 <路径> | ConvertFrom-Json | Out-Null`）。解析失败 → **立即停止、不 spawn 任何 teammate**，按下方"如果 TEAMMATE_INFO.json 格式坏了"给出恢复指引。解析通过才继续。（否则坏 JSON 会拖到 spawn 后才炸——那时机器已重启、teammate 早已全死，检测点落在不可逆步骤之后。）
+
 **无参调用**：从 `active_teammates` 里筛出**待唤醒集** = `status ∈ {active, idle}`（**排除 `benched`**；`failed_to_reactivate` 由用户决定是否重试，默认不自动纳入）：
 - 文件不存在 → 告知用户"本 team 从未 spawn 过 teammate（TEAMMATE_INFO.json 不存在）"，退出
 - 文件存在但待唤醒集为空 → 告知用户"没有需要恢复的 active teammate（可能都 offboarded 或 benched 了）"；若存在 benched，附一行只读 FYI（见 Step 2）后退出
@@ -111,7 +113,7 @@ Team: <team_name>
    - 角色来源: <role_source.type> (<path or subagent_name>)
    - 模型: <model>
    - 最初 spawn 时间: <spawned_at>
-   - 最后 checkpoint 时间: <last_checkpoint_at | "从未 checkpoint">
+   - 最后 checkpoint 时间: <取 working-context.md 的 mtime 算"距今多久"（权威值）；并把文件内 `_Last updated:` 头部时间戳作为人读值展示 | "从未 checkpoint"（无 working-context.md）>
    - 之前被 revive 过: <revived_count> 次
 
 2. <name>
@@ -125,6 +127,8 @@ Team: <team_name>
 （我将为每个待唤醒 teammate spawn 一个新 session，引导它读 working-context.md 自恢复。
 如果某个 teammate 最后 checkpoint 时间距今很久，它可能无法完整恢复——请你决定是否仍要恢复它。）
 ```
+
+> **"最后 checkpoint 时间"的来源（schema v2）**：teammate 自 v2 起**不再**往 `TEAMMATE_INFO.json` 写 `last_checkpoint_at`（该字段已移除，见 `docs/teammate_info_schema.md`）。权威的"距今多久"取自该 teammate `working-context.md` 的**文件 mtime**（每次 `/checkpoint` 覆写必刷新，也是 idle hook 唯一依据）；展示给人看的时间戳用文件里的 `_Last updated:` 头部行（模型手写、可能带时区不一致，故只作展示、不作权威）。旧装机残留的 `last_checkpoint_at` 字段**容忍但忽略**。
 
 > benched 的那行纯属告知——**不要**让用户在此勾选唤醒哪些，也**不要**把 benched 计入"确认 reactivate"的范围。
 
@@ -171,7 +175,7 @@ invent content — message the team lead via SendMessage asking for guidance
 before starting work.
 
 After reading, use the SendMessage tool to send the team lead exactly one line:
-"Resumed from checkpoint at {last_checkpoint_at}. Ready."
+"Resumed from checkpoint at {last_checkpoint_time}. Ready."
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -201,7 +205,7 @@ Agent(
 - **成功**：在本 session 收到该 teammate 的 SendMessage 回执（内容含 "Resumed from checkpoint at X. Ready."）→ 标记成功
 - **失败/状态未知**：未收到 SendMessage 回执（含超时）→ 告警给用户，由用户决定（重试 spawn / 检查 working-context.md 是否损坏 / 或 /remove-teammate 移除）；**不假定成功**
 
-> **重要**：磁盘 artifact（`working-context.md` / `last_checkpoint_at`）只能帮你了解 reactivate **之前**的状态，绝不能作为**本次 reactivate 是否成功**的判据——spawn 成功还是失败，这些静态文件都一样，不反映本次运行时事实。见本技能开头"前提"段。
+> **重要**：磁盘 artifact（`working-context.md` 的内容与 mtime）只能帮你了解 reactivate **之前**的状态，绝不能作为**本次 reactivate 是否成功**的判据——spawn 成功还是失败，这些静态文件都一样，不反映本次运行时事实。见本技能开头"前提"段。
 
 ### Step 4: 更新 TEAMMATE_INFO.json
 
@@ -219,11 +223,14 @@ Agent(
 全局：
 - `updated_at` 改为当前时间
 
-用 jq 示例（对每个成功的 teammate，替换 N=name）：
+用 jq 示例（对每个成功的 teammate，替换 N=name）——**带校验的原子写入**：self-gen UTC 时间戳 + `jq --arg`（自动转义，杜绝自由文本里的 ASCII 引号破坏 JSON）+ 写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘、保留原文件。
 ```bash
 jq --arg name "N" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates |= map(if .name == $name then .spawned_at = $ts | .revived_count += 1 | .status = "active" | del(.benched_at, .bench_reason) else . end) | .updated_at = $ts' \
-   "$info" > /tmp/info.json && mv /tmp/info.json "$info"
+   "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 ### Step 5: 汇报给用户
@@ -265,7 +272,10 @@ Teammate spawn prompt 里已明确指示——如果文件损坏，teammate 会 
 
 ### 如果 TEAMMATE_INFO.json 格式坏了
 
-停止 reactivate，告知用户"TEAMMATE_INFO.json 解析失败，请检查格式"。不要尝试自动修复——让用户介入。
+停止 reactivate、**不 spawn 任何 teammate**（避免留下半个残缺 team），告知用户"TEAMMATE_INFO.json 解析失败"。不要尝试自动修复——但要给出**具体的恢复指引**（检测点本就落在不可逆的重启之后，一条现成的还原命令能显著缩短停摆）：
+- 若 `TEAMMATE_INFO.json.bak` 存在且能解析（`jq empty <路径>.bak`）→ 展示差异、给出还原命令：`cp _agent_team_work_zone/<your_team>/TEAMMATE_INFO.json.bak _agent_team_work_zone/<your_team>/TEAMMATE_INFO.json`（`.bak` 由带校验的写入路径产生，见 Step 4）。
+- 否则回退到 git：`git show HEAD:<相对路径>/TEAMMATE_INFO.json`（确认可解析后据此还原），把命令交给用户。
+- 让用户执行还原、确认可解析后，再重跑 `/reactivate-team`。
 
 ### 终端 / tmux 相关（仅在 spawn 报 tmux 错、或想调显示/持久化方式时看）
 

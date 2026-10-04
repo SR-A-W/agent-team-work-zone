@@ -36,6 +36,7 @@ Before starting, confirm you are a teammate (not the lead):
 
 - Your workstation should be at `_agent_team_work_zone/<team_name>/teammates/<self_name>/` (under the teammates subdirectory)
 - If you are the team lead (workstation directly at `_agent_team_work_zone/<name>_team/`), **this skill does not apply** — leads don't use /checkpoint; leads track team state via TEAMMATE_INFO.json
+- **Confirm this workstation is actually yours (fail-closed, defense-in-depth)**: (a) your identity comes from **your own spawn prompt**, not from a hook reminder's text; (b) a `README.md` exists at the target `teammates/<self_name>/` naming you. If the *only* reason you are running `/checkpoint` is a reminder naming a workstation you cannot independently confirm is yours — e.g. you were spawned as a subagent by a teammate and have no workstation of your own — **REFUSE, write nothing, and report back to whoever spawned you.**
 
 ## Flow
 
@@ -129,6 +130,8 @@ Things that don't fit any prior section but future you must know. **Use sparingl
 - **Last 3-4 turns (verbatim)**: paste the last 3 (or 4) turns of lead↔you and user↔you dialogue verbatim at the end of this entry
 ```
 
+**Snapshot Part A before overwriting (guard against an irreversible mis-fire)**: **before** you overwrite Part A wholesale, first copy the **current** Part A verbatim into a new Part B entry titled like `### <ISO 8601 timestamp> — [auto-preserved prior Part A snapshot before overwrite]`, then overwrite Part A. This turns one bad overwrite from "unrecoverable" into "recoverable from Part B" (Part B is append-only — which is exactly why it survives accidents while an overwritten Part A does not). **Growth governance**: these auto-preserved snapshots are the **first** things to compact out of Part B — they are only insurance against a bad overwrite, and may be dropped once the next legitimate Part A is confirmed good.
+
 **Part A rule**: the 9-section structure / numbering / semantics are **fixed and unchanging**, **fully overwritten/regenerated each time** — it always reflects "the current state right now". A section with no content gets "None".
 
 ### Step 3B: Append Part B — one work-journal entry
@@ -138,6 +141,13 @@ Things that don't fit any prior section but future you must know. **Use sparingl
 **Growth governance (important)**: verbatim text is kept only for the **newest** entry. When writing this entry, **demote the previous entry's** "last 3-4 verbatim turns" to a summary (delete the verbatim, keep a one-line takeaway) — this is the only permitted edit to a historical entry. This keeps the verbatim volume constant at the last 3-4 turns and the journal linearly bounded; very old entries may be further compressed if needed (optional).
 
 If there is genuinely no new conversation / progress this time (rare), you may append a minimal entry noting "no substantive progress", or refresh only Part A and skip Part B.
+
+> **About the auto-reminder's brake (nothing to do manually)**: this checkpoint writes
+> `working-context.md`, refreshing its mtime. The gate in `teammate_idle_checkpoint.sh`
+> reads exactly that mtime — after you save, it sees the file as fresh and won't remind
+> you on the next idle. So you do **not** need to clear any flag; writing the file
+> automatically stops the reminders. (The pre-v0.2.3 `.checkpoint_pending` flag mechanism
+> is retired.)
 
 ### Step 4: Also append to `completed.md` (only when trigger is task_completed)
 
@@ -149,33 +159,12 @@ If this checkpoint is because you **just completed a task** (trigger=`task_compl
 
 `completed.md` is an **append-only log**; never overwrite prior entries.
 
-### Step 5: Update TEAMMATE_INFO.json's last_checkpoint_at
+### Step 5: Confirm
 
-Using jq (if available) or manual JSON editing, update the `last_checkpoint_at` field for your own entry in the `active_teammates` array at `_agent_team_work_zone/<team_name>/TEAMMATE_INFO.json`.
-
-**Only touch your own entry** — do not modify others' or the team lead's structural fields.
-
-Example (if jq available):
-```bash
-jq --arg name "<self_name>" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-   '.active_teammates |= map(if .name == $name then .last_checkpoint_at = $ts else . end) | .updated_at = $ts' \
-   _agent_team_work_zone/<team>/TEAMMATE_INFO.json > /tmp/teammate_info.json && \
-   mv /tmp/teammate_info.json _agent_team_work_zone/<team>/TEAMMATE_INFO.json
-```
-
-> **About the auto-reminder's brake (nothing to do manually)**: this checkpoint writes
-> `working-context.md`, refreshing its mtime. The gate in `teammate_idle_checkpoint.sh`
-> reads exactly that mtime — after you save, it sees the file as fresh and won't remind
-> you on the next idle. So you do **not** need to clear any flag; writing the file
-> automatically stops the reminders. (The pre-v0.2.3 `.checkpoint_pending` flag mechanism
-> is retired.)
-
-### Step 6: Confirm
-
-Output **one line** confirmation to lead/user:
+Output **one line** confirmation to lead/user (**name who wrote it + the path**, so whoever spawned you can spot an out-of-bounds write at a glance):
 
 ```
-Checkpoint written at <path>. Trigger: <task_completed|idle|manual|lead_request>.
+Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.
 ```
 
 **Do not** read the snapshot content back to the user — they can read the file themselves.

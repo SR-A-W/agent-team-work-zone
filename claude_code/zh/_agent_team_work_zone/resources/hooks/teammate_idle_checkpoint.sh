@@ -49,6 +49,14 @@ command -v jq >/dev/null 2>&1 || exit 0
 # Debug：把 payload 写到临时 log（排查 hook schema 时取消注释）
 # echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $payload" >> /tmp/teammate_idle_hook.log
 
+# ---- subagent 闸门（机制性主防线）----
+# TeammateIdle payload 仅在 hook 触发于【subagent 调用内部】时才带 agent_id（官方 hook 文档：
+# "present only inside a subagent call"）。teammate 派生的 subagent 绝不该被逼去 checkpoint
+# 父 teammate 的工位——在任何 teammate 定向逻辑之前就提前退出。fail-open 不变：无 agent_id
+# → 走正常 teammate 路径。
+agent_id=$(echo "$payload" | jq -r '.agent_id // empty' 2>/dev/null)
+[ -n "$agent_id" ] && exit 0   # 触发于 subagent 调用内部——不是常驻 teammate，绝不 nudge
+
 teammate_name=$(echo "$payload" | jq -r '.teammate_name // .teammate // .agent_name // .name // empty' 2>/dev/null)
 cwd=$(echo "$payload" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
@@ -150,5 +158,5 @@ echo $((nudge_count + 1)) > "$nudge_file" 2>/dev/null || true
 # exit 2：阻塞该 teammate 的 idle，stderr 直接喂给它，逼它在 idle 前跑 /checkpoint
 mins=$((age / 60))
 threshold_min=$((CHECKPOINT_INTERVAL_SEC / 60))
-echo "[checkpoint 提醒] 你（${teammate_name}）距上次 /checkpoint 落盘已约 ${mins} 分钟（阈值 ${threshold_min} 分钟）。在进入 idle 之前，请立刻运行 /checkpoint，把当前工作状态写入 working-context.md，以防会话意外中断（SSH 断 / 崩溃）导致最新工作丢失。这是 Rule 13 规定的义务。完成 checkpoint 后即可正常 idle，不会再被重复提醒。" >&2
+echo "[checkpoint 提醒] 你（${teammate_name}）距上次 /checkpoint 落盘已约 ${mins} 分钟（阈值 ${threshold_min} 分钟）。在进入 idle 之前，请立刻运行 /checkpoint，把当前工作状态写入 working-context.md，以防会话意外中断（SSH 断 / 崩溃）导致最新工作丢失。这是 Rule 13 规定的义务。完成 checkpoint 后即可正常 idle，不会再被重复提醒。 如果你是临时 subagent（不是常驻 teammate），或你没有文件写入工具，请忽略本提醒、正常 idle，并把情况回报给派生你的人。不要重试。" >&2
 exit 2

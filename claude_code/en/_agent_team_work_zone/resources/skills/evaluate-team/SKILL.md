@@ -32,13 +32,13 @@ allowed-tools: Read Glob Grep Bash
 **Read `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`** — this is the **authoritative source** for current team roster; `team_recipes/` is only historical audit.
 
 Extract:
-- `active_teammates`: each entry's `name` / `role_source` / `model` / `scope` / `plan_mode_gating` / `spawned_at` / `last_checkpoint_at` / `revived_count` / `status`
+- `active_teammates`: each entry's `name` / `role_source` / `model` / `scope` / `plan_mode_gating` / `spawned_at` / `revived_count` / `status`
 - `offboarded_teammates`: historical offboard records (reference only)
 
 **Pay special attention to**:
-- `last_checkpoint_at` > 24h ago → flag "checkpoint stale" (may be dysfunctional or abnormally idle)
+- "last checkpoint > 24h ago" → flag "checkpoint stale" (may be dysfunctional or abnormally idle). **Take "how long ago" from that teammate's workstation `working-context.md` mtime** (as of schema v2 the registry no longer has a `last_checkpoint_at` field)
 - `status == "failed_to_reactivate"` → last /reactivate-team spawn failed; user must decide manual fix vs /remove-teammate
-- `status == "benched"` → temporarily offline (full record + workstation retained); **NOT counted as needing reactivate**; list as "benched, wake on demand" with `bench_reason` (note: a stale `last_checkpoint_at` is expected for benched, not an anomaly)
+- `status == "benched"` → temporarily offline (full record + workstation retained); **NOT counted as needing reactivate**; list as "benched, wake on demand" with `bench_reason` (note: a stale `working-context.md` mtime is expected for benched, not an anomaly)
 - `revived_count > 3` → repeated revival indicates instability; may be bad working-context.md or task unsuited for long running
 
 If TEAMMATE_INFO.json doesn't exist or `active_teammates` is empty → team currently has no members; output "empty team" report and recommend `/spawn-team`.

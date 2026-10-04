@@ -90,7 +90,7 @@ Create an empty registry at the team workstation root:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "team_name": "<english_name>_team",
   "lead_name": "<English Name>",
   "updated_at": "<ISO8601 current time>",
@@ -99,7 +99,7 @@ Create an empty registry at the team workstation root:
 }
 ```
 
-This is the team registry mandated by Rule 13. Subsequent `/spawn-team` / `/add-teammate` / `/reactivate-team` will read/write it; `/checkpoint` updates only the teammate's own `last_checkpoint_at`. Schema details in `docs/teammate_info_schema.md`.
+This is the team registry mandated by Rule 13. Subsequent `/spawn-team` / `/add-teammate` / `/reactivate-team` will read/write it. **A teammate writes nothing in this registry** (as of schema v2 the roster is 100% lead-written; a teammate's "last checkpoint" is reflected by its workstation `working-context.md` mtime instead). Schema details in `docs/teammate_info_schema.md`.
 
 ### roundtable/README.md content
 

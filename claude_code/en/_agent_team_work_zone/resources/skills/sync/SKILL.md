@@ -61,11 +61,11 @@ Output the change summary.
 If you are a **team lead**:
 - **Read `TEAMMATE_INFO.json`** (the authoritative current roster source)
   - File does not exist → team has never spawned a teammate; ignore
-  - `active_teammates` non-empty → record each teammate's `name` / `status` / `last_checkpoint_at`
+  - `active_teammates` non-empty → record each teammate's `name` / `status` ("how long ago the last checkpoint was" comes from its workstation `working-context.md` mtime — as of schema v2 the registry no longer has a `last_checkpoint_at` field)
 - **Detect whether reactivate is needed**: Claude Code does NOT automatically respawn teammates across sessions. If any entry in `active_teammates` has `status=active` or `status=idle`, **those teammates are NOT present in this session** (unless `/reactivate-team` just ran). Entries with `status=benched` (temporarily offline) are **NOT counted** as needing reactivate — they are intentionally offline, woken individually by the lead via `/reactivate-team <name>` as needed
   - If the `SessionStart` hook already reminded you via `additionalContext` (check the system notice at session start), no need to judge again
   - Otherwise add a line to the Phase 6 action list: **run `/reactivate-team` to restore N teammate(s)**
-- **Detect stale teammates**: if any teammate's `last_checkpoint_at` is > 24h ago, flag as "checkpoint stale"—spawn record present but may have been dysfunctional
+- **Detect stale teammates**: if any teammate's workstation `working-context.md` mtime is > 24h ago, flag as "checkpoint stale"—spawn record present but may have been dysfunctional (as of schema v2 mtime is authoritative; the registry's `last_checkpoint_at` is no longer read)
 - Check for recent team assembly records in `team_recipes/` (historical reference)
 - Check for RESOLVED roundtable files pending issuer archival (`from: <SELF>` and status: RESOLVED — note in action list: archive via `/check-inbox` step 9)
 

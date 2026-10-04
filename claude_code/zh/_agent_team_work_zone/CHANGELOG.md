@@ -4,6 +4,47 @@
 
 ---
 
+## v0.4.0 (2026-10-04)
+
+MINOR（向后兼容）：**checkpoint 安全——teammate 不再写共享注册表、注册表写入改为校验式、子代理不再被卷进 checkpoint 循环；以及升级刷新不再悄悄丢掉你的内容**。
+
+### 变更
+- teammate 不再写 `TEAMMATE_INFO.json`：`/checkpoint` 去掉了更新注册表的那一步，注册表只由 lead 写，消除了多个 teammate 同时 checkpoint 时互相覆盖的竞态。
+- 注册表 `schema_version` 1 → 2：移除 `last_checkpoint_at` 字段；`/reactivate-team`、`/evaluate-team`、`/sync` 改从 teammate 的 `working-context.md` 文件 mtime 取"上次 checkpoint 时间"。仍带该字段的旧注册表照常可用（字段被忽略）。`/onboard`、`/promote-to-team` 新建注册表时写 `schema_version: 2`，`/spawn-team` 按 schema v2 初始化。
+- `/reactivate-team` 的"Last checkpoint"改为显示 `working-context.md` 距今多久（以 mtime 为准），文件的 `_Last updated:` 行作为可读时间；回执为 "Resumed from checkpoint at <时间>. Ready."
+- `/checkpoint` 的确认行带上写入者："Checkpoint written by <名字> to <路径>. Trigger: …"。
+- SessionStart hook：检测到的 team 不是当前 agent 自己的工位时，提醒改为"对此保持沉默"（重启与上下文压缩两种情况都如此）；原来是"向用户简单提一下"。
+- teammate 守则第 2 条（重发）：SendMessage 发送成功即已投递，静默 ≠ 丢失；只有 SendMessage 报错或对方明确说没收到才重发；给 lead 发消息时照抄其注册名。
+- 升级时的守则区刷新：存量 README 还没有 RULES 标记时，守则块原先一直延伸到下一个 `## ` 标题，写在守则后面的笔记会被搬进 `.rules.bak`。现在守则块止于最后一行与框架守则相同的行，再延伸到最后一条编号守则（`### N.`）结束，遇到第一个分隔即停：`---`/`***`/`___`、不带编号的 `##`/`###` 标题、或 `<!--`。被并进块的行、留在块外的行都会计数并打 ⚠。标题同名但底下没有任何框架文字的（你自写的守则节）会被跳过。想让笔记留在受管块之外，请用 `---` 或一个不带编号的标题把它和守则隔开。
+
+### 新增
+- `/checkpoint` 身份核验（拿不准就不写）：写入前 teammate 先确认工位是自己的（依据自己的 spawn prompt，且工位里有写着自己名字的 `README.md`）；只收到一条点名别人工位的提醒的子代理会拒绝写入并回报。
+- `/checkpoint` 在覆写 Part A 之前，先把旧的 Part A 原样存为一条 Part B 记录，误覆写可以恢复。
+- `/reactivate-team` 在派生任何人之前先检查 `TEAMMATE_INFO.json` 能否解析（`jq empty`，或 PowerShell 等价命令）；失败则一个都不派生，并给出恢复命令（优先用 `TEAMMATE_INFO.json.bak`，否则从 git 恢复）。
+- `/spawn-team`、`/add-teammate`、`/reactivate-team`、`/bench-teammate`、`/remove-teammate` 写注册表改为校验式写入：写临时文件 → `jq empty` 解析检查 → 备份为 `TEAMMATE_INFO.json.bak` → `mv`；任一步失败则不写。因此每次 lead 写注册表都会在旁边留下一份 `TEAMMATE_INFO.json.bak`。
+- schema 文档：`scope` 等自由文本字段不得包含 ASCII 双引号（用「」/『』或弯引号），进度描述不要写进注册表。
+- teammate README 的守则块（`TEAMMATE_RULES`）在升级替换前先备份：`<README>.teammate_rules.bak.<时间戳>`，并打 ⚠。原先内容有差异就直接替换、不备份。
+
+### 修复
+- idle checkpoint hook 不再把子代理逼进 checkpoint 循环：payload 带 `agent_id`（只在子代理调用中出现）时提前退出；提醒文字也告诉子代理或没有写文件工具的 agent 忽略本提醒并回报派生者。
+- 从 v0.3.1 及更早版本升级时，写在 Troubleshooting 一节之后的用户内容（例如 `<!-- USER:* -->` 段）不再被覆盖：参考资料块止于最后一行与框架文字相同的行，而不是文件末尾。
+- 升级写文件改为出错不中断、保留权限：备份写不进去时该块原样不动（打 ⚠ "NOT refreshed"），迁移继续；临时文件建在目标文件旁边，被改写的 README 保留原权限（原先会变成 600），新建的 `VERSION` 也用正常的默认权限。
+
+### 已知问题
+- 五个 skill 的校验式注册表写入仍使用固定的临时路径 `/tmp/info.json`，两个 lead 恰好同时写入时可能互相冲突；而且 `/tmp` 与项目不在同一文件系统时，最后那步 `mv` 不是原子操作。v0.5.0 修复。
+- 如果你是从 v0.3.1 或更早版本升级到 v0.3.2 的，那次升级可能已经把你在顶层 README 的 Troubleshooting 之后自行添加的一节（例如 `<!-- USER:* -->` 段）覆盖掉了，且没有备份。v0.4.0 能防止以后再发生，但无法找回。请检查该 README，如有缺失，从 git 恢复（例如 `git log -p -- _agent_team_work_zone/README.md`）。
+- `/add-teammate` 仍写着"按 schema v1 初始化"，而 `/spawn-team` 写的是 v2。无害（它只是追加一条记录），v0.5.0 修正。
+
+### Migration（v0.3.2 → v0.4.0）
+- **必做**：`bash _agent_team_work_zone/upgrade.sh` 覆盖框架文件，刷新顶层 README 的框架 / 守则 / 参考资料三块，刷新每个已有守则块的 lead/扁平工位 README，刷新每个已有 `TEAMMATE_RULES` 块的 teammate README（带备份），并写 VERSION。还没有该块的 teammate README 不动，等它下次被 spawn/reactivate 时自行补上。
+- **每个已带该块的 teammate 工位都会留下一份 `.teammate_rules.bak.<时间戳>`**：本版改了 teammate 守则文字（第 2 条），所以这类块一定有差异，替换前都会先备份。完整守则文字本版没有变，所以 lead/扁平工位只有在你改过守则块、或它还没有标记时才会产生 `.rules.bak`。
+- **无用户数据迁移**：已有的 `TEAMMATE_INFO.json` 不会被修改；`schema_version: 1` 且带 `last_checkpoint_at` 的注册表照常可用，该字段被忽略。
+- **可能新出现的文件**：`TEAMMATE_INFO.json.bak`（每次 lead 写注册表后留下）、`*.rules.bak.<时间戳>` 与 `*.teammate_rules.bak.<时间戳>`（刷新时内容有差异才会留下）。它们不会被自动清理。
+- **此前升级遗留的文件权限**：升级到 v0.3.2 时，被改写的 README 和 `VERSION` 可能变成了 `600` 权限。v0.4.0 会保留文件现有的权限，不会自动恢复；如果看到这些文件是 `600`，可用 `chmod 644 <文件>` 恢复。
+- **请留意迁移打印的 ⚠ 行**："taken into" 守则块的文字在备份里；"kept outside" 块外的文字原样未动，可能是旧版框架文字，也可能是你自己的内容。
+
+---
+
 ## v0.3.2 (2026-07-21)
 
 PATCH（Bug 修复，完全向后兼容）：**工作守则 + 五节框架参考资料现能随升级实际刷新到存量安装，teammate 精简守则改为自愈替换（消除双套并存）**。

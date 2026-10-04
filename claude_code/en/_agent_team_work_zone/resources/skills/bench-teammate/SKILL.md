@@ -91,7 +91,7 @@ woken later via /reactivate-team if needed. Thank you.
 
 Path: `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`. Set `<name>`'s `status` to `benched`, write `benched_at` + `bench_reason`, **keep it in the `active_teammates` array with all other fields intact**. Update top-level `updated_at`.
 
-jq example (if available):
+jq example (if available) — **validated atomic write**: `jq --arg` auto-escapes (so a stray ASCII quote in a free-text field can't break the JSON) + a self-generated UTC timestamp; write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written. **Do not hand-write / hand-edit the JSON.**
 ```bash
 name="<name>"
 reason="<bench reason>"
@@ -101,7 +101,10 @@ jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .active_teammates |= map(
     if .name == $n then .status = "benched" | .benched_at = $ts | .bench_reason = $r else . end
   ) | .updated_at = $ts
-' "$info" > /tmp/info.json && mv /tmp/info.json "$info"
+' "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 **Never** delete / alter its workstation directory `teammates/<name>/` (working-context.md, completed.md, commitments.md, README.md, TODO.md all preserved as-is).

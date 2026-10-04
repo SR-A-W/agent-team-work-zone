@@ -137,8 +137,9 @@ Path: `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`
 
 Also update the top-level `updated_at`.
 
-jq example (if available):
+jq example (if available) — **validated atomic write**: `jq --arg` auto-escapes (so a stray ASCII quote in a free-text field can't break the JSON) + a self-generated UTC timestamp; write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written. **Do not hand-write / hand-edit the JSON.**
 ```bash
+info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 name="<nickname>"
 reason="<reason>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -146,8 +147,10 @@ jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .offboarded_teammates += [{name: $n, offboarded_at: $ts, reason: $r}] |
   .active_teammates |= map(select(.name != $n)) |
   .updated_at = $ts
-' _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json > /tmp/info.json && \
-mv /tmp/info.json _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+' "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 **Do not delete** the teammate's workstation directory `_agent_team_work_zone/<SELF>_team/teammates/<nickname>/` — preserve it as historical audit (Rule 1 low coupling + useful reference if a similar task resumes and old working-context.md needs review).

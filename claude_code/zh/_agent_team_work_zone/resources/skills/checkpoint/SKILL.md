@@ -35,6 +35,7 @@ spawn 时引导新 teammate 读这两段恢复状态。
 
 - 你的工位应该在 `_agent_team_work_zone/<team_name>/teammates/<self_name>/`（teammates 子目录下）
 - 如果你是 team lead（工位直接在 `_agent_team_work_zone/<name>_team/`），**本 skill 不适用**——lead 不用 /checkpoint，lead 用 TEAMMATE_INFO.json 跟踪团队状态
+- **确认这个工位确实是你自己的（fail-closed，防御纵深）**：(a) 你的身份来自**你自己的 spawn prompt**，而不是来自某条 hook 提醒的文本；(b) 目标 `teammates/<self_name>/` 下存在一个点名你的 `README.md`。如果你运行 `/checkpoint` 的**唯一**理由是一条提醒、而它点名的工位你无法独立确认属于你——例如你是被某个 teammate 作为 subagent 派生的、根本没有自己的工位——**拒绝执行、什么都不要写、并回报给派生你的人。**
 
 ## 流程
 
@@ -128,6 +129,8 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 - **最近 3-4 轮对话（逐字原文）**：把最近 3（或 4）轮 lead↔你、用户↔你的对话原封不动贴在此条末尾
 ```
 
+**覆写前先快照 Part A（防误伤不可逆）**：在整段覆写 Part A **之前**，先把**当前**的 Part A 原样复制成一条新的 Part B 条目，标题形如 `### <ISO 8601 timestamp> — [自动保留：覆写前的 Part A 快照]`，然后再覆写 Part A。这样一次误覆写就从"不可恢复"变成"可从 Part B 找回"（Part B 是 append-only，正因如此在事故中幸存、Part A 却被正常使用毁掉）。**增长治理**：这些自动保留的快照是 Part B 里**最先被压缩**的对象——它们只是防坏覆写的保险，一旦下一次正规 Part A 被确认无误即可删去。
+
 **Part A 规则**：9 节结构 / 编号 / 语义**固定不变**，**每次整段覆写重生**——它永远反映"此刻的当前态"。某节无内容写"无"。
 
 ### Step 3B: 追加 Part B — 工作日志一条
@@ -137,6 +140,11 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 **增长治理（重要）**：逐字原文只为**最新这一条**保留。写本条时，**把上一条**里的"最近 3-4 轮对话（逐字原文）"**降级为纪要**（删掉逐字、留一句要点）——这是对历史条目的唯一允许改动。这样 verbatim 体量恒定为最近 3-4 轮、日志整体线性可控；很老的条目可在需要时进一步压缩（可选）。
 
 若本次确无新的对话 / 进展（极少见），可追加一条极简条目注明"无实质进展"，或仅刷新 Part A 跳过 Part B。
+
+> **关于自动提醒的刹车（无需你手动操作）**：本次 checkpoint 写 `working-context.md`
+> 会刷新它的 mtime。`teammate_idle_checkpoint.sh` 的闸门就是看这个 mtime——落盘后它判为
+> fresh，下次 idle 不会再提醒你。所以你**不需要**清任何 flag，写完文件即自动止住提醒。
+> （v0.2.3 前的 `.checkpoint_pending` flag 机制已退役。）
 
 ### Step 4: 附加写 `completed.md`（仅当 trigger 是 task_completed 时）
 
@@ -148,31 +156,12 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 
 `completed.md` 是 **append-only 日志**，永远不覆盖之前的条目。
 
-### Step 5: 更新 TEAMMATE_INFO.json 的 last_checkpoint_at
+### Step 5: 确认
 
-用 jq（如果可用）或手动编辑 JSON 方式，更新 `_agent_team_work_zone/<team_name>/TEAMMATE_INFO.json` 的 `active_teammates` 数组里你那一条的 `last_checkpoint_at` 字段为当前时间戳。
-
-**只改自己那一条**——不要动别人的或 team lead 的结构字段。
-
-示例（如果 jq 可用）：
-```bash
-jq --arg name "<self_name>" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-   '.active_teammates |= map(if .name == $name then .last_checkpoint_at = $ts else . end) | .updated_at = $ts' \
-   _agent_team_work_zone/<team>/TEAMMATE_INFO.json > /tmp/teammate_info.json && \
-   mv /tmp/teammate_info.json _agent_team_work_zone/<team>/TEAMMATE_INFO.json
-```
-
-> **关于自动提醒的刹车（无需你手动操作）**：本次 checkpoint 写 `working-context.md`
-> 会刷新它的 mtime。`teammate_idle_checkpoint.sh` 的闸门就是看这个 mtime——落盘后它判为
-> fresh，下次 idle 不会再提醒你。所以你**不需要**清任何 flag，写完文件即自动止住提醒。
-> （v0.2.3 前的 `.checkpoint_pending` flag 机制已退役。）
-
-### Step 6: 确认
-
-向 lead / user 输出**一行**确认：
+向 lead / user 输出**一行**确认（**带上是谁写的 + 路径**，便于派生你的人一眼看出越权写入）：
 
 ```
-Checkpoint written at <path>. Trigger: <task_completed|idle|manual|lead_request>.
+Checkpoint written by <self_name> to <path>. Trigger: <task_completed|idle|manual|lead_request>.
 ```
 
 **不要**把 snapshot 内容回读给用户——他们可以自己读文件。

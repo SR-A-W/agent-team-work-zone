@@ -21,18 +21,18 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 | `/remove-teammate` | ✅ Moves member from `active_teammates` to `offboarded_teammates` | - |
 | `/bench-teammate` | ✅ Sets member `status` to `benched`, writes `benched_at`/`bench_reason` (**stays in** `active_teammates`) | - |
 | `/reactivate-team` | ✅ Updates `revived_count`, `spawned_at`, `status`; `<name>` waking a benched one clears `benched_at`/`bench_reason` | ✅ |
-| `/checkpoint` (teammate-called) | ✅ Updates only its own entry's `last_checkpoint_at` | - |
+| `/checkpoint` (teammate-called) | **Does not write** (as of schema v2 a teammate never touches this registry; see below) | - |
 | `/evaluate-team` | - | ✅ Authoritative source |
 | `/sync` (team lead recovery path) | - | ✅ Detects whether reactivate is needed |
 | `/onboard` / `/promote-to-team` | ✅ Initializes to empty structure | - |
 
-**Teammates must not modify** the `active_teammates` array structure or other members' entries — only allowed operation is updating their own entry's `last_checkpoint_at`. Violation is a rule #1 low-coupling issue.
+**Teammates write nothing in this registry** (as of schema v2): the roster is 100% lead-written. A teammate's "last checkpoint time" is now reflected by its own workstation `working-context.md` — the `_Last updated:` header and the file **mtime** — and is no longer written back as `last_checkpoint_at` (that field is removed; see below). A teammate touching the `active_teammates` structure or any member's entry is still a rule #1 low-coupling issue.
 
-## Complete Schema (v1)
+## Complete Schema (v2)
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "team_name": "architect_team",
   "lead_name": "Architect",
   "updated_at": "2026-04-18T22:30:00Z",
@@ -47,7 +47,6 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
       "plan_mode_gating": false,
       "scope": "_agent_team_work_zone/training/*.sh",
       "spawned_at": "2026-04-18T22:00:00Z",
-      "last_checkpoint_at": "2026-04-18T22:30:00Z",
       "revived_count": 0,
       "status": "active"
     }
@@ -68,7 +67,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema_version` | integer | Currently 1. Increments on schema evolution |
+| `schema_version` | integer | Currently 2 (v2 removed `last_checkpoint_at`). Increments on schema evolution |
 | `team_name` | string | Team workstation name (with `_team` suffix, e.g. `architect_team`) |
 | `lead_name` | string | Team lead's English role name (e.g. `Architect`) |
 | `updated_at` | ISO8601 string | Last modification time. Updated on every write |
@@ -83,9 +82,8 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 | `role_source` | object | Role definition source; see below |
 | `model` | string | Model used: `sonnet` / `haiku` / `opus` or specific ID |
 | `plan_mode_gating` | boolean | Whether plan-mode gating was enabled at spawn |
-| `scope` | string | Brief scope description (human reference only; not machine-parsed) |
+| `scope` | string | Brief scope description (human reference only; not machine-parsed). **Free-text fields must not contain an ASCII double quote `"`** — it breaks the JSON; when you need quotation use 「」/『』/curly quotes (zero expressive loss for zh/ja teams). Likewise keep it short (a stable scope-range description); do not stuff progress prose into it (that belongs in `working-context.md` — Markdown, harmless if broken) |
 | `spawned_at` | ISO8601 string | Initial spawn time |
-| `last_checkpoint_at` | ISO8601 string\|null | Time of last /checkpoint. null = never checkpointed |
 | `revived_count` | integer | Number of times rebuilt by /reactivate-team. 0 for initial spawn |
 | `status` | string | See status enum below |
 | `benched_at` | ISO8601 string | **Optional**, present only when `status=benched`: time temporarily benched by /bench-teammate. Deleted on wake |
@@ -137,6 +135,8 @@ Schema change rules:
 
 - **Minor change** (new optional fields, new status values): edit in place; `schema_version` stays
 - **Major change** (rename fields, change semantics, remove fields): bump `schema_version` and add migration logic in every read/write skill
+
+**v1 → v2 (removed `last_checkpoint_at`)**: this is a "remove field" major change, so `schema_version` bumps to 2. But **no data migration is needed** — nothing reads `last_checkpoint_at` as authoritative anymore (`/reactivate-team` switched to `working-context.md` mtime); a legacy install still carrying the field is simply **tolerated and ignored**, and v2 never writes it.
 
 ## Related docs
 

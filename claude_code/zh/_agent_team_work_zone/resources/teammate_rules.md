@@ -2,7 +2,7 @@
 ## Teammate 守则要点
 
 1. **只动自己的工位** —— 你的工位是 `<team>/teammates/<你的名字>/`，其下 5 个文件只有你维护。**不要**修改其他 teammate、lead 或任何别人工位的文件；要别人做事就发 SendMessage。同侪间的交流协作（提问 / 共享 / 质疑 / 互助）鼓励且是 team 的核心价值；但正式的任务分配与优先级是 lead 的协调职责，不把任务当命令甩给同侪。
-2. **跨 agent 通信遵循 Claude Code 官方 agent-team 机制（mailbox / SendMessage）** —— 按官方机制，agent 之间的通信只通过 mailbox 投递（SendMessage 工具）；你的普通输出**不会跨过 agent 边界**到达 lead——它只存在于你自己的会话里，只有人类用户查看你的窗格/转录时才看得到。汇报进度、提问、交付**必须**用 SendMessage，否则等于没说。（你进入 idle 时系统会自动通知 lead，但那是无内容的心跳，**不能替代**你的报告。）
+2. **跨 agent 通信遵循 Claude Code 官方 agent-team 机制（mailbox / SendMessage）** —— 按官方机制，agent 之间的通信只通过 mailbox 投递（SendMessage 工具）；你的普通输出**不会跨过 agent 边界**到达 lead——它只存在于你自己的会话里，只有人类用户查看你的窗格/转录时才看得到。汇报进度、提问、交付**必须**用 SendMessage，否则等于没说。（你进入 idle 时系统会自动通知 lead，但那是无内容的心跳，**不能替代**你的报告。）**发送成功即已投递；静默 ≠ 丢失，不要因为没立刻收到回复就重发**——SendMessage 返回 `success:true`（`Message sent to X's inbox`）就代表消息已进对方 mailbox；对方没马上回，通常是它在忙 / 还没轮到读它，而不是消息丢了。**只有两种情况才该重发**：(i) SendMessage 本身**报错**（例如 `No agent named X is currently addressable`）；(ii) 对方**明确告诉你没收到**。除此之外不要重复轰炸同一条消息。给 lead 发消息时，`to:` 用 lead 的**注册名**（你的 spawn / reactivation prompt 里出现的那个，通常是 `team-lead`），**逐字照抄、不要臆造地址**。
 3. **checkpoint 是主动义务** —— 任务完成 / 进 idle 前 / 收到提醒时 → `/checkpoint` 更新 `working-context.md`。它是你写给"下一次的自己"的交接；Claude Code **不跨 session 保留 teammate**，写不好下次恢复不了。`commitments.md` 是你对别人的承诺，下次的你要接手。别只靠 15 分钟的自动拦截兜底。
 4. **压缩后从工位文件恢复，不靠记忆** —— 上下文被压缩后，读自己工位恢复状态：`README.md`（角色认知）、`working-context.md`（工作状态）、`commitments.md`（未了承诺）、`TODO.md`（待办）。别凭残留记忆猜。
 5. **任务跟踪落在自己工位磁盘** —— `TODO.md` / `ACTIVE_JOBS.md` / `COMPLETED_JOBS.md` 放工位目录；**不要**用 `~/.claude/tasks/`（session 级，对话一结束就没）。

@@ -129,7 +129,7 @@ _agent_team_work_zone/<english_name>_team/
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "team_name": "<english_name>_team",
   "lead_name": "<English Name>",
   "updated_at": "<ISO8601 当前时间>",
@@ -138,7 +138,7 @@ _agent_team_work_zone/<english_name>_team/
 }
 ```
 
-Schema 详见 `docs/teammate_info_schema.md`。Teammate 不得修改此文件的结构；只允许 teammate 调用 `/checkpoint` 时更新**自己那条**的 `last_checkpoint_at`。
+Schema 详见 `docs/teammate_info_schema.md`。Teammate **不写本文件的任何内容**（schema v2 起花名册 100% 由 team lead 写；teammate 的"最后 checkpoint"改由其工位 `working-context.md` 的 mtime 体现）。写入本文件时走带校验的原子写入：`jq` → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`，不要手改 JSON。
 
 README.md 必须包含 Flat 版所有章节 **+** 以下 team lead 专属章节：
 

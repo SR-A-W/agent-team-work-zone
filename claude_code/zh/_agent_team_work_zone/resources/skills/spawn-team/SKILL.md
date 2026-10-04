@@ -199,7 +199,7 @@ lead 已初始化 5 个骨架文件（README / working-context.md / completed.md
 
 路径：`_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`
 
-如果文件已存在（team 之前运行过 spawn-team），**不覆写**；而是把新成员 append 进 `active_teammates`。如果是第一次 spawn-team 或文件不存在，按 schema v1 初始化（见 `docs/teammate_info_schema.md`）。
+如果文件已存在（team 之前运行过 spawn-team），**不覆写**；而是把新成员 append 进 `active_teammates`。如果是第一次 spawn-team 或文件不存在，按 schema v2 初始化（见 `docs/teammate_info_schema.md`）。
 
 每个新 teammate 的条目：
 ```json
@@ -210,13 +210,21 @@ lead 已初始化 5 个骨架文件（README / working-context.md / completed.md
   "plan_mode_gating": <true|false>,
   "scope": "<作用域简述>",
   "spawned_at": "<ISO8601 当前时间>",
-  "last_checkpoint_at": null,
   "revived_count": 0,
   "status": "active"
 }
 ```
 
 同时更新顶层 `updated_at`。
+
+> **带校验的原子写入**：无论是初始化还是 append，都用 `jq`（`--arg`/`--argjson` 自动转义，杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘。**不要手写/手改 JSON**（会绕过转义）。例（append 一条 `$entry`）：
+> ```bash
+> info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+> jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+>    '.active_teammates += [$entry] | .updated_at = $ts' \
+>    "$info" > /tmp/info.json \
+>   && jq empty /tmp/info.json && cp "$info" "$info.bak" && mv /tmp/info.json "$info"
+> ```
 
 ### 6d. 保存 team recipe 审计记录
 

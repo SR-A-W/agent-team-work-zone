@@ -89,7 +89,6 @@ Append an entry to the `active_teammates` array in `_agent_team_work_zone/<SELF>
   "plan_mode_gating": <true|false>,
   "scope": "<scope summary>",
   "spawned_at": "<ISO8601 current time>",
-  "last_checkpoint_at": null,
   "revived_count": 0,
   "status": "active"
 }
@@ -97,12 +96,15 @@ Append an entry to the `active_teammates` array in `_agent_team_work_zone/<SELF>
 
 Also update the top-level `updated_at`.
 
-jq example (if available):
+jq example (if available) — **validated atomic write**: `jq --argjson` auto-escapes (so a stray ASCII quote in a free-text field can't break the JSON) + a self-generated UTC timestamp; write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written and the original file is preserved. **Do not hand-write / hand-edit the JSON.**
 ```bash
+info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 jq --argjson entry '<json object>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates += [$entry] | .updated_at = $ts' \
-   _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json > /tmp/info.json && \
-   mv /tmp/info.json _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+   "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 ## Phase 5: Generate add-teammate spawn prompt

@@ -57,6 +57,14 @@ command -v jq >/dev/null 2>&1 || exit 0
 # Debug: dump payload to a temp log (uncomment when investigating hook schema)
 # echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $payload" >> /tmp/teammate_idle_hook.log
 
+# ---- subagent guard (the mechanical primary defense) ----
+# The TeammateIdle payload carries agent_id ONLY when the hook fires inside a subagent call
+# (official hook docs: "present only inside a subagent call"). A teammate's subagent must
+# never be forced to checkpoint the parent teammate's workstation — exit early, before any
+# teammate-targeted logic runs. Fail-open is preserved: no agent_id → normal teammate path.
+agent_id=$(echo "$payload" | jq -r '.agent_id // empty' 2>/dev/null)
+[ -n "$agent_id" ] && exit 0   # fired inside a subagent call — not a resident teammate; never nudge it
+
 teammate_name=$(echo "$payload" | jq -r '.teammate_name // .teammate // .agent_name // .name // empty' 2>/dev/null)
 cwd=$(echo "$payload" | jq -r '.cwd // empty' 2>/dev/null)
 [ -z "$cwd" ] && cwd="$PWD"
@@ -162,5 +170,5 @@ echo $((nudge_count + 1)) > "$nudge_file" 2>/dev/null || true
 # exit 2: block this teammate's idle, feed the stderr straight to it, forcing /checkpoint first
 mins=$((age / 60))
 threshold_min=$((CHECKPOINT_INTERVAL_SEC / 60))
-echo "[checkpoint reminder] You (${teammate_name}) last saved to working-context.md ~${mins} minutes ago (threshold ${threshold_min} min). Before going idle, run /checkpoint NOW to persist your current working state, so an unexpected session loss (SSH drop / crash) doesn't lose your latest work. This is required by Rule 13. Once the checkpoint completes you may idle normally and will not be reminded again." >&2
+echo "[checkpoint reminder] You (${teammate_name}) last saved to working-context.md ~${mins} minutes ago (threshold ${threshold_min} min). Before going idle, run /checkpoint NOW to persist your current working state, so an unexpected session loss (SSH drop / crash) doesn't lose your latest work. This is required by Rule 13. Once the checkpoint completes you may idle normally and will not be reminded again. If you are a temporary subagent (not a resident teammate), or you have no file-write tool, IGNORE this reminder, idle normally, and report the situation to whoever spawned you. Do not retry." >&2
 exit 2

@@ -137,7 +137,7 @@ _agent_team_work_zone/<english_name>_team/
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "team_name": "<english_name>_team",
   "lead_name": "<English Name>",
   "updated_at": "<ISO8601 current time>",
@@ -146,7 +146,7 @@ _agent_team_work_zone/<english_name>_team/
 }
 ```
 
-Schema details in `docs/teammate_info_schema.md`. Teammates must not modify the structure of this file; only allowed operation is a teammate updating **its own entry's** `last_checkpoint_at` during `/checkpoint`.
+Schema details in `docs/teammate_info_schema.md`. Teammates **write nothing in this file** (as of schema v2 the roster is 100% lead-written; a teammate's "last checkpoint" is reflected by its workstation `working-context.md` mtime instead). Writes to this file go through the validated atomic write: `jq` → `jq empty` parse-check → back up `.bak` → atomic `mv`; never hand-edit the JSON.
 
 README.md must contain all flat-version sections **plus** the following team-lead-specific sections:
 

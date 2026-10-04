@@ -88,7 +88,6 @@ allowed-tools: Read Write Edit Glob Grep
   "plan_mode_gating": <true|false>,
   "scope": "<作用域简述>",
   "spawned_at": "<ISO8601 当前时间>",
-  "last_checkpoint_at": null,
   "revived_count": 0,
   "status": "active"
 }
@@ -96,12 +95,15 @@ allowed-tools: Read Write Edit Glob Grep
 
 同时更新顶层 `updated_at` 为当前时间。
 
-jq 示例（如果可用）：
+jq 示例（如果可用）——**带校验的原子写入**：`jq --argjson` 自动转义（杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘、保留原文件。**不要手写/手改 JSON**。
 ```bash
+info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 jq --argjson entry '<json 对象>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
    '.active_teammates += [$entry] | .updated_at = $ts' \
-   _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json > /tmp/info.json && \
-   mv /tmp/info.json _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+   "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 ## Phase 5: 生成 add-teammate spawn prompt

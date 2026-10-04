@@ -31,13 +31,13 @@ allowed-tools: Read Glob Grep Bash
 **读 `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`** — 这是 team 当前 roster 的**权威源**，`team_recipes/` 只是历史审计。
 
 从中提取：
-- `active_teammates`：每个条目的 `name` / `role_source` / `model` / `scope` / `plan_mode_gating` / `spawned_at` / `last_checkpoint_at` / `revived_count` / `status`
+- `active_teammates`：每个条目的 `name` / `role_source` / `model` / `scope` / `plan_mode_gating` / `spawned_at` / `revived_count` / `status`
 - `offboarded_teammates`：历史下岗记录（仅供参考）
 
 **特别关注**：
-- `last_checkpoint_at` 距今 > 24h 的 teammate → 标"checkpoint 过期"（可能失能或异常 idle）
+- "最后 checkpoint 距今 > 24h" 的 teammate → 标"checkpoint 过期"（可能失能或异常 idle）。**"距今多久"取该 teammate 工位 `working-context.md` 的 mtime**（schema v2 起注册表不再有 `last_checkpoint_at` 字段）
 - `status == "failed_to_reactivate"` 的 teammate → 上次 /reactivate-team spawn 失败，需要用户决定是手动修复还是 /remove-teammate
-- `status == "benched"` 的 teammate → 临时下线（保留全量档案 + 工位），**不计入需要 reactivate**；列为"benched，按需唤回"，并显示 `bench_reason`（注意：benched 的 `last_checkpoint_at` 过期是预期的，不算异常）
+- `status == "benched"` 的 teammate → 临时下线（保留全量档案 + 工位），**不计入需要 reactivate**；列为"benched，按需唤回"，并显示 `bench_reason`（注意：benched 的 `working-context.md` mtime 过期是预期的，不算异常）
 - `revived_count > 3` 的 teammate → 反复恢复说明不稳定，可能 working-context.md 写得不好或任务本身不适合长跑
 
 若 TEAMMATE_INFO.json 不存在或 `active_teammates` 为空 → team 当前没人，直接输出"空 team"报告，建议 `/spawn-team`。

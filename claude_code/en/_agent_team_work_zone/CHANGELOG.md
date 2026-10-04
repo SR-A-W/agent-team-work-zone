@@ -4,6 +4,47 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v0.4.0 (2026-10-04)
+
+MINOR (backward compatible): **checkpoint safety — teammates no longer write the shared registry, registry writes are validated, subagents are kept out of checkpoint loops — plus upgrade refreshes that no longer silently lose your content**.
+
+### Changed
+- Teammates no longer write `TEAMMATE_INFO.json`: `/checkpoint` drops its registry-update step, so the registry is written only by the lead. This removes the lost-update race when several teammates checkpointed at once.
+- Registry `schema_version` 1 → 2: the `last_checkpoint_at` field is removed. A teammate's last checkpoint time now comes from its `working-context.md` file mtime in `/reactivate-team`, `/evaluate-team` and `/sync`. Old registries that still carry the field keep working; it is ignored. `/onboard` and `/promote-to-team` create new registries with `schema_version: 2`, and `/spawn-team` initializes per schema v2.
+- `/reactivate-team` shows "Last checkpoint" as how long ago `working-context.md` was modified, with the file's `_Last updated:` line as the readable time. The receipt line reads "Resumed from checkpoint at <time>. Ready."
+- `/checkpoint` confirmation names the writer: "Checkpoint written by <name> to <path>. Trigger: …".
+- SessionStart hook: when a detected team is not the current agent's own workstation, the reminder now says to stay silent about it, both after a restart and after a context compaction. Previously it said "briefly mention it to the user".
+- Teammate rule 2 (resend): a successful SendMessage means delivered, and silence is not loss. Resend only if SendMessage errored or the recipient says it did not arrive. Address the lead by its registered name, copied verbatim.
+- Rules refresh on upgrade: where an existing README had no RULES markers yet, the rules block used to run up to the next `## ` heading, so notes written after the rules were moved into `.rules.bak`. The block now ends at the last line that matches the framework rules, extended to the end of the last numbered `### N.` rule, and stops at the first separator: `---`/`***`/`___`, an un-numbered `##`/`###` heading, or `<!--`. Lines taken into the block, or left outside it, are counted with a ⚠ warning. A same-named heading with no framework text under it (your own rules section) is skipped. To keep notes outside the managed block, separate them from the rules with `---` or an un-numbered heading.
+
+### Added
+- `/checkpoint` identity check (fail closed): a teammate confirms the workstation is its own, using its spawn prompt plus a `README.md` naming it, before writing. A subagent that only received a reminder naming someone else's workstation refuses and reports back.
+- `/checkpoint` preserves the previous Part A snapshot as a Part B entry before overwriting Part A, so a bad overwrite can be recovered.
+- `/reactivate-team` checks that `TEAMMATE_INFO.json` parses before spawning anyone (`jq empty`, or a PowerShell equivalent). On failure it spawns no teammate and gives restore commands: from `TEAMMATE_INFO.json.bak`, else from git.
+- Registry writes in `/spawn-team`, `/add-teammate`, `/reactivate-team`, `/bench-teammate` and `/remove-teammate` are validated: write to a temp file, `jq empty` parse check, back up to `TEAMMATE_INFO.json.bak`, then `mv`. Nothing is written if a step fails. Every lead write therefore leaves a `TEAMMATE_INFO.json.bak` next to the registry.
+- Schema doc: free-text fields such as `scope` must not contain an ASCII double quote. Use 「」/『』 or curly quotes, and keep progress notes out of the registry.
+- Teammate README rules blocks (`TEAMMATE_RULES`) are backed up before an upgrade replaces them: `<README>.teammate_rules.bak.<timestamp>`, with a ⚠ warning. Previously a changed block was replaced with no backup.
+
+### Fixed
+- Idle-checkpoint hook no longer drives subagents into checkpoint loops: it exits early when the payload carries `agent_id`, which is present only inside a subagent call. The reminder text also tells a subagent, or an agent without file-write tools, to ignore it and report to whoever spawned it.
+- Upgrading from v0.3.1 or earlier no longer overwrites user content written after the Troubleshooting section (for example a `<!-- USER:* -->` section). The reference block now ends at the last line that matches the framework text instead of at the end of the file.
+- Upgrade writes are fail-soft and keep file modes: if a backup cannot be written the block is left as is (warned, "NOT refreshed") and the migration continues; temp files are created next to the target, so rewritten READMEs keep their permissions (previously they became 600) and a newly created `VERSION` gets the normal default mode.
+
+### Known issues
+- The validated registry write in five skills still uses a fixed `/tmp/info.json` temp path, so two leads writing at the same moment could collide, and the final `mv` is not atomic when `/tmp` is on a different filesystem from the project. Fixed in v0.5.0.
+- If you upgraded to v0.3.2 from v0.3.1 or earlier, that upgrade may already have overwritten a section you had added after Troubleshooting in the top-level README (for example a `<!-- USER:* -->` section), with no backup. v0.4.0 prevents this from now on but cannot restore it. Check that README and, if something is missing, recover it from git (for example `git log -p -- _agent_team_work_zone/README.md`).
+- `/add-teammate` still says "initialize per schema v1" while `/spawn-team` says v2. Harmless (it only appends an entry); corrected in v0.5.0.
+
+### Migration (v0.3.2 → v0.4.0)
+- **Required**: `bash _agent_team_work_zone/upgrade.sh` overwrites framework files, refreshes the top-level README framework / rules / reference blocks, refreshes the rules block of every lead/flat workstation README that has one, refreshes the `TEAMMATE_RULES` block of every teammate README that already has one (with backup), and writes VERSION. A teammate README without the block is left alone and gets it on its next spawn/reactivate.
+- **Expect one `.teammate_rules.bak.<ts>` per teammate workstation that already had the block**: the teammate rules text changed in this release (rule 2), so every such block differs and is backed up before it is replaced. The full rules text did not change, so a lead/flat workstation only gets a `.rules.bak` if you edited its rules block or it had no markers yet.
+- **No user-data migration**: existing `TEAMMATE_INFO.json` files are not modified; a registry at `schema_version: 1` with `last_checkpoint_at` keeps working and the field is ignored.
+- **New files you may see**: `TEAMMATE_INFO.json.bak` (left by every lead registry write), `*.rules.bak.<ts>` and `*.teammate_rules.bak.<ts>` (left by the refresh when content differed). They are not cleaned up automatically.
+- **File modes after an earlier upgrade**: upgrading to v0.3.2 could leave rewritten READMEs and `VERSION` at mode `600`. v0.4.0 keeps whatever mode a file has and does not restore it; if you see `600` there, restore it with `chmod 644 <file>`.
+- **Check the ⚠ lines** the migration prints: text "taken into" a rules block is in the backup; text "kept outside" a block is untouched and may be old framework wording or your own content.
+
+---
+
 ## v0.3.2 (2026-07-21)
 
 PATCH (bug fix, fully backward compatible): **Work Rules and the five framework reference sections now actually refresh across upgrades on existing installs; teammate condensed rules now self-heal by replacement (eliminates dual copies)**.

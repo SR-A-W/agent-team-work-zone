@@ -136,8 +136,9 @@ mv _agent_team_work_zone/<SELF>_team/roundtable/<file>.md _agent_team_work_zone/
 
 同时更新顶层 `updated_at`。
 
-jq 示例（如果可用）：
+jq 示例（如果可用）——**带校验的原子写入**：`jq --arg` 自动转义（杜绝自由文本里的 ASCII 引号破坏 JSON）+ self-gen UTC 时间戳，写临时文件 → `jq empty` 解析校验 → 备份 `.bak` → 原子 `mv`；任一步失败即不落盘。**不要手写/手改 JSON**。
 ```bash
+info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
 name="<昵称>"
 reason="<原因>"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -145,8 +146,10 @@ jq --arg n "$name" --arg r "$reason" --arg ts "$ts" '
   .offboarded_teammates += [{name: $n, offboarded_at: $ts, reason: $r}] |
   .active_teammates |= map(select(.name != $n)) |
   .updated_at = $ts
-' _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json > /tmp/info.json && \
-mv /tmp/info.json _agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+' "$info" > /tmp/info.json \
+  && jq empty /tmp/info.json \
+  && cp "$info" "$info.bak" \
+  && mv /tmp/info.json "$info"
 ```
 
 **不删除** teammate 的工位目录 `_agent_team_work_zone/<SELF>_team/teammates/<昵称>/`——保留原位作为历史审计（Rule 1 低耦合 + 便于日后如果相同任务重启可参考历史 working-context.md）。

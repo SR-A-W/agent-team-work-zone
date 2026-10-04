@@ -202,7 +202,7 @@ Path: `_agent_team_work_zone/<SELF>_team/teammates/<teammate-name>/`
 
 Path: `_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json`
 
-If the file already exists (team has previously run spawn-team), **do not overwrite**; append new members to `active_teammates` instead. If this is the first spawn-team or the file doesn't exist, initialize per schema v1 (see `docs/teammate_info_schema.md`).
+If the file already exists (team has previously run spawn-team), **do not overwrite**; append new members to `active_teammates` instead. If this is the first spawn-team or the file doesn't exist, initialize per schema v2 (see `docs/teammate_info_schema.md`).
 
 Each new teammate's entry:
 ```json
@@ -213,13 +213,21 @@ Each new teammate's entry:
   "plan_mode_gating": <true|false>,
   "scope": "<scope summary>",
   "spawned_at": "<ISO8601 current time>",
-  "last_checkpoint_at": null,
   "revived_count": 0,
   "status": "active"
 }
 ```
 
 Also update the top-level `updated_at`.
+
+> **Validated atomic write**: whether initializing or appending, use `jq` (`--arg`/`--argjson` auto-escapes, so a stray ASCII quote in a free-text field can't break the JSON) + a self-generated UTC timestamp; write to a temp file → `jq empty` parse-check → back up `.bak` → atomic `mv`; if any step fails, nothing is written. **Do not hand-write / hand-edit the JSON** (that bypasses escaping). Example (appending one `$entry`):
+> ```bash
+> info=_agent_team_work_zone/<SELF>_team/TEAMMATE_INFO.json
+> jq --argjson entry '<json object>' --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+>    '.active_teammates += [$entry] | .updated_at = $ts' \
+>    "$info" > /tmp/info.json \
+>   && jq empty /tmp/info.json && cp "$info" "$info.bak" && mv /tmp/info.json "$info"
+> ```
 
 ### 6d. Save team recipe audit record
 
