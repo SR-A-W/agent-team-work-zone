@@ -110,6 +110,16 @@ cp -r claude_code/en/_agent_team_work_zone /path/to/your/project/   # English ed
 
 > **Prefer not to use the command line?** Do it right in your file manager (Finder / Nautilus, etc.): open the cloned repo, **copy** the whole `claude_code/en/_agent_team_work_zone` (or `zh/`) folder, and **paste** it into your target project's root directory — exactly the same result.
 
+> [!IMPORTANT]
+> **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
+>
+> A common mistake is to log in to an HPC cluster (or any server) and start `claude` in your home directory while the work zone sits in a project folder. Then:
+> - the project's hooks and settings in `.claude/` are not loaded, and its skills are not available at startup;
+> - workstation (each agent's folder in the work zone) paths are resolved from the project root, so checkpoints and reactivation (`/reactivate-team`) look in the wrong place;
+> - teammates start in the lead's current directory — if the lead runs in the wrong directory (or its shell has moved into a subdirectory), its teammates start there too and their relative paths fail.
+>
+> So: `cd /path/to/your/project`, then run `claude`. Using your home directory *as* the project is fine, as long as `_agent_team_work_zone/` is directly inside it and you start Claude there. We still strongly recommend a project-specific agent team work zone inside the project directory, with its own separate Claude Code session.
+
 ### 3. Install
 
 ```bash
@@ -118,6 +128,22 @@ bash _agent_team_work_zone/install.sh
 ```
 
 The script installs the skills and agent definitions into `.claude/` and enables the required Claude Code settings.
+
+#### Track `_agent_team_work_zone/` in git (strongly recommended)
+
+Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
+
+- **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
+- **Easy migration to a new machine.** Clone the project on another machine, run the installer there once (`bash _agent_team_work_zone/install.sh` — it installs the skills and hooks and sets Claude Code up), start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
+
+```bash
+git add _agent_team_work_zone
+git commit -m "Track the agent team work zone"
+```
+
+> [!CAUTION]
+> Workstations can contain sensitive material (paths, hostnames, excerpts of data or conversations). For a public repository, review or scrub before pushing, or keep the work zone in a private repository.
 
 ### 4. Start an agent and onboard it
 
