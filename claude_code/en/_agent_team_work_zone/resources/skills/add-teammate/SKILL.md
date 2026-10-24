@@ -131,16 +131,17 @@ Maintain it per Rule 13: call /checkpoint to update working-context.md before go
 when prompted, and after task completion.
 
 Its output is written to <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/, collaborating with other
-teammates via mailbox.
+teammates via mailbox; to message the lead, use SendMessage addressed to `team-lead`.
 
 Rule changes: if <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md exists, read it; record every rule whose id is not yet in the "## Team rule changes" section of your README (create that section directly above the <!-- TEAMMATE_RULES:START --> line; if your README has no such line, put the section at the end of your README; never inside or below that block), and end your receipt line with " ACK <id>, <id>…" (or " Rules: up to date").
 
-Ready receipt: when set up, the new teammate uses the SendMessage tool to send the lead exactly
-one line: "Ready. Model: <model name>, ID: <model ID>" — quoting the model name and ID exactly
+Ready receipt: when set up, the new teammate uses the SendMessage tool to send the lead (addressed to
+`team-lead`) exactly one line: "Ready. Model: <model name>, ID: <model ID>" — quoting the model name and ID exactly
 as its system prompt states them, or "Model: not stated" if it does not (never guess).
-It reads every file to the end with the Read tool (if a notice says only part of a file was
-shown, it keeps reading from the offset given) and appends " Unread: <file>" for any file it
-could not finish. (A plain reply will NOT reach the lead.)
+It reads files to the end with the Read tool (if a notice says only part of a file was
+shown, it keeps reading from the offset given) and appends " Unread: <file>" only for a file it
+really could not finish. The skeleton files in its workstation are small: it just reads them
+and does not report them as Unread. (A plain reply will NOT reach the lead.)
 
 Please spawn this new teammate to join the existing team.
 ```

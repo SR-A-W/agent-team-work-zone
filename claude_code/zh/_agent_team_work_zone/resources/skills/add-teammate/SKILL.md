@@ -128,14 +128,15 @@ Plan-mode gating: <YES/NO + 批准标准>
 completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维护它：进入 idle 前、
 收到 checkpoint 提醒时、任务完成后调用 /checkpoint 更新 working-context.md。
 
-它的产出写到 <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/，和其他 teammate 通过 mailbox 协作。
+它的产出写到 <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/，和其他 teammate 通过 mailbox 协作；给 lead 发消息用 SendMessage，收件人写 `team-lead`。
 
 规则变更：若 <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md 存在，读它；把 id 尚未出现在你 README「## Team rule changes」一节里的规则都记进去（该节建在 <!-- TEAMMATE_RULES:START --> 那一行正上方；若你的 README 里没有这一行，就把这一节放在 README 末尾；不要写在该块里面或下面），并在回执行末尾加上 " ACK <id>, <id>…"（或 " Rules: up to date"）。
 
-就绪回执：准备好后，新 teammate 用 SendMessage 工具给 lead 发恰好一行：
+就绪回执：准备好后，新 teammate 用 SendMessage 工具给 lead（收件人写 `team-lead`）发恰好一行：
 "Ready. Model: <model name>, ID: <model ID>"——模型名和 ID 按其系统提示原文照抄，
-系统提示里没写就写 "Model: not stated"（不要猜）。每个文件都用 Read 工具读到结尾（看到只显示了
-文件一部分的提示，就按提示给的 offset 接着读）；没能读完的文件，在回执末尾加 " Unread: <文件>"。
+系统提示里没写就写 "Model: not stated"（不要猜）。读文件时用 Read 工具读到结尾（看到只显示了
+文件一部分的提示，就按提示给的 offset 接着读）；只有确实没能读完的文件，才在回执末尾加 " Unread: <文件>"。
+工位里的骨架文件很小，读完即可，不要把它们报成 Unread。
 （普通回复到不了 lead。）
 
 请 spawn 这个新 teammate 加入现有 team。

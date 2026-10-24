@@ -76,6 +76,7 @@ Bootstrap 会：
 - 创建或合并 `.claude/settings.json` 启用 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
 - 首次安装时检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你。在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）；选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。没有终端时不询问，也不做任何改动。
 - 用菜单提问：方向键移动、回车确认，或按数字键直接选。没有终端时不提问：首次安装会加入可选的 `CLAUDE.md` 段落、工作区保持由 git 跟踪，成员显示方式和 Auto 权限模式保持原样。在终端里，警告用加粗的橙红色显示，推荐的选项用绿色（设置 `NO_COLOR` 可关闭颜色）。
+- 在终端里一路按回车，就是每项都选默认值，其中包括把 Auto 权限模式写进你的全局设置 `~/.claude/settings.json`（影响本机所有项目）。不想这样，就在那一项选"不启用"。
 
 > **💡 强烈推荐把 Claude Code 跑在 tmux 里**（不限 HPC，本地同样受益）：关终端 / SSH 断连时，tmux 保住 Claude Code 进程不被杀、session 不中断——**你回来 `tmux attach` 就接着干，省去频繁 `/reactivate-team`**。这是强烈推荐、但**非必需**：不装 tmux 也能用 in-process 模式跑完整 agent team 功能。想要"持久**又**不拆多余 pane"，可在 tmux 内启动 claude + 设 `teammateMode: "in-process"`（详见开发者手册"持久化来自 tmux"段）。
 
@@ -85,7 +86,8 @@ Bootstrap 会：
 > **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
 >
 > 常见错误：登录 HPC 集群（或任何服务器）后直接在 home 目录里启动 `claude`，而 work zone 却在某个项目文件夹里。这样会：
-> - 项目 `.claude/` 里的 hooks 和设置不会生效，skills 在启动时也用不了；
+> - 在项目的**上层目录**（例如 home 目录）启动：项目 `.claude/settings.json` 里的设置和 hooks 都不生效，包括打开团队功能的开关；项目的技能在启动时也用不了，要等 Claude 读写到项目里的文件后才会加载。
+> - 在项目的**子目录**里启动：技能和项目根目录的 CLAUDE.md 能找到，但设置和 hooks 同样不生效，团队功能没有打开；`/quickstart` 会停下，告诉你到项目根目录重新启动。
 > - 工位（每个 agent 在 work zone 里的目录）路径从项目根目录解析，checkpoint 和唤回（`/reactivate-team`）会去错的地方找；
 > - teammate 从 lead 当前所在的目录启动——lead 在错的目录里运行（或它的 shell 切到了某个子目录），派生出的 teammate 也从那里启动，相对路径随之失效。
 >
@@ -146,7 +148,49 @@ npx agent-team-work-zone config        # 或：atwz config
 - 已安装的版本太旧、还不支持这个命令时，`npx agent-team-work-zone config` 会提示你：先升级。
 - 源码方式的命令没有这项检查：已安装版本低于 v1.1.0 时，`bootstrap.sh --reconfigure` 会忽略这个选项，不提问，也不报错。请先升级（`bash _agent_team_work_zone/upgrade.sh`），再运行它。
 
-### 2. 为每个角色启动对话
+### 2. 组建第一支团队
+
+**一定要在项目根目录**（直接包含 `_agent_team_work_zone/` 的那个目录）启动 Claude Code：
+
+```bash
+cd /path/to/your/project
+claude
+```
+
+第一次在这个目录启动时，Claude Code 会问是否信任这个文件夹。默认高亮的是 "No, exit"，一路按回车会直接退出；请选 "Yes, I trust this folder"。
+
+然后输入 `/quickstart`，后面可以接一句任务描述，也可以不接。**第一次使用推荐这样做。** 它不向你提问，依次完成：看项目、定阵容、建好团队、等所有成员就绪（最多约 10 分钟），最后发一条消息告诉你团队有谁、怎么用，并提议一个 20 分钟内能做完的小任务。成员启动后只等你派活，不会自己开工。
+
+对话大致是这样（节选）：
+
+```
+> /quickstart
+
+## 团队已经组建好了
+
+我把项目看了一遍（读了 README、目录结构和提交记录）：一个用 PyTorch 写的文本生成实验仓库，主要是训练脚本和几个模型配置；27 次提交，作者两人，最近一次提交在今年 8 月。
+看起来你是想复现或使用这个项目（依据：提交记录都是别人的），先组建了初步的团队。
+我不太有把握：判断错了，告诉我一声就行。规划成员会先把项目完整读一遍，给你一份项目地图，再建议要不要加人。
+
+| 成员 | 负责什么 |
+|---|---|
+| textgen-coder | 在本项目里写代码、跑命令 |
+| textgen-planner | 读项目、理清结构，出计划和项目地图 |
+
+平时你直接和我聊就够了：你说要做什么，我来拆分、派给合适的成员，再把结果汇总给你。
+……
+
+## 需要你决定
+
+「规划成员写一页项目地图」这个任务需要我现在就开始跑吗？回复跑或不跑即可。
+```
+
+回复跑或不跑，或直接说要做什么。结束消息里还会说明：怎么直接和某个成员说话、怎么把成员换成 opus 模型、怎么在网页或手机上接着对话、重启以后怎么把团队唤回来。
+
+- 当前目录里已经有团队或工位时，`/quickstart` 会停下，并告诉你该用 `/reactivate-team` 还是 `/onboard`。
+- 中途被打断（例如按了 Esc、或 Claude Code 退出了），再输入一次 `/quickstart` 会接着做，不会重复建团队。
+
+#### 熟悉以后：为每个角色启动对话，自己定阵容
 
 ```bash
 claude -n "Secretary"

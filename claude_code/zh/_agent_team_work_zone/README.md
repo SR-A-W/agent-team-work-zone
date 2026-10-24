@@ -19,7 +19,8 @@
 > **`_agent_team_work_zone/` 必须放在项目目录里，并且永远在这个目录下启动 Claude Code**——也就是*包含* `_agent_team_work_zone/` 的那个目录。
 >
 > 常见错误：登录 HPC 集群（或任何服务器）后直接在 home 目录里启动 `claude`，而 work zone 却在某个项目文件夹里。这样会：
-> - 项目 `.claude/` 里的 hooks 和设置不会生效，skills 在启动时也用不了；
+> - 在项目的**上层目录**（例如 home 目录）启动：项目 `.claude/settings.json` 里的设置和 hooks 都不生效，包括打开团队功能的开关；项目的技能在启动时也用不了，要等 Claude 读写到项目里的文件后才会加载。
+> - 在项目的**子目录**里启动：技能和项目根目录的 CLAUDE.md 能找到，但设置和 hooks 同样不生效，团队功能没有打开；`/quickstart` 会停下，告诉你到项目根目录重新启动。
 > - 工位（每个 agent 在 work zone 里的目录）路径从项目根目录解析，checkpoint 和唤回（`/reactivate-team`）会去错的地方找；
 > - teammate 从 lead 当前所在的目录启动——lead 在错的目录里运行（或它的 shell 切到了某个子目录），派生出的 teammate 也从那里启动，相对路径随之失效。
 >
@@ -59,14 +60,31 @@ bash _agent_team_work_zone/install.sh
 - 创建或合并 `.claude/settings.json` 启用 experimental agent teams 特性
 - 不删除源目录（与旧版 install_skills.sh 的破坏性行为不同）
 - 首次安装时检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你。在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）；选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。没有终端时不询问，也不做任何改动。
+- 在终端里安装时，会用菜单逐项询问；一路按回车就是每项都选默认值，其中包括把自动权限模式写进你的全局设置 `~/.claude/settings.json`（影响本机所有项目）。不想这样，就在那一项选"不启用"。
 
-### 2. 为每个角色启动交互式对话并完成入职
+### 2. 启动 Claude Code，组建第一支团队
+
+**一定要在项目根目录**（直接包含 `_agent_team_work_zone/` 的那个目录）启动 Claude Code：
+
+```bash
+claude
+```
+
+第一次在这个目录启动时，Claude Code 会问是否信任这个文件夹。默认高亮的是 "No, exit"，一路按回车会直接退出；请选 "Yes, I trust this folder"。
+
+然后输入 `/quickstart`，后面可以接一句任务描述，也可以不接：
+
+```
+/quickstart 帮我给这个项目补上单元测试
+```
+
+它不向你提问，自己看项目、定阵容、建好团队，最后告诉你团队有谁、怎么用，并提议一个 20 分钟内能做完的小任务；你回复跑或不跑，或直接说要做什么。**第一次使用推荐这样做。**
+
+**熟悉以后：自己定角色和阵容。** 为每个角色启动一个命名的对话，在对话中运行 onboard skill（agent 会先询问招募的是扁平工位还是 team lead）：
 
 ```bash
 claude -n "Architect"
 ```
-
-在对话中运行 onboard skill（agent 会先询问招募的是扁平工位还是 team lead）：
 
 ```
 /onboard 负责项目架构设计与实验性改造
@@ -125,6 +143,7 @@ _agent_team_work_zone/
 ├── resources/                 ← 所有非成员资源
 │   ├── README.md
 │   ├── skills/                ← Skills 权威源（由 bootstrap 同步到 .claude/skills/）
+│   │   ├── quickstart/SKILL.md
 │   │   ├── onboard/SKILL.md
 │   │   ├── sync/SKILL.md
 │   │   ├── check-inbox/SKILL.md
@@ -188,7 +207,7 @@ _agent_team_work_zone/
 
 ## 新 Agent 入职指南
 
-当用户在一个新的 Claude Code 对话中给你分配了一个角色，请按以下步骤操作：
+当用户在一个新的 Claude Code 对话中给你分配了一个角色，请按以下步骤操作。（第一次在项目里组建团队，推荐用户直接输入 `/quickstart`，见「初始配置」第 2 步；下面的 `/onboard` 适合熟悉以后自己定角色。）
 
 ### 推荐方式：使用 `/onboard` skill
 
@@ -418,6 +437,7 @@ date: 2026-04-11 15:30
 
 | Skill | 命令 | 功能 |
 |-------|------|------|
+| quickstart | `/quickstart [任务描述]` | 第一次使用推荐：不提问，自动看项目、定阵容、建 lead 工位、派生成员并等它们就绪，最后说明团队怎么用并提议一个小任务 |
 | onboard | `/onboard <描述>` | 新 agent 入职：开头询问扁平 or team lead，自动完成命名、建工位、注册成员表 |
 | sync | `/sync` | 同步工作区变更 + 上下文压缩后的角色恢复 |
 | check-inbox | `/check-inbox` | 检查顶层 meeting_room（所有人）+ 所在 team 的 roundtable（team lead），按时间顺序处理 |

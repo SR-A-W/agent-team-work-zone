@@ -76,6 +76,7 @@ Bootstrap will:
 - Create or merge `.claude/settings.json` to enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
 - On first install, check git: if the project is not in a git repository, or is inside one but not at its root, it tells you. At the root of a repository it asks whether to track `_agent_team_work_zone/` in git (default yes, recommended). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`; delete that line later if you change your mind. Without a terminal it does not ask and changes nothing.
 - Ask its questions as menus: move with the arrow keys, confirm with Enter, or press a number key. Without a terminal it asks nothing: on a first install the optional `CLAUDE.md` sections are added and the work zone is left to be tracked in git, while the display mode and auto permission mode stay as they are. In a terminal, warnings are shown in bold orange-red and the recommended choice in green (set `NO_COLOR` to turn colours off).
+- In a terminal, pressing Enter all the way through takes the default for each question, which includes writing auto permission mode into your global settings `~/.claude/settings.json` (this affects every project on this machine). If you do not want that, choose "skip" for that question.
 
 > **💡 Strongly recommended: run Claude Code inside tmux** (not just on HPC — local benefits too). When the terminal closes / SSH disconnects, tmux keeps the Claude Code process alive and the session uninterrupted — **you come back, `tmux attach`, and keep going, sparing yourself frequent `/reactivate-team`**. It is strongly recommended but **not required**: without tmux you can still run the full agent-team feature set in in-process mode. To get "persistent **and** no extra panes", launch claude inside tmux + set `teammateMode: "in-process"` (see the developer manual's "Persistence comes from tmux" section).
 
@@ -85,7 +86,8 @@ Bootstrap will:
 > **Keep `_agent_team_work_zone/` inside your project directory, and always start Claude Code in that directory** — the directory that *contains* `_agent_team_work_zone/`.
 >
 > A common mistake is to log in to an HPC cluster (or any server) and start `claude` in your home directory while the work zone sits in a project folder. Then:
-> - the project's hooks and settings in `.claude/` are not loaded, and its skills are not available at startup;
+> - Started in a directory **above** the project (for example your home directory): the settings and hooks in the project's `.claude/settings.json` are not loaded, including the switch that turns on agent teams; the project's skills are not available at startup either — they load only after Claude reads or edits a file inside the project.
+> - Started in a **subdirectory** of the project: the skills and the project's CLAUDE.md are found, but the settings and hooks are still not loaded, so agent teams stay off; `/quickstart` stops and tells you to restart in the project root.
 > - workstation (each agent's folder in the work zone) paths are resolved from the project root, so checkpoints and reactivation (`/reactivate-team`) look in the wrong place;
 > - teammates start in the lead's current directory — if the lead runs in the wrong directory (or its shell has moved into a subdirectory), its teammates start there too and their relative paths fail.
 >
@@ -146,7 +148,49 @@ npx agent-team-work-zone config        # or: atwz config
 - If the installed version is too old for this command, `npx agent-team-work-zone config` says so: upgrade first.
 - The source command has no such check: on an install older than v1.1.0, `bootstrap.sh --reconfigure` ignores the option, asks nothing and reports no error. Upgrade first (`bash _agent_team_work_zone/upgrade.sh`), then run it.
 
-### 2. Launch a conversation for each role
+### 2. Build your first team
+
+**Always start Claude Code in the project root** (the directory that directly contains `_agent_team_work_zone/`):
+
+```bash
+cd /path/to/your/project
+claude
+```
+
+The first time you start in this directory, Claude Code asks whether you trust this folder. The highlighted default is "No, exit", so pressing Enter all the way through exits Claude Code; choose "Yes, I trust this folder".
+
+Then type `/quickstart`, optionally followed by a one-sentence task description. **Recommended for first-time use.** It asks you no questions and, in order: looks at the project, chooses the team, builds it, waits until every member is ready (at most about 10 minutes), and finally sends one message telling you who is on the team, how to use it, and proposing a small task that can be done in about 20 minutes. The members only wait for you to assign work after starting; they do not start anything on their own.
+
+The conversation looks roughly like this (excerpt):
+
+```
+> /quickstart
+
+## Your team is ready
+
+I looked through the project (read the README, the directory structure and the commit history): a text-generation experiment repository written with PyTorch, mostly training scripts and a few model configs; 27 commits by two authors, the last one in August this year.
+It looks like you want to reproduce or use this project (because: all the commits are by other people), so I built a first team.
+I am not very sure about this: if it is wrong, just tell me. The planning member will first read the whole project, give you a project map, and then suggest whether to add people.
+
+| Member | Responsible for |
+|---|---|
+| textgen-coder | Writes code and runs commands in this project |
+| textgen-planner | Reads the project, works out its structure, writes plans and the project map |
+
+Normally you only need to talk to me: tell me what you want done, I split it up, give it to the right members, and bring the results back to you.
+…
+
+## Your decision
+
+Should I start "The planning member writes a one-page project map" now? Just reply run or don't run.
+```
+
+Reply run or don't run, or just say what you want done. The closing message also explains how to talk to a member directly, how to switch a member to the opus model, how to continue the conversation from the web or your phone, and how to bring the team back after a restart.
+
+- If the current directory already has a team or workstation, `/quickstart` stops and tells you whether to use `/reactivate-team` or `/onboard`.
+- If it is interrupted (for example, you pressed Esc or Claude Code exited), typing `/quickstart` again continues where it stopped; it does not build the team twice.
+
+#### Once you are familiar: start a conversation for each role and choose the team yourself
 
 ```bash
 claude -n "Secretary"

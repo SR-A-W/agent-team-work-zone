@@ -4,6 +4,7 @@ description: >
   Onboard a new agent: first ask whether it's a flat workstation or team lead, then create
   the corresponding directory structure, generate the role definition file and task tracking
   files, and register in the member table. Use at the start of a new agent conversation.
+  For first-time use, /quickstart is recommended: it creates the lead workstation and the team in one go.
 argument-hint: "<task/role description>"
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Bash
@@ -195,6 +196,61 @@ After all steps complete, report to the user:
 - Registered in the member table
 - Current total project team member count; of which how many are flat / team
 - **If team lead**: remind the user that the next step is to describe the task in natural language, and the lead will proactively suggest invoking `/spawn-team`
+
+## Quick mode (used only by /quickstart)
+
+/quickstart does not call this skill with the skill tool (this skill may only be invoked by the user directly); it reads this file and follows this section. When the user types `/onboard` directly, this section does not apply.
+
+**Answers passed in by /quickstart**:
+- the slug (only lowercase letters and digits, already derived by /quickstart's rules);
+- the English name `<Slug> Lead`, the role name "Project Lead", a one-sentence responsibility;
+- the full text of the unfinished marker `.quickstart_incomplete`.
+
+Any item missing → do not ask the user; stop and return to /quickstart, which reports the failure.
+
+**Do this check first** (the rest of this skill has no such rule; it applies only in quick mode): when `_agent_team_work_zone/<slug>_team/` already exists —
+- it has **no** `.quickstart_incomplete` → stop, overwrite nothing, return to /quickstart reporting "a directory with the same name exists";
+- it **has** `.quickstart_incomplete` → in the steps below add only the missing files; never rewrite existing ones.
+
+**How each step runs**:
+
+| Step in this skill | In quick mode |
+|---|---|
+| `## Step 0: Confirm workstation mode (flat or team lead)` | Skip; always Team Lead |
+| `## Step 1: Read the project team charter` | Do it |
+| `## Step 2: Determine role name` | Skip the confirmation with the user; use the names passed in. **Do not derive the directory name with this step's "lowercase with underscores" rule**; use `<slug>_team` directly |
+| `### Team Lead workstation branch` under `## Step 3: Create workstation directory and base files` | **Do it; do not skip.** The warning in it that "`<english_name>` must be a single token" here applies to the slug; check it as usual. After creating the directory, write `.quickstart_incomplete` **first** (with the full text passed in), then the other files. In `TEAMMATE_INFO.json` set `team_name` to `<slug>_team` and `lead_name` to `<Slug> Lead`. In the README's team-lead sections, also write the "Switching a teammate's model" part below |
+| `### Work notes and task tracking common to both modes` under `## Step 3` | **Do it; do not skip** |
+| `## Step 4: Register in the member table` | **Do it; do not skip.** Add one row in this step's format: role name "Project Lead", English name `<Slug> Lead`, directory `<slug>_team/`, mode team, the one-sentence responsibility; if the member table already has a row for this directory, do not add another |
+| `## Step 5: Read relevant communication space rules` | Do it |
+| `## Step 6: Completion confirmation` | Skip; do not report to the user; return to /quickstart, whose closing message reports |
+
+**The "Switching a teammate's model" part** (write it into the team-lead sections of the lead workstation README word for word, only replacing `<slug>` with this team's slug):
+
+````markdown
+### Switching a teammate's model
+
+When the user says "switch <member name> to <model>" (for example opus), treat that as confirmed and do these five steps without asking the user again:
+
+1. Ask that teammate to run /checkpoint and wait for its confirmation.
+2. Send it a shutdown request with SendMessage (`{"type": "shutdown_request"}`) and wait for it to approve. Its status in the registry stays `active`; do not change it to `benched`.
+3. Change its `model` in the registry to the target model (validated atomic write):
+   ```bash
+   name="<member name>"
+   model="opus"
+   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   info=_agent_team_work_zone/<slug>_team/TEAMMATE_INFO.json
+   tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+     && jq --arg n "$name" --arg m "$model" --arg ts "$ts" '
+     .active_teammates |= map(if .name == $n then .model = $m else . end) | .updated_at = $ts
+   ' "$info" > "$tmp" \
+     && jq empty "$tmp" \
+     && cp "$info" "$info.bak" \
+     && mv "$tmp" "$info" || rm -f "$tmp"
+   ```
+4. Run `/reactivate-team <member name>`; it spawns the teammate with the new model from the registry. Its steps ask "Confirm to begin reactivation?" — the user already asked for the switch, so continue as confirmed; do not ask the user a second time.
+5. Check the model ID in the receipt (it should contain the new model name, for example opus). Expect one line saying the model does not match, because the README says sonnet: /reactivate-team compares the receipt with the `Model` line of the teammate's README, and the README is the teammate's own file, which the lead does not edit. This line is expected, not an error; ask the teammate to change its README's model line to the new model at its next checkpoint.
+````
 
 ## Notes
 
