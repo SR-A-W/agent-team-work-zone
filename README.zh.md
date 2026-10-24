@@ -145,7 +145,7 @@ bash _agent_team_work_zone/install.sh
 
 ### 3. 安装程序做了什么
 
-安装程序把 skills 和 agent definitions 装进 `.claude/`，并启用所需的 Claude Code 设置。首次安装时它还会检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你；在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）。选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。它还会提供两个可选的 `CLAUDE.md` 段落：给你的消息格式，以及平实用语规则；默认都会加入。所有提问都是菜单（方向键加回车）；没有终端时不提问。
+安装程序把 skills 和 agent definitions 装进 `.claude/`，并启用所需的 Claude Code 设置。首次安装时它还会检查 git：项目不在 git 仓库里，或在仓库里但不在仓库根目录，会提醒你；在仓库根目录时会询问是否用 git 跟踪 `_agent_team_work_zone/`（默认是，推荐）。选"否"会把 `/_agent_team_work_zone/` 加进项目的 `.gitignore`，以后改主意删掉这一行即可。它还会提供两个可选的 `CLAUDE.md` 段落：给你的消息格式，以及平实用语规则；默认都会加入。所有提问都是菜单（方向键加回车）；没有终端时不提问。一路按回车就是每项都选默认值，其中包括把自动权限模式写进你的全局设置 `~/.claude/settings.json`（影响本机所有项目）；不想这样，就在那一项选"不启用"。
 
 #### 把 `_agent_team_work_zone/` 纳入 git 管理（强烈推荐）
 
@@ -163,27 +163,36 @@ git commit -m "Track the agent team work zone"
 > [!CAUTION]
 > 工位里可能有敏感内容（路径、主机名、数据或对话片段）。如果仓库是公开的，push 前先检查或清理，或者把 work zone 放在私有仓库里。
 
-### 4. 启动一个 agent 并让它入职
+### 4. 启动 Claude Code，组建团队
 
-在你的项目目录里直接进入 Claude Code：
+**一定要在项目根目录**（直接包含 `_agent_team_work_zone/` 的那个目录）启动 Claude Code：
 
 ```bash
+cd /path/to/your/project
 claude
 ```
 
-然后让 agent 入职：
+> 第一次在这个目录启动时，Claude Code 会问是否信任这个文件夹。默认高亮的是 **"No, exit"**，一路按回车会直接退出；请选 **"Yes, I trust this folder"**。
+
+然后输入 `/quickstart`，后面可以接一句任务描述，也可以不接：
+
+```
+/quickstart 帮我复现这个 github repo 中的实验
+```
+
+它不向你提问，自己看项目、定阵容、建好 lead 和成员，等所有人就绪后，告诉你团队有谁、怎么用，并提议一个 20 分钟左右能做完的第一个小任务。成员等你点头才开工，不会自己开始。
+
+#### 熟悉以后：自己定角色和阵容
 
 ```
 /onboard 帮我复现这个 github repo 中的实验
 ```
 
-> `/onboard` 后面跟的是一句**你这个项目要干什么**的描述——上面只是个例子，按你的真实需求写即可。Skill 会先问你该建成扁平工位还是 team lead，然后自动创建正确结构。**对有复杂度的项目，在这一步选择/让它组建 team**。
+> `/onboard` 后面跟的是一句**你这个项目要干什么**的描述。Skill 会先问你该建成扁平工位还是 team lead，再建好对应的结构；之后对 team lead 说一句"建个团队来做 X"，它就会调用 `/spawn-team`。
 
 ### 5. 让团队开干(检查点全自动)
 
-通常在 `/onboard` 过程中，team lead 就会按你的决定把团队组建好。让它开始干活即可——lead 会拆解任务、提出 teammates、保存 recipe 并 spawn workers。
-
-> **极少数情况**：如果 `/onboard` 没建 team，你只要对 team lead 说一句"建个团队来做 X"，它就会调用 `/spawn-team`(你也可以自己调，但一般不需要)。
+对它提议的第一个小任务回复**跑**或**不跑**，或直接告诉 lead 要做什么。lead 会拆分工作、派给合适的成员，再把结果汇总给你。
 
 > **省心提示**：在 agent team 模式下，建议把 Claude Code 切到 **"auto mode"(自动批准)** 运行——teammate 干活会频繁触发逐条 permission 确认，auto mode 能免去这一大堆批准。安装脚本会问你是否把它设为默认(`permissions.defaultMode:"auto"`，默认开、强烈推荐);你也可随时用 `Shift+Tab` 切换。
 
@@ -247,7 +256,8 @@ bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure   # 从�
 |---|---|
 | `/reactivate-team` | 在 resume 后从检查点恢复整个团队 |
 | `/check-inbox` | 处理发给该 agent 的 meeting room / roundtable 消息 |
-| `/onboard` | 为新 agent 创建扁平工位或 team lead 工位 |
+| `/quickstart` | 一条命令组建第一支团队：看项目、定阵容、派生成员，并提议第一个小任务（第一次使用推荐） |
+| `/onboard` | 为新 agent 创建扁平工位或 team lead 工位，自己定角色（熟悉以后用） |
 | `/sync` | 压缩后恢复角色上下文并检查 inbox |
 | `/handoff` | 把任务上下文从一个 agent 转交给另一个 |
 | `/promote-to-team` | 把扁平工位升级为 team lead |

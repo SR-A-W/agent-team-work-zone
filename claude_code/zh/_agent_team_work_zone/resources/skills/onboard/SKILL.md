@@ -3,6 +3,7 @@ name: onboard
 description: >
   新 agent 入职: 先询问是扁平工位还是 team lead，然后创建对应目录结构、
   生成角色定义文件和任务跟踪文件、在成员表中注册。在新 agent 对话开始时使用。
+  第一次使用建议用 /quickstart，它会一次建好 lead 工位和团队。
 argument-hint: "<任务/角色描述>"
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Bash
@@ -185,6 +186,61 @@ README.md 必须包含 Flat 版所有章节 **+** 以下 team lead 专属章节�
 - 已在成员表中注册
 - 当前项目组共有多少名成员、其中 flat / team 各多少
 - **若是 team lead**：提醒用户下一步可以用自然语言描述任务，lead 会主动建议调用 `/spawn-team`
+
+## 快速模式（只由 /quickstart 使用）
+
+/quickstart 不用技能工具调用本技能（本技能只允许用户直接调用），而是读本文件、照本节执行。用户直接输入 `/onboard` 时，不走本节。
+
+**/quickstart 交过来的答案**：
+- slug（只含小写字母和数字，已按 /quickstart 的规则得出）；
+- 英文名 `<Slug> Lead`、中文名"项目主管"、一句话职责；
+- 未完成标记 `.quickstart_incomplete` 的全文。
+
+缺任何一项 → 不向用户补问，停下，退回 /quickstart，由它报告失败。
+
+**先做这一条检查**（本技能其余部分没有这条规则，只在快速模式下做）：`_agent_team_work_zone/<slug>_team/` 已存在时——
+- 里面**没有** `.quickstart_incomplete` → 停下，不覆盖任何文件，退回 /quickstart 报告"同名目录已存在"；
+- 里面**有** `.quickstart_incomplete` → 下面各步只补缺的文件，不重写已有的。
+
+**各步怎么做**：
+
+| 本技能的步骤 | 快速模式下 |
+|---|---|
+| `## Step 0: 确认工位模式（扁平 or Team Lead）` | 跳过，固定为 Team Lead |
+| `## Step 1: 阅读项目组总纲` | 照做 |
+| `## Step 2: 确定角色名` | 跳过向用户确认，用传入的名字。**目录名不按本步的"转小写下划线"规则得出**，直接用 `<slug>_team` |
+| `## Step 3: 创建工位目录和基础文件` 下的 `### Team Lead 工位分支` | **照做，不能跳过。** 本节"`<english_name>` 必须单 token"的警告在这里指 slug，照样检查。建好目录后**第一个**写 `.quickstart_incomplete`（内容用传入的全文），然后才写其他文件。`TEAMMATE_INFO.json` 的 `team_name` 写 `<slug>_team`，`lead_name` 写 `<Slug> Lead`。README 的团队负责人专属章节里，多写下面的"给成员换模型"一段 |
+| `## Step 3` 下的 `### 两种模式通用的工作笔记与任务跟踪` | **照做，不能跳过** |
+| `## Step 4: 在成员表中注册` | **照做，不能跳过**。按本步的格式写一行：中文名"项目主管"、英文名 `<Slug> Lead`、目录 `<slug>_team/`、模式 team、一句话职责；成员表里已有这个目录的行就不再加 |
+| `## Step 5: 读取相关通讯空间规则` | 照做 |
+| `## Step 6: 完成确认` | 跳过，不向用户汇报，回到 /quickstart，由它的结束消息汇报 |
+
+**"给成员换模型"一段**（写进 lead 工位 README 的团队负责人专属章节，原文照写，只把 `<slug>` 换成本团队的 slug）：
+
+````markdown
+### 给成员换模型
+
+用户说"把 <成员名> 换成 <模型>"（例如 opus），就视为已经确认，按下面五步做，不再问用户：
+
+1. 请该成员运行 /checkpoint，等它确认。
+2. 用 SendMessage 给它发关闭请求（`{"type": "shutdown_request"}`），等它同意。登记表里它的状态保持 `active`，不改成 `benched`。
+3. 把登记表里它的 `model` 改为目标模型（带校验的原子写入）：
+   ```bash
+   name="<成员名>"
+   model="opus"
+   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   info=_agent_team_work_zone/<slug>_team/TEAMMATE_INFO.json
+   tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
+     && jq --arg n "$name" --arg m "$model" --arg ts "$ts" '
+     .active_teammates |= map(if .name == $n then .model = $m else . end) | .updated_at = $ts
+   ' "$info" > "$tmp" \
+     && jq empty "$tmp" \
+     && cp "$info" "$info.bak" \
+     && mv "$tmp" "$info" || rm -f "$tmp"
+   ```
+4. 运行 `/reactivate-team <成员名>`，它按登记表里的新模型派生。它的步骤里会问"确认开始 reactivate 吗？"——用户已经提出换模型，按已确认继续，不再问用户一次。
+5. 核对回执里的模型 ID（应含新模型名，例如 opus）。预期会出现一行"模型不一致……README 写的是 sonnet"：/reactivate-team 会把回执与成员 README 的模型行比对，而 README 是成员自己的文件，lead 不改。这一行是预期内的，不是错误；请该成员在下次 checkpoint 时自己把 README 的模型行改成新模型。
+````
 
 ## 注意事项
 

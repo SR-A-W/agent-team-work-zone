@@ -145,7 +145,7 @@ bash _agent_team_work_zone/install.sh
 
 ### 3. What the installer sets up
 
-The installer puts the skills and agent definitions into `.claude/` and enables the required Claude Code settings. On first install it also checks git: if the project is not in a git repository, or is inside one but not at its root, it tells you; at the root of a repository it asks whether to track `_agent_team_work_zone/` in git (default yes, recommended). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`; delete that line later if you change your mind. It also offers two optional `CLAUDE.md` sections, a message format for messages to you and a plain-vocabulary rule; both are added by default. All questions are menus (arrow keys and Enter); without a terminal nothing is asked.
+The installer puts the skills and agent definitions into `.claude/` and enables the required Claude Code settings. On first install it also checks git: if the project is not in a git repository, or is inside one but not at its root, it tells you; at the root of a repository it asks whether to track `_agent_team_work_zone/` in git (default yes, recommended). Answering no adds `/_agent_team_work_zone/` to the project's `.gitignore`; delete that line later if you change your mind. It also offers two optional `CLAUDE.md` sections, a message format for messages to you and a plain-vocabulary rule; both are added by default. All questions are menus (arrow keys and Enter); without a terminal nothing is asked. Pressing Enter all the way through takes the default for each question, which includes writing auto permission mode into your global settings `~/.claude/settings.json` (this affects every project on this machine); to avoid that, choose "skip" for that question.
 
 #### Track `_agent_team_work_zone/` in git (strongly recommended)
 
@@ -163,27 +163,36 @@ git commit -m "Track the agent team work zone"
 > [!CAUTION]
 > Workstations can contain sensitive material (paths, hostnames, excerpts of data or conversations). For a public repository, review or scrub before pushing, or keep the work zone in a private repository.
 
-### 4. Start an agent and onboard it
+### 4. Start Claude Code and build your team
 
-Enter Claude Code right in your project directory:
+**Always start Claude Code in the project root** (the directory that directly contains `_agent_team_work_zone/`):
 
 ```bash
+cd /path/to/your/project
 claude
 ```
 
-Then onboard the agent:
+> The first time you start in this directory, Claude Code asks whether you trust this folder. The highlighted default is **"No, exit"**, so pressing Enter all the way through exits Claude Code. Choose **"Yes, I trust this folder"**.
+
+Then type `/quickstart`, optionally followed by a one-sentence task description:
+
+```
+/quickstart help me reproduce the experiments in this github repo
+```
+
+It asks you no questions: it looks at the project, chooses the team, creates the lead and the teammates, and waits until they are all ready. Then it tells you who is on the team, how to use it, and proposes a small first task that takes about 20 minutes. The teammates wait for your go-ahead; nothing starts on its own.
+
+#### Once you are familiar: choose the roles and team yourself
 
 ```
 /onboard help me reproduce the experiments in this github repo
 ```
 
-> The text after `/onboard` is a description of **what your project is about** — the above is just an example; write it to match your real goal. The skill first asks whether to make a flat workstation or a team lead, then creates the right structure automatically. **For projects with real complexity, choose / let it form a team at this step.**
+> The text after `/onboard` is a description of **what your project is about**. The skill first asks whether to make a flat workstation or a team lead, then creates the right structure; tell the team lead "form a team to do X" and it invokes `/spawn-team`.
 
 ### 5. Let the team work (checkpoints are automatic)
 
-Usually the team lead forms the team during `/onboard`, per your decision. Just tell it to get going — the lead decomposes the task, proposes teammates, saves a recipe, and spawns the workers.
-
-> **Rare case**: if `/onboard` didn't create a team, just tell the team lead "form a team to do X" and it'll invoke `/spawn-team` (you can call it yourself too, but you usually don't need to).
+Reply **run** or **don't run** to the proposed first task, or just tell the lead what you want done. The lead decomposes the work, gives it to the right teammates, and brings the results back to you.
 
 > **Tip**: in agent team mode, run Claude Code in **"auto mode"** (auto-approve) — teammates trigger a lot of per-action permission prompts, and auto mode spares you from approving them one by one. The installer offers to set this as the default (`permissions.defaultMode:"auto"`, recommended); you can also toggle it anytime with `Shift+Tab`.
 
@@ -247,7 +256,8 @@ It asks the install questions again on the version you already have; it does not
 |---|---|
 | `/reactivate-team` | Restore the whole team from checkpoints after a resume |
 | `/check-inbox` | Process meeting room / roundtable messages for this agent |
-| `/onboard` | Create a flat or team-lead workstation for a new agent |
+| `/quickstart` | Build a first team in one command: looks at the project, chooses the team, spawns it, and proposes a first task (recommended for first-time use) |
+| `/onboard` | Create a flat or team-lead workstation for a new agent, choosing the roles yourself (once you are familiar) |
 | `/sync` | Recover role context after compaction and check inboxes |
 | `/handoff` | Transfer task context from one agent to another |
 | `/promote-to-team` | Upgrade a flat workstation to team lead |

@@ -8,7 +8,7 @@ description: >
   immediately with no additional confirmation. The agent can invoke autonomously; if
   currently a flat workstation, it will first guide through /promote-to-team.
 disable-model-invocation: false
-allowed-tools: Read Write Edit Glob Grep Agent
+allowed-tools: Read Write Edit Glob Grep Bash Agent
 mode: interactive
 ---
 
@@ -19,6 +19,8 @@ This skill helps a **team lead** decompose a complex task into a team lineup, th
 > ⚠️ **Teammate vs subagent**: when calling the Agent tool, you **must pass the `name` parameter** to create a real teammate (one that joins the current session-level team and can exchange messages); without `name` you only get a regular subagent. `name` **must be of the form `<slug>-<role>` and globally unique** (see the Phase 3 naming convention).
 >
 > **About `team_name` (CC ≥2.1.178)**: **do not pass `team_name` anymore** — that parameter is now ignored. Each session auto-creates a unique session-level team at startup, and `Agent(name=…)` auto-joins the teammate into it; the teammate is auto-cleaned on exit.
+
+> **Quick mode**: when the arguments start with `--quick`, /quickstart is calling this skill. First read "## Quick mode (used only by /quickstart)" near the end of this file and follow that section.
 
 > **`mode` field**: currently only `interactive` is supported. A future `autonomous` mode will work with `/loop` for end-to-end automation, driven by a higher-capability model.
 
@@ -75,7 +77,7 @@ Consult the following resources:
 - **Role archetypes** (`resources/role_archetypes/`): coding (3) + config (2) + infra (2) + analysis (2)
 - **This team's existing custom teammates** (`<SELF>_team/teammates/*.md`): Tier 2 archive
 
-Based on Phase 2 decomposition, **assemble a 3–5 person team** (**max 5**—more causes coordination cost to explode; if more than 5 are needed, explain why).
+Based on Phase 2 decomposition, **assemble a 3–5 person team** (at least 2 in quick mode; **max 5**—more causes coordination cost to explode; if more than 5 are needed, explain why).
 
 For each teammate output:
 - **Role name** (`name`, **must be of the form `<slug>-<role>`, globally unique**):
@@ -174,7 +176,7 @@ Plan-mode gating: <yes/no; if yes, explain approval criteria>
 ## Collaboration
 - Important milestones, completion notices, blockers → write to <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/
   frontmatter must include a kind field (TASK / DONE / ERR)
-- Need to reach another teammate or the lead → use Claude Code's built-in mailbox (SendMessage)
+- Need to reach another teammate or the lead → use Claude Code's built-in mailbox (SendMessage); to message the lead, address it to `team-lead`
 
 ## Workstation & persistence (Rule 13)
 Your workstation: <project_root>/_agent_team_work_zone/<SELF>_team/teammates/<nickname>/
@@ -194,14 +196,15 @@ of your own README (you may only edit your own file).
 Rule changes: if <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md exists, read it; record every rule whose id is not yet in the "## Team rule changes" section of your README (create that section directly above the <!-- TEAMMATE_RULES:START --> line; if your README has no such line, put the section at the end of your README; never inside or below that block), and end your receipt line with " ACK <id>, <id>…" (or " Rules: up to date").
 
 ## Ready receipt
-When the above is done, use the SendMessage tool to send the lead exactly one line:
+When the above is done, use the SendMessage tool to send the lead (address it to `team-lead`) exactly one line:
 "Ready. Model: <model name>, ID: <model ID>"
 Quote the model name and ID exactly as your system prompt states them; if it does not state
 them, write "Model: not stated" — do not guess. If you made a rules backup above, append
 " Rules healed; old section backed up to <backup file>." to that same line.
-Read every file to the end with the Read tool; if a notice says only part of a file was
-shown, keep reading from the offset it gives. If you could not read a file to the end,
-append " Unread: <file>" to that same line.
+Read files to the end with the Read tool; if a notice says only part of a file was
+shown, keep reading from the offset it gives. Append " Unread: <file>" to that same line
+only for a file you really could not read to the end. The skeleton files in your
+workstation are small: just read them, and do not report them as Unread.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 ```
 
@@ -296,7 +299,7 @@ mode: interactive
 
 ### 6e. Spawn each teammate via the Agent tool
 
-Phase 5 user confirmation is the final authorization — **do not ask again**; start spawning immediately.
+Phase 5 user confirmation is the final authorization — **do not ask again**; start spawning immediately. (Quick mode has no Phase 5: the user typing /quickstart is the authorization.)
 
 Call the Agent tool for each teammate:
 
@@ -363,6 +366,41 @@ Agent(
 - Don't want panes split → use `in-process` (works in any terminal, no loss of functionality). **Don't hand-edit settings.json** — re-run `bootstrap.sh`'s "display mode selection" menu (it writes to the **global** `~/.claude/settings.json`). See the tmux section of `docs/user_manual.md`.
 
 ---
+
+## Quick mode (used only by /quickstart)
+
+/quickstart calls this skill with the skill tool; the arguments start with `--quick`, followed by the answers in a fixed format:
+
+```
+--quick
+team: <slug>_team
+project_root: <absolute path of the project root>
+goal: <task description, or none>
+basis: <project summary; project type, strength, facts>
+lineup:
+- name: <slug>-<role> | source: <inline | archetype:<archetype path> | subagent:<subagent name>> | model: sonnet | role: <one-sentence role> | scope: <scope> | forbidden: <forbidden areas>
+- …
+```
+
+Any item missing → do not ask the user; stop and return to /quickstart, which reports the failure. In quick mode, ask the user nothing and output no interim reports.
+
+**How each step runs**:
+
+| Step in this skill | In quick mode |
+|---|---|
+| `## Identity precheck` | Do it. `### Currently a flat workstation` under it should not be reached in quick mode; if it is, stop and return to /quickstart |
+| `## Phase 1: Task context collection` | Skip the follow-up questions; use the `goal` passed in |
+| `## Phase 2: Task decomposition` | With no task, write only "awaiting assignment"; with a task, do it without showing it to the user |
+| `## Phase 3: Lineup proposal` | Use the `lineup` passed in; still check the naming rules; at least 2 members; `plan_mode_gating` is always false |
+| `## Phase 4: Adversarial check (optional but recommended)` | Skip |
+| `## Phase 5: Display lineup to user + collect feedback` | Skip |
+| `### 6a. Prepare a spawn prompt for each teammate` | **Do it; do not skip.** Use the `project_root` passed in for `<project_root>`; the goal in "Current task" is "None yet. After sending your ready receipt, wait for the lead to assign work; do not start any work on your own." |
+| `### 6b. Initialize each teammate's workstation skeleton` | **Do it; do not skip** |
+| `### 6c. Write / update TEAMMATE_INFO.json` | **Do it; do not skip.** Write `role_source` from `source`: inline → `{"type": "inline", "inline_description": "<one-sentence role>"}`; archetype → `{"type": "archetype", "path": "<archetype path>"}`; subagent → `{"type": "subagent", "subagent_name": "<name>"}` |
+| `### 6d. Save team recipe audit record` | **Do it; do not skip**; add a section "## /quickstart inference basis" with the `basis` passed in |
+| `### 6e. Spawn each teammate via the Agent tool` | Authorization: the user typing /quickstart is the authorization. Spawn all teammates in parallel in one message. The receipt handling after that (model check, `Unread:`, rules backup, no receipt after about 10 minutes) and the final confirmation checklist are **not done here**: once the spawns are sent, return to /quickstart, which waits for the receipts, handles these, and tells the user in its closing message |
+
+When you change the step headings of this skill, also check that this section, /quickstart, and /onboard's quick mode section still match them.
 
 ## Notes
 

@@ -6,25 +6,32 @@
 
 ## v1.2.0 (2026-10-24)
 
-MINOR（向后兼容）：**`reconfigure` 有了短名 `config`；"平实用语"段落带上一份起始的禁用词名单；读工位文件和处理承诺的规则更清楚；安装脚本修复**。
+MINOR（向后兼容）：**新技能 `/quickstart` 一条命令建好第一支团队；`reconfigure` 有了短名 `config`；"平实用语"段落带上一份起始的禁用词名单；读工位文件和处理承诺的规则更清楚；安装脚本修复**。
 
 ### 新增
 - **`config`**：`npx agent-team-work-zone config [项目目录]`（或 `atwz config`）是 `reconfigure` 的短名，效果相同。`reconfigure` 仍然可用。源码安装的选项 `bootstrap.sh --reconfigure` 不变。`help` 文字、npm 页面的 README、用户手册、升级指南、模板 README 和安装脚本的提示都改写成 `config`。如果看到 `Unknown command: config`，说明你的 `atwz` 或 npx 缓存的版本较旧：先升级它（`npm i -g agent-team-work-zone@latest`），或改用 `npx agent-team-work-zone@latest config`，或照旧用 `reconfigure`。
+- **`/quickstart`**：推荐给第一次使用的人的入口。在项目根目录启动 Claude Code，输入 `/quickstart`，后面可以接一句任务描述。它不提问：看一遍项目，定下至少两人的阵容（成员默认用 sonnet 模型），把团队建好。
+- **`/quickstart` 的结束消息**：开头是项目简介和推断的意图，然后是成员表和各自负责什么、怎么和团队配合，以及一个建议的第一个小任务（你说跑才跑）。说明远程控制之前，先判断你的登录方式：远程控制只支持 claude.ai 账号登录，其他登录方式会用一句话说明用不了。
+- **`/quickstart` 中途中断后，再输一次会接着做**，同一会话里也一样。它不会覆盖已有的团队；遇到已有团队时，指引你用 `/reactivate-team` 或 `/onboard`。
+- **`/onboard` 和 `/spawn-team` 新增快速模式**，只由 `/quickstart` 使用：跳过逐项确认，直接用 `/quickstart` 传进来的答案。这个模式下 `/spawn-team` 允许两人团队。
 - **可选的"平实用语" `CLAUDE.md` 段落现在带一份起始禁用词名单**：整个说法禁用的自造词组，以及只禁某种用法的普通词，每条写明该怎么写。已经有这一段的项目，升级和运行 `config` 都不会更新名单；新条目请从 `_agent_team_work_zone/resources/claude_md_optional/plain_vocabulary.md` 手动复制。
 
 ### 变更
-- **成员把自己的工位文件读到结尾**（派生、唤回、加人时都一样）：只读到一部分时，按提示给出的位置接着读；没读完的文件在回执里写 `Unread: <文件>`，lead 让它读完再派活。
+- **成员把自己的工位文件读到结尾**（派生、唤回、加人时都一样）：只读到一部分时，按提示给出的位置接着读；没读完的文件在回执里写 `Unread: <文件>`，lead 让它读完再派活。派生提示现在写明 lead 的地址（`team-lead`），新成员不再把自己的小骨架文件报成没读完。
 - **承诺分三种状态：进行中、已兑现、作废。** 作废由成员提出、lead 裁定，条目保留。超过 14 天的进行中条目、没写日期的条目和旧的自由格式条目，会在唤回回执里报出数量；`/evaluate-team` 会列出过期的承诺。
 - **成员守则**：空闲通知里可能带着这一回合的总结，但 lead 不据它行事，所以 lead 需要知道的事（包括问题）都要写进 SendMessage 报告。派生或唤回后 checkpoint 提醒暂停 15 分钟，这一点现在写进了文档。
 - **`meeting_room/README.md`**：新增"来自其他仓库的团队"的约定。
+- **文档（README 和用户手册）**：推荐第一次使用的人用 `/quickstart`，想自己定角色和阵容的人用 `/onboard`；一定要在项目根目录启动 Claude Code，不要在它的上一层或子目录里启动；第一次启动的信任对话框要选 "Yes, I trust this folder"（高亮的默认项 "No, exit" 会直接退出）；在终端里安装时一路按回车，会把自动权限模式写进你的全局设置；npm 命令写作 `config`。
+- **安装提示**：首次安装后，安装脚本的 "Next steps" 和 npm `init` 的提示写明：在项目根目录启动 Claude Code，第一次启动时选 "Yes, I trust this folder"，输入 `/quickstart`；想自己定角色的有经验的使用者用 `/onboard`。升级和 `config` 沿用原来的提示。
 - idle hook 的一条注释改写，去掉了内部团队名；代码不变。
 
 ### 修复
+- **`/spawn-team` 现在可以运行 Bash。** 写团队登记表（jq）和记录派生时间（date）都要用到它；以前缺了它，不是自动模式的会话会多弹权限确认。
 - 安装脚本里显示方式的说明写的是用 "Shift+Down" 切换成员。同进程显示时，应在输入框下方的成员列表里用上下方向键选中成员、按回车进入；说明已改正。
 - 首次安装时，`.claude/settings.json` 的权限是 600，共用这个项目的其他人读不了。现在是正常权限（默认 umask 下为 644）。
 
 ### Migration（v1.1.0 → v1.2.0）
-- `npx agent-team-work-zone@latest upgrade`，或 `bash _agent_team_work_zone/upgrade.sh`。没有用户数据迁移。工作守则有变化，所以各工位 README 里的守则块会被刷新，旧块备份在各自 README 旁边（`README.md.rules.bak.<时间>` / `README.md.teammate_rules.bak.<时间>`）。升级还会刷新 `meeting_room/README.md` 和顶层的 `upgrade.sh`。升级不改动你的 `CLAUDE.md`，所以新的起始禁用词名单不会加进你已有的那一段。升级后重启 Claude Code 会话，并对每个运行中的团队执行 `/reactivate-team`，让成员用上新的守则和 skill。
+- `npx agent-team-work-zone@latest upgrade`，或 `bash _agent_team_work_zone/upgrade.sh`。没有用户数据迁移。新技能 `/quickstart` 会和其他技能一起装进 `.claude/skills/`。工作守则有变化，所以各工位 README 里的守则块会被刷新，旧块备份在各自 README 旁边（`README.md.rules.bak.<时间>` / `README.md.teammate_rules.bak.<时间>`）。升级还会刷新 `meeting_room/README.md` 和顶层的 `upgrade.sh`。升级不改动你的 `CLAUDE.md`，所以新的起始禁用词名单不会加进你已有的那一段。升级后重启 Claude Code 会话，并对每个运行中的团队执行 `/reactivate-team`，让成员用上新的守则和 skill。
 
 ---
 

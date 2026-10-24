@@ -7,7 +7,7 @@ description: >
   用户确认后直接 spawn，不再额外确认。Agent 可自主调用；若当前是扁平工位，会先引导
   /promote-to-team。
 disable-model-invocation: false
-allowed-tools: Read Write Edit Glob Grep Agent
+allowed-tools: Read Write Edit Glob Grep Bash Agent
 mode: interactive
 ---
 
@@ -18,6 +18,8 @@ mode: interactive
 > ⚠️ **创建 teammate 与创建 subagent 的区别**：调用 Agent 工具时**必须传 `name` 参数**才能创建真正的 teammate（加入当前会话级 team、可互发消息）；缺 `name` 就只是普通 subagent。`name` **必须形如 `<slug>-<role>` 且全局唯一**（见 Phase 3 命名规范）。
 >
 > **关于 `team_name`（CC ≥2.1.178）**：**不要再传 `team_name`**——该参数已被忽略。每个 session 启动时自动创建唯一会话级 team，`Agent(name=…)` 自动把 teammate 并入它；teammate 退出时自动清理。
+
+> **快速模式**：参数以 `--quick` 开头时，是 /quickstart 在调用本技能。先读本文末尾的「## 快速模式（只由 /quickstart 使用）」，按那一节执行。
 
 > **mode 字段**：当前只支持 `interactive`。未来会加 `autonomous` 模式配合 `/loop` 实现端到端自动化，届时由更高阶模型驱动。
 
@@ -74,7 +76,7 @@ mode: interactive
 - **角色原型**（`resources/role_archetypes/`）：coding (3) + config (2) + infra (2) + analysis (2)
 - **本 team 已有的自定义 teammate**（`<SELF>_team/teammates/*.md`）：Tier 2 存档
 
-根据 Phase 2 的分解结果，**组成 3~5 人的 team**（**最多 5 人**——更多会导致协调成本暴涨；如果必须超过 5，明确说明理由）。
+根据 Phase 2 的分解结果，**组成 3~5 人的 team**（快速模式下下限为 2 人；**最多 5 人**——更多会导致协调成本暴涨；如果必须超过 5，明确说明理由）。
 
 对每个 teammate 输出：
 - **角色名**（`name`，**必须形如 `<slug>-<role>`、全局唯一**）：
@@ -173,7 +175,7 @@ Plan-mode gating：<是/否；若是，说明批准标准>
 ## 协作方式
 - 重要里程碑、完成通知、阻塞报告 → 写到 <project_root>/_agent_team_work_zone/<SELF>_team/roundtable/
   frontmatter 必须包含 kind 字段（TASK / DONE / ERR）
-- 需要联系其他 teammate 或 lead → 通过 Claude Code 内置 mailbox（SendMessage）
+- 需要联系其他 teammate 或 lead → 通过 Claude Code 内置 mailbox（SendMessage）；给 lead 发消息时收件人写 `team-lead`
 
 ## 工位与持久化（Rule 13）
 你的工位：<project_root>/_agent_team_work_zone/<SELF>_team/teammates/<昵称>/
@@ -191,12 +193,12 @@ README 里没有 <!-- TEAMMATE_RULES:START --> 区块，从该文件复制该区
 规则变更：若 <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.md 存在，读它；把 id 尚未出现在你 README「## Team rule changes」一节里的规则都记进去（该节建在 <!-- TEAMMATE_RULES:START --> 那一行正上方；若你的 README 里没有这一行，就把这一节放在 README 末尾；不要写在该块里面或下面），并在回执行末尾加上 " ACK <id>, <id>…"（或 " Rules: up to date"）。
 
 ## 就绪回执
-以上完成后，用 SendMessage 工具给 lead 发恰好一行：
+以上完成后，用 SendMessage 工具给 lead（收件人写 `team-lead`）发恰好一行：
 "Ready. Model: <model name>, ID: <model ID>"
 模型名和 ID 按你系统提示里的原文照抄；系统提示里没写，就写 "Model: not stated"——不要猜。
 若上面做了守则备份，在同一行末尾加上 " Rules healed; old section backed up to <备份文件>."
-每个文件都用 Read 工具读到结尾；看到只显示了文件一部分的提示，就按提示给的 offset 接着读。
-若有文件没能读完，在同一行末尾加上 " Unread: <文件>"。
+读文件时用 Read 工具读到结尾；看到只显示了文件一部分的提示，就按提示给的 offset 接着读。
+只有确实没能读完的文件，才在同一行末尾加上 " Unread: <文件>"。你工位里的骨架文件很小，读完即可，不要把它们报成 Unread。
 （普通回复到不了 lead——必须用 SendMessage。）
 ```
 
@@ -291,7 +293,7 @@ mode: interactive
 
 ### 6e. 用 Agent 工具逐一 spawn 每个 teammate
 
-Phase 5 的用户同意是最终授权——**不要再次询问**，直接开始 spawn。
+Phase 5 的用户同意是最终授权——**不要再次询问**，直接开始 spawn。（快速模式下没有 Phase 5：用户输入了 /quickstart，就是授权。）
 
 对每个 teammate 调用 Agent 工具：
 
@@ -358,6 +360,41 @@ Agent(
 - 不想被拆窗格 → 用 `in-process`（任何终端可用，功能不打折）。**别手改 settings.json**——重跑 `bootstrap.sh` 的"显示模式选择"菜单（它写**全局** `~/.claude/settings.json`）。详见 `docs/user_manual.md` 的 tmux 部分。
 
 ---
+
+## 快速模式（只由 /quickstart 使用）
+
+/quickstart 用技能工具调用本技能，参数以 `--quick` 开头，后面是固定格式的答案：
+
+```
+--quick
+team: <slug>_team
+project_root: <项目根目录的绝对路径>
+goal: <任务描述，或 none>
+basis: <项目简介；项目类型、强弱、依据>
+lineup:
+- name: <slug>-<角色> | source: <inline | archetype:<原型路径> | subagent:<子代理名>> | model: sonnet | role: <角色一句话> | scope: <范围> | forbidden: <禁区>
+- …
+```
+
+缺任何一项 → 不向用户补问，停下，退回 /quickstart，由它报告失败。快速模式下不向用户提问，也不输出中间汇报。
+
+**各步怎么做**：
+
+| 本技能的步骤 | 快速模式下 |
+|---|---|
+| `## 身份前置检查` | 照做。其下 `### 当前是扁平工位` 在快速模式下不应走到；万一走到，停下，退回 /quickstart |
+| `## Phase 1: 任务上下文收集` | 跳过补问，用传入的 `goal` |
+| `## Phase 2: 任务分解` | 没有任务时只写"待派活"；有任务时照做，不向用户展示 |
+| `## Phase 3: 阵容提案` | 用传入的 `lineup`；命名规则检查照做；人数下限为 2；`plan_mode_gating` 一律为 false |
+| `## Phase 4: 对抗性检查（可选但推荐）` | 跳过 |
+| `## Phase 5: 向用户展示阵容 + 收集反馈` | 跳过 |
+| `### 6a. 为每个 teammate 准备 spawn prompt` | **照做，不能跳过**。`<project_root>` 用传入的值；"当前任务"一栏的目标写"暂无。发完就绪回执后等待 lead 派活，不要自己开始任何工作。" |
+| `### 6b. 初始化每个 teammate 的工位骨架` | **照做，不能跳过** |
+| `### 6c. 写入 / 更新 TEAMMATE_INFO.json` | **照做，不能跳过**。`role_source` 按 `source` 写：inline → `{"type": "inline", "inline_description": "<角色一句话>"}`；原型 → `{"type": "archetype", "path": "<原型路径>"}`；子代理 → `{"type": "subagent", "subagent_name": "<名字>"}` |
+| `### 6d. 保存 team recipe 审计记录` | **照做，不能跳过**；多加一节"## /quickstart 推断依据"，写传入的 `basis` |
+| `### 6e. 用 Agent 工具逐一 spawn 每个 teammate` | 授权：用户输入了 /quickstart，就是授权。所有成员在一条消息里并行派生。之后的回执处理（模型核对、`Unread:`、守则备份、约 10 分钟无回执）和最后的确认清单都**不在这里做**：派生发出后回到 /quickstart，由它等回执、处理这些，并在结束消息里统一告诉用户 |
+
+改动本技能各步的标题时，要同时核对本节和 /quickstart、/onboard 的快速模式一节是否还对得上。
 
 ## 注意事项
 
