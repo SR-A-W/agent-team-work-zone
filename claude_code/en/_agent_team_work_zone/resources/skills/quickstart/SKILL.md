@@ -488,8 +488,8 @@ If you want each member to have its own window, you need to switch to split-pane
   1. Get tmux (Linux: `sudo apt install tmux`; macOS: `brew install tmux`), or use iTerm2 on macOS.
   2. Change the display mode to split panes: run `npx agent-team-work-zone config` and choose auto in the display mode menu (installed from source: run `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`). auto means: split panes when started inside tmux or iTerm2, otherwise still one window. This changes your global settings and affects every project on this machine.
   3. Exit Claude Code; if you use tmux, first run `tmux new -s <slug>` to enter tmux; then go to this project directory, start Claude Code, and type /reactivate-team to bring the team back.
-After switching, each member has its own pane; whether each can join Remote Control on its own has not been verified yet.]
-[Split-pane display: Each member has its own pane. Whether each can join Remote Control on its own has not been verified yet; until it is, to talk to a member from your phone, tell me and I will pass it on.]
+After switching, each member has its own pane; type `/remote-control <member name>` in a member's pane (for example `/remote-control <slug>-coder`) to have it join Remote Control too.]
+[Split-pane display: Each member has its own pane. To talk to a member directly from your phone, click into its pane and type `/remote-control <member name>` (for example `/remote-control <slug>-coder`); it joins Remote Control and appears under that name on claude.ai. If you would rather not turn them on one by one, tell me and I will pass your messages on.]
 
 ## Your decision
 
@@ -533,6 +533,6 @@ When reproducing someone else's repository, the "how to run it" part of the proj
 | A respawn comes back with a suffix | Returned name ≠ requested name | Shut the copy down, ignore its receipt, respawn under a new role name |
 | Every teammate fails | No receipt at all by the deadline | The closing message becomes a failure report; workstations are kept |
 | In-process display, or the display mode could not be confirmed | Step E4 | The Remote Control section says only the lead can join and gives the three steps to switch to split panes; when not confirmed, say it is an inference |
-| Split-pane display | Step E4 | The Remote Control section gives the lead's steps; whether members can join is stated as "not verified yet" |
+| Split-pane display | Step E4 | The Remote Control section gives the lead's steps and one sentence on how each member joins on its own |
 | Woken again after the closing message | Late receipt, idle notice, timer | Record only; no text |
 | The user writes while you wait | A user message arrives while waiting for receipts | Answer the user first; receipt handling continues |

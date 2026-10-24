@@ -4,6 +4,18 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v1.2.1 (2026-10-24)
+
+PATCH (backward compatible): **the `/quickstart` closing message explains how split-pane members join Remote Control**.
+
+### Fixed
+- The `/quickstart` closing message now tells you how each split-pane member joins Remote Control (type `/remote-control <member name>` in its pane) instead of saying it had not been verified.
+
+### Migration (v1.2.0 → v1.2.1)
+- `npx agent-team-work-zone@latest upgrade`, or `bash _agent_team_work_zone/upgrade.sh`. No user data is migrated and the work rules did not change, so no `.bak` files are created. Restart your Claude Code sessions afterwards so that they load the updated `/quickstart`.
+
+---
+
 ## v1.2.0 (2026-10-24)
 
 MINOR (backward compatible): **a new `/quickstart` skill that builds a first team in one command, a short name `config` for `reconfigure`, a starter list of rejected words in the plain-vocabulary section, clearer rules for reading workstation files and keeping commitments, and installer fixes**.

@@ -485,8 +485,8 @@ printenv ANTHROPIC_BASE_URL
   1. 准备 tmux（Linux：`sudo apt install tmux`；macOS：`brew install tmux`），或在 macOS 上使用 iTerm2。
   2. 把显示方式改为分窗格：运行 `npx agent-team-work-zone config`，在显示方式菜单里选 auto（从源码安装的，运行 `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`）。auto 的意思是：在 tmux 或 iTerm2 里启动时用分窗格，否则仍是单窗口。这会改你的全局设置，影响本机所有项目。
   3. 退出 Claude Code；用 tmux 的，先运行 `tmux new -s <slug>` 进入 tmux；再进入这个项目目录启动 Claude Code，输入 /reactivate-team 把团队唤回来。
-切过去以后，成员各有自己的窗格；它们能不能各自接入远程控制，还没有验证。]
-[分窗格显示时：成员各有自己的窗格。它们能不能各自接入远程控制，还没有验证；在验证之前，想在手机上和成员说话，跟我说，我来转达。]
+切过去以后，成员各有自己的窗格，到成员的窗格里输入 `/remote-control <成员名>`（例如 `/remote-control <slug>-coder`）就能让它也接入远程控制。]
+[分窗格显示时：成员各有自己的窗格。想在手机上直接和某个成员说话，点进它的窗格，输入 `/remote-control <成员名>`（例如 `/remote-control <slug>-coder`），它就会接入远程控制，在 claude.ai 上以这个名字出现；不想一个个开的话，跟我说，我来转达。]
 
 ## 需要你决定
 
@@ -530,6 +530,6 @@ printenv ANTHROPIC_BASE_URL
 | 重派回来带后缀 | 返回的名字 ≠ 请求的名字 | 关掉副本、忽略它的回执，换新角色名重派 |
 | 全部成员失败 | 截止时一个回执都没有 | 结束消息改为失败报告；工位保留 |
 | 同进程显示，或没能确认显示方式 | Step E4 | 远程控制一段写"只有 lead 能接入"，并给出切到分窗格显示的三步；没能确认时说明是推断 |
-| 分窗格显示 | Step E4 | 远程控制一段写 lead 的步骤；成员能否接入照实写"还没有验证" |
+| 分窗格显示 | Step E4 | 远程控制一段写 lead 的步骤和成员各自接入的一句 |
 | 结束消息后又被唤醒 | 迟到的回执、空闲通知、计时 | 只记录，不出文字 |
 | 用户中途插话 | 等回执期间用户发来消息 | 先回答用户，回执处理照常继续 |

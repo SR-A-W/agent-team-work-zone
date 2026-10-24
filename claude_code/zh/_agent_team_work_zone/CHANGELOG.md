@@ -4,6 +4,18 @@
 
 ---
 
+## v1.2.1 (2026-10-24)
+
+PATCH（向后兼容）：**`/quickstart` 的结束消息说明分窗格的成员怎样接入远程控制**。
+
+### 修复
+- `/quickstart` 的结束消息现在直接说明成员怎样各自接入远程控制（到它的窗格里输入 `/remote-control <成员名>`），不再写"还没有验证"。
+
+### Migration（v1.2.0 → v1.2.1）
+- `npx agent-team-work-zone@latest upgrade`，或 `bash _agent_team_work_zone/upgrade.sh`。没有用户数据迁移，工作守则也没有变化，因此不会产生 `.bak` 文件。升级后重启 Claude Code 会话，让它们加载更新后的 `/quickstart`。
+
+---
+
 ## v1.2.0 (2026-10-24)
 
 MINOR（向后兼容）：**新技能 `/quickstart` 一条命令建好第一支团队；`reconfigure` 有了短名 `config`；"平实用语"段落带上一份起始的禁用词名单；读工位文件和处理承诺的规则更清楚；安装脚本修复**。
