@@ -23,7 +23,7 @@
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure
 #       (on an existing install: ask the install-time questions again; nothing under
-#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone reconfigure` runs)
+#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone config` runs)
 #
 # 开发环境（在 agent-team-work-zone 仓库内 dogfood）:
 #   cd /path/to/agent-team-work-zone
@@ -47,7 +47,7 @@ case "${1:-}" in
     *) echo "未知参数：$1（唯一可用的参数是 --reconfigure）" >&2; exit 2 ;;
 esac
 # How to ask the install-time questions again later (printed where a question is skipped).
-RESETUP_CMD="npx agent-team-work-zone reconfigure（源码安装：bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure）"
+RESETUP_CMD="npx agent-team-work-zone config（源码安装：bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure）"
 
 echo "=================================================="
 echo "  _agent_team_work_zone bootstrap"
@@ -295,7 +295,8 @@ EOF
         sed "s|{{TEMPLATE_REL}}|${TEMPLATE_ROOT#$PROJECT_ROOT/}|g" "$HOOKS_TEMPLATE" > "$RESOLVED"
         TMP="$(mktemp)"
         jq -s '.[0] * .[1]' "$SETTINGS_JSON" "$RESOLVED" >"$TMP"
-        mv "$TMP" "$SETTINGS_JSON"
+        # cat > (not mv): keep the mode the file was created with (umask), not mktemp's 600.
+        cat "$TMP" > "$SETTINGS_JSON"; rm -f "$TMP"
         rm -f "$RESOLVED"
         echo "  ✓ merged teammate-persistence hooks into $SETTINGS_JSON"
     elif [ ! "$HAS_JQ" -eq 1 ]; then
@@ -419,7 +420,7 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     elif [ "$RUN_KIND" = rerun ]; then
         echo "  ↻ 可选 CLAUDE.md 段落：只在首次安装时询问。要加入请运行：$RESETUP_CMD"
     elif [ "$RUN_KIND" = reconfigure ] && [ ! -t 0 ]; then
-        echo "  ↻ 可选 CLAUDE.md 段落：未处理（没有终端）。在终端里运行 reconfigure 可加入。"
+        echo "  ↻ 可选 CLAUDE.md 段落：未处理（没有终端）。要加入，请在终端里运行：$RESETUP_CMD"
     else
         for id in user_message_format plain_vocabulary; do
             snippet="$OPTIONAL_DIR/$id.md"
@@ -518,7 +519,7 @@ else
     # teammateMode 为用户级设置，只在全局 ~/.claude/settings.json 生效。
     echo "--- 显示模式选择（可选）---"
     echo ""
-    echo "CC v2.1.179+ 默认显示模式为 in-process（单终端，Shift+Down 切换 teammate）。"
+    echo "CC v2.1.179+ 默认显示模式为 in-process（单终端；要和某个成员说话，在输入框下方的成员列表里用上下方向键选中它，按回车进入）。"
     echo "在 tmux 内运行时，选 auto 可开启分面板（每个 teammate 独立面板）。"
     print_warn "写入全局 ~/.claude/settings.json（影响你所有项目）。"
     echo ""
@@ -527,7 +528,7 @@ else
         DISPLAY_MODE_IDX=$(choose_option 2 \
             "显示模式 (↑↓ 切换，回车确认，数字键快选):" \
             "auto       — tmux/iTerm2 分面板，否则单终端（在 tmux 里推荐）" \
-            "in-process — 始终单终端，Shift+Down 切换（任何终端可用）" \
+            "in-process — 始终单终端，在输入框下方的成员列表里用上下方向键选中成员、按回车进入（任何终端可用）" \
             "不修改     — 保留现状")
         GLOBAL_SETTINGS="$HOME/.claude/settings.json"
         mkdir -p "$HOME/.claude"
@@ -622,14 +623,23 @@ echo "  Bootstrap complete"
 echo "=================================================="
 echo ""
 echo "Next steps:"
-echo "  1. Start a new Claude Code session:"
-echo "       claude -n \"Architect\""
-echo "  2. Run /onboard to create your workstation (agent will ask if you want"
-echo "     a flat workstation or a team lead)"
-echo "  3. For existing sessions, run /sync to pick up new skills"
+if [ "$RUN_KIND" = first ]; then
+    # First install: point first-time users at /quickstart; /onboard is for choosing roles yourself.
+    echo "  1. 在项目根目录（直接包含 _agent_team_work_zone/ 的目录）启动 Claude Code："
+    echo "       cd \"$PROJECT_ROOT\" && claude"
+    echo "     第一次启动时选 \"Yes, I trust this folder\"（默认高亮的 \"No, exit\" 会直接退出）。"
+    echo "  2. 第一次使用：输入 /quickstart（后面可以接一句任务描述），它会替你建好团队。"
+    echo "     想自己定角色和阵容的有经验的使用者：改用 /onboard。"
+else
+    echo "  1. Start a new Claude Code session:"
+    echo "       claude -n \"Architect\""
+    echo "  2. Run /onboard to create your workstation (agent will ask if you want"
+    echo "     a flat workstation or a team lead)"
+    echo "  3. For existing sessions, run /sync to pick up new skills"
+fi
 echo ""
 echo "Teammate 显示模式:"
-echo "  • CC v2.1.179+ 默认 in-process（单终端，Shift+Down 切换）。"
+echo "  • CC v2.1.179+ 默认 in-process（单终端；在输入框下方的成员列表里用上下方向键选中成员，按回车进入）。"
 echo "  • 以后要修改，请运行：$RESETUP_CMD"
 echo ""
 print_warn "Do not directly edit .claude/skills/ or .claude/agents/ —"

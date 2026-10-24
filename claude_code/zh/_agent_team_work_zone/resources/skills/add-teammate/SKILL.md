@@ -134,7 +134,9 @@ completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维
 
 就绪回执：准备好后，新 teammate 用 SendMessage 工具给 lead 发恰好一行：
 "Ready. Model: <model name>, ID: <model ID>"——模型名和 ID 按其系统提示原文照抄，
-系统提示里没写就写 "Model: not stated"（不要猜）。（普通回复到不了 lead。）
+系统提示里没写就写 "Model: not stated"（不要猜）。每个文件都用 Read 工具读到结尾（看到只显示了
+文件一部分的提示，就按提示给的 offset 接着读）；没能读完的文件，在回执末尾加 " Unread: <文件>"。
+（普通回复到不了 lead。）
 
 请 spawn 这个新 teammate 加入现有 team。
 ```

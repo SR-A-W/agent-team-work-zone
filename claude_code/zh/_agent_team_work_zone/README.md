@@ -30,7 +30,7 @@
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone reconfigure`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone config`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash
@@ -380,9 +380,11 @@ date: 2026-04-11 15:30
 - **自动提醒（v0.2.3 起对 in-process 也生效）**：你距上次落盘超过 15 分钟还想 idle 时，`TeammateIdle` hook 会用 `exit 2` 拦住你、把"先跑 /checkpoint"的提醒直接喂给你，逼你落盘后再 idle。这条路绕开了旧链路认不出 in-process 身份的死结，所以**对 in-process 和 tmux 模式都有效**
 - ⚠️ 但**别把自动提醒当唯一保险**：它最多每 15 分钟拦你一次，意外退出仍可能丢最多 ~15 分钟的活。checkpoint 仍是你的**主动义务**——重要进展做完就自觉写，别只等被拦
 - `working-context.md` 是你**对未来自己（下一次 spawn 的你）**的交接文档。写得不好 → 下次的你恢复不了状态
-- `commitments.md` 是你对别人的承诺。这里未完成的事，哪怕 `/checkpoint` 没写到 working-context，下一次的你也要看这个文件接手
+- `commitments.md` 是你对别人的承诺。这里未完成的事，哪怕 `/checkpoint` 没写到 working-context，下一次的你也要看这个文件接手。前提变了的承诺，请 lead 裁定作废，不要一直挂着；裁定后由你自己在 `commitments.md` 里把它标为作废、引用裁定原话，条目保留不删
 - **保持可达**：队友的消息只在你的回合结束后送达。要盯作业时，用 `/loop` 排定唤醒，然后结束回合；不要在回合里等（shell `until … sleep` 循环，或一长串检查调用）——长时间阻塞的调用和一串短检查都会挡住消息，只有结束回合才能让消息进来。只结束回合、不排定唤醒，作业就没人盯了；用不了 `/loop` 时，结束回合前给 lead 发一句简短状态，由 lead 再 ping 你继续
 - **派生/唤回时**：第一步先写 `teammates/<你的名字>/.started`（内容为当前时间），再读任何文件；回执（`Resumed…` / `Ready`）末尾加 `Model: <名称>, ID: <ID>`，照抄你系统提示里写的，没写就写 `Model: not stated`，不要猜
+- **工位文件读到结尾**：用 Read 工具读；看到只显示了文件一部分的提示，就按提示给的 offset 接着读到结尾。`working-context.md` 和 `commitments.md` 必须读到结尾（`working-context.md` 里 Part A 要全文读；最新的条目在文件末尾，中间较早的条目可以略读）；没能读完的，在回执里写 `Unread: <文件>`
+- **问题写进报告**：你进入 idle 时系统会自动通知 lead，这条通知可能附带你这一回合的总结，但 lead 不会据此行动。lead 需要知道的事都要写进你的 SendMessage 报告，包括遇到的问题：读取被截断、某一步没做成、某个文件没读完
 
 **如果你是 team lead**：
 
@@ -397,7 +399,7 @@ date: 2026-04-11 15:30
   - **派生/唤回后核对两样东西**：teammate 第一步写的 `teammates/<名字>/.started`，以及回执末尾的 `Model: <名称>, ID: <ID>`（用法见 `/spawn-team`、`/reactivate-team`）
 - **给正在干活的成员发更正，合并成一条完整消息**：成员在回合中收不到任何消息——你连发的几条更正会在它回合结束时一起到达，那时它已经按旧指示做完了。更正要自成一体，写明"以本条为准"，等到它的回执再发下一条
 - **临时下线（benched）与按需唤回**：在线 teammate 数量受 Claude Code 上限约束。某 teammate 阶段性用不上、或要腾在线名额时，用 `/bench-teammate` 把它临时下线（保留全量档案 + 工位，`status=benched`，**不**被无参 `/reactivate-team` 唤醒）。反过来，**在任何环节——尤其派活 / 开始某任务前——一旦你判断需要某个 benched 成员的专长，应当即向用户提议唤回**，经用户同意（或用户主动点名）后用 `/reactivate-team <name>` 单独唤回。状态表（active / idle / benched / offboarded）由你维护、**对用户是黑箱**——用户只在"提议—同意"层面参与，不接触状态字段、也不在任何清单里勾选
-- **危险操作前主动让 teammate checkpoint**：自动提醒（`TeammateIdle` + exit 2）只在 teammate **自己即将 idle** 且距上次落盘 > 15 分钟时才触发，且最多挡住 ~15 分钟的丢失窗口。所以重启/关机/长时间挂起前，仍由你 `SendMessage` 逐个让 active teammate 跑 `/checkpoint` 并确认落盘——把自动提醒当兜底、不当唯一保险
+- **危险操作前主动让 teammate checkpoint**：自动提醒（`TeammateIdle` + exit 2）只在 teammate **自己即将 idle** 且距上次落盘 > 15 分钟时才触发（刚派生或唤醒的成员，前 15 分钟也不会被提醒），且最多挡住 ~15 分钟的丢失窗口。所以重启/关机/长时间挂起前，仍由你 `SendMessage` 逐个让 active teammate 跑 `/checkpoint` 并确认落盘——把自动提醒当兜底、不当唯一保险
 - 不要修改任何 teammate 的工位文件（rule #1）。想让 teammate 做事 → `SendMessage`，不直接改文件
 
 **为什么这条必须存在**：Claude Code 的 agent-teams 特性 **不跨 session 持久化 teammate 状态**。lead 重启后 teammate session 全部消失，只有靠 teammate 自己的 `working-context.md` + lead 的 `TEAMMATE_INFO.json` + `/reactivate-team` 三件套才能让 team 恢复。

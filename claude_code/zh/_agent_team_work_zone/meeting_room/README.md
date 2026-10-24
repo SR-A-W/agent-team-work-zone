@@ -94,6 +94,14 @@ priority: HIGH
 
 各接收方接手任务后，将 `status` 改为 `IN_PROGRESS`（或在自己的 checklist 行加 "started: YYYY-MM-DD HH:MM" 注记），表示已认领。完成自己那部分后勾选对应行并追加时间戳 + 摘要。最后完成的那方将 `status` 改为 `RESOLVED`。Issuer 在下次 `/check-inbox` 时看到 `status: RESOLVED` 或 checklist 全勾，即执行归档。
 
+## 来自其他仓库的团队
+
+在别的仓库里工作的团队也可以使用这个会议室。约定如下：
+- 文件名：`<团队名>_<类型>_<YYYYMMDD>_<HHMM>_<简述>.md`，类型前缀与上文相同。
+- frontmatter 的 `from:` 写外部团队的名字。
+- 归档仍归发布方：外部团队自己把 RESOLVED 的文件移到 `../archive/`。
+- 外部团队只写 `meeting_room/`，不碰这个 work zone 里的任何其他东西。
+
 ## 注意事项
 
 - 报告必须自包含：读者不需要去翻日志或读其他文件就能理解

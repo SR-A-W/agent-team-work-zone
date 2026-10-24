@@ -4,6 +4,29 @@ All notable changes are recorded in this file. Format follows [Keep a Changelog]
 
 ---
 
+## v1.2.0 (2026-10-24)
+
+MINOR (backward compatible): **a short name `config` for `reconfigure`, a starter list of rejected words in the plain-vocabulary section, clearer rules for reading workstation files and keeping commitments, and installer fixes**.
+
+### Added
+- **`config`**: `npx agent-team-work-zone config [project-dir]` (or `atwz config`) is a short name for `reconfigure` and does the same thing. `reconfigure` still works. The source-install option `bootstrap.sh --reconfigure` is unchanged. The `help` text, the npm README, the user manual, the upgrade guide, the template README and the installer's hints now show `config`. If you see `Unknown command: config`, your `atwz` or the version cached by npx is older: upgrade it (`npm i -g agent-team-work-zone@latest`), run `npx agent-team-work-zone@latest config`, or keep using `reconfigure`.
+- **The optional "Plain vocabulary" `CLAUDE.md` section ships with a starter list of rejected words**: coined phrases banned outright, and ordinary words banned only in one stated use, each with what to write instead. A project that already has this section keeps its list unchanged on upgrade and on `config`; copy the new entries from `_agent_team_work_zone/resources/claude_md_optional/plain_vocabulary.md` by hand.
+
+### Changed
+- **Members read their workstation files to the end** when spawned, reactivated or added: after a partial read they continue from the offset given, and a file they could not finish is reported in the receipt as `Unread: <file>`; the lead has it finished before assigning work.
+- **Commitments have three states: open, done and void.** A teammate proposes voiding and the lead rules on it; the entry is kept. Open entries older than 14 days, undated ones and old free-form ones are counted in the reactivation receipt, and `/evaluate-team` lists overdue commitments.
+- **Teammate rules**: the idle notification may carry a summary of the turn, but the lead does not act on it, so everything the lead needs, problems included, goes in the SendMessage report. The 15-minute pause in checkpoint reminders after a spawn or reactivation is now written down.
+- **`meeting_room/README.md`**: conventions for a team that works from another repository.
+
+### Fixed
+- The installer's display-mode text said "Shift+Down" switches teammates. In in-process mode you select a teammate in the list below the input box with the up/down arrow keys and press Enter; the text now says so.
+- On a first install, `.claude/settings.json` was created with mode 600, so others sharing the project could not read it. It now gets the normal mode (644 under the default umask).
+
+### Migration (v1.1.0 → v1.2.0)
+- `npx agent-team-work-zone@latest upgrade`, or `bash _agent_team_work_zone/upgrade.sh`. No user data is migrated. The work rules changed, so the rules blocks in workstation READMEs are refreshed and each old block is backed up next to its README (`README.md.rules.bak.<time>` / `README.md.teammate_rules.bak.<time>`). The upgrade also refreshes `meeting_room/README.md` and the top-level `upgrade.sh`. It does not touch your `CLAUDE.md`, so the new starter list of rejected words is not added to a section you already have. Restart your Claude Code sessions afterwards and run `/reactivate-team` for each running team, so that teammates use the new rules and skills.
+
+---
+
 ## v1.1.0 (2026-10-04)
 
 MINOR (backward compatible): **a `reconfigure` command, arrow-key menus for every question, clearer warnings, and recommended `CLAUDE.md` sections added by default**.

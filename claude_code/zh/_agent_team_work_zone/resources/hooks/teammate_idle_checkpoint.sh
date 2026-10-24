@@ -87,7 +87,7 @@ fi
 #       （旧式无连字符名如 "Fixer"：派生 "Fixer_team" 多半不存在 → 落空到 T3，无害。）
 #   T3（旧名兜底）：glob 所有 *_team/ 收集含该 teammate 的工位。
 #       命中恰好 1 个 → 用之；命中 0 或 >1 个 → exit 0 不猜（修掉"跨 team 同名 teammate 被
-#       字母序 glob 首个命中误判"的老 bug：upgrader 的 reviewer idle 误读 architect 的 reviewer mtime）。
+#       字母序 glob 首个命中误判"的老 bug：一个团队的成员被误判成另一个团队的同名角色，读到了对方的 mtime）。
 team_name=$(echo "$payload" | jq -r '.team_name // empty' 2>/dev/null)
 teammate_ws=""
 # T1：payload team_name 精确命中（兼容旧版）

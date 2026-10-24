@@ -96,7 +96,7 @@ Bootstrap 会：
 把 `_agent_team_work_zone/` 和代码一起提交到项目的 git 仓库，不要把它加进 `.gitignore`。纳入 git 管理的，是 agent 最核心、最重要的工作记忆：角色定义、checkpoint、工作日志、讨论记录和团队登记表。运行期的临时文件由 work zone 自带的 `.gitignore` 排除。
 
 - **agent 的工作记忆和日志也得到版本管理。** checkpoint、工作日志、讨论记录和决策，正逐渐成为项目开发记录的重要组成部分。用 git 跟踪它们，尤其是推送到 GitHub 之后，就等于用 git 管理了 agent 们的项目记忆：一方面记忆有了备份，丢失的风险大大降低；另一方面记忆可以回溯——当 agent 或项目走偏时，可以退回到之前的状态。
-- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone reconfigure`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
+- **方便迁移到新机器。** 在另一台机器上 clone 项目，先在那里的项目目录下运行一次 `npx agent-team-work-zone config`（从源码安装的：`bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`），它会安装 skills、hooks 并配置 Claude Code，并重新询问安装时的问题，包括每台机器各自设置的成员显示方式和 Auto 权限模式，再在项目目录下启动 Claude，用 `/reactivate-team` 就能拉起一支角色相同、状态相同的 agent 团队。
 - **多人协作。** 每位开发者可以在同一个项目里维护一支或多支 agent 团队；团队之间通过 work zone 了解彼此，并通过 `git push` / `git pull` 交流、互相留言（例如借助 `meeting_room/`）。
 
 ```bash
@@ -121,7 +121,7 @@ npx agent-team-work-zone@latest upgrade      # 或：npx agent-team-work-zone@la
 - 每次升级都会再合并一次 `.claude/settings.json`，规则与安装时相同：在 `SessionStart`、`TeammateIdle`、`SessionEnd` 上，框架的 hook 替换你原有的；你在这三个事件上有自己的 hook 时，会先把 `settings.json` 备份为 `.claude/settings.json.bak.<UTC 时间>`。
 - 升级到新的大版本时会要求你确认。没有终端时加 `--yes`（用 `upgrade.sh` 时设置 `ATWZ_ASSUME_YES=1`）。
 - 升级时如果识别不出你装的是英文版还是中文版，会弹出语言菜单；没有终端时要加 `--lang en` 或 `--lang zh`。
-- 升级不会再问安装时的那些问题：成员显示方式和 Auto 权限模式保持现有设置，也不会追加可选的 `CLAUDE.md` 段落。想改这些，运行 `reconfigure`（见下文「之后修改设置」）。
+- 升级不会再问安装时的那些问题：成员显示方式和 Auto 权限模式保持现有设置，也不会追加可选的 `CLAUDE.md` 段落。想改这些，运行 `config`（见下文「之后修改设置」）。
 - **每次升级之后，都要重启 Claude Code 会话，并对每个正在运行的团队执行 `/reactivate-team`。** 已经在运行的会话和成员，可能仍在用启动时加载的旧版 skill：我们实际遇到过，升级之后正在运行的成员仍照旧版 `/checkpoint` 的步骤执行，直到重新启动才改过来。
 
 #### 新版本提示
@@ -133,15 +133,17 @@ npx agent-team-work-zone@latest upgrade      # 或：npx agent-team-work-zone@la
 想在已有的安装上重新回答一遍安装时的问题——改掉之前的选择、把项目搬到另一台机器之后，或补上当初跳过的可选 `CLAUDE.md` 段落——在项目目录下运行：
 
 ```bash
-npx agent-team-work-zone reconfigure        # 或：atwz reconfigure
+npx agent-team-work-zone config        # 或：atwz config
 # 从源码安装的：bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure
 ```
 
+- 也可以写 `reconfigure`（`npx agent-team-work-zone reconfigure`），效果相同。
+- 如果看到 `Unknown command: config`，说明你装的命令（全局安装的 `atwz`，或 npx 缓存的版本）早于加入 `config` 的版本：先升级这个命令（`npm i -g agent-team-work-zone@latest`），或改用 `npx agent-team-work-zone@latest config`，或照旧用 `reconfigure`。
 - 它用的是你已经安装的版本（不升级、不下载、不重装），不改动 `_agent_team_work_zone/` 里的任何东西。
 - 它重新把框架的 skill、agent 和 hook 同步进 `.claude/`，合并 `.claude/settings.json`（备份规则与安装时相同），并补上 `CLAUDE.md` 里缺少的框架段落。
 - 它会重新询问：两个可选的 `CLAUDE.md` 段落（默认是；已有的那段会跳过）、是否用 git 跟踪、成员显示方式和 Auto 权限模式。重新选择"用 git 跟踪"不会删掉你之前加进 `.gitignore` 的那一行，它会告诉你怎么做。
 - 没有终端时不提问，这些选择都保持原样。
-- 已安装的版本太旧、还不支持这个命令时，`npx agent-team-work-zone reconfigure` 会提示你：先升级。
+- 已安装的版本太旧、还不支持这个命令时，`npx agent-team-work-zone config` 会提示你：先升级。
 - 源码方式的命令没有这项检查：已安装版本低于 v1.1.0 时，`bootstrap.sh --reconfigure` 会忽略这个选项，不提问，也不报错。请先升级（`bash _agent_team_work_zone/upgrade.sh`），再运行它。
 
 ### 2. 为每个角色启动对话
@@ -383,6 +385,10 @@ Team lead 在 `/spawn-team` 时参考的**模板**，不是 subagent 定义。9 
 - **devil-advocate** — 对抗性挑战（**opus**，旗舰模型，不 memory）
 - **git-repo-manager** — Git 管理（sonnet）
 
+### checkpoint 自动提醒
+
+teammate 即将进入 idle、而距上次 `/checkpoint` 已有 15 分钟或更久时，会被提醒先跑 `/checkpoint` 再 idle。刚派生或唤醒的成员，前 15 分钟不会被提醒（这是有意的：此时它的全部状态就是工位文件）；15 分钟后照常提醒。所以唤醒后要测试提醒，至少等 15 分钟。
+
 ### checkpoint 的 git 保存（可选）
 
 每次 `/checkpoint` 还可以把 teammate 的工位文件存进 git，这样 checkpoint 经得起 `git stash`、一次合并出错或误覆盖。它**默认关闭**，按项目开启。
@@ -442,12 +448,12 @@ cd /path/to/your/project && bash _agent_team_work_zone/resources/scripts/atwz_gi
 
 ### 可选的 CLAUDE.md 段落
 
-项目的 `CLAUDE.md` 可以加两个可选段落。首次安装时，`bootstrap.sh` 会用菜单逐个询问（默认是，强烈推荐）；没有终端时两段都加，并打印怎么去掉（从 `CLAUDE.md` 里删掉带 `<!-- ATWZ-OPTIONAL:<id> -->` 标记的那一段）。升级时从不追加、也不询问；`reconfigure` 在终端里会重新询问（默认是，已有的跳过），没有终端时什么也不加。安装、升级和 reconfigure 从不修改或删除 CLAUDE.md 中已有的内容；它们只追加：缺少框架段落时追加框架段落，可选段落只在上面说的几种情况下追加。
+项目的 `CLAUDE.md` 可以加两个可选段落。首次安装时，`bootstrap.sh` 会用菜单逐个询问（默认是，强烈推荐）；没有终端时两段都加，并打印怎么去掉（从 `CLAUDE.md` 里删掉带 `<!-- ATWZ-OPTIONAL:<id> -->` 标记的那一段）。升级时从不追加、也不询问；`config` 在终端里会重新询问（默认是，已有的跳过），没有终端时什么也不加。安装、升级和 reconfigure 从不修改或删除 CLAUDE.md 中已有的内容；它们只追加：缺少框架段落时追加框架段落，可选段落只在上面说的几种情况下追加。
 
 - **给用户的消息（格式）**（`resources/claude_md_optional/user_message_format.md`）：不要用消息轰炸你；由 teammate 汇报触发的消息以 **队内简报：** 开头；需要你了解或裁定的内容以单独一行的一级标题 `# To Be Read By User` 开头，下面紧跟一行加粗的状态（**需裁定** / **进展** / **更正** / **静默轮**）。英文版的对应标签是 `Team brief` 与 `Decision needed / Progress / Correction / Quiet round`（标题仍是 `# To Be Read By User`）。
-- **平实用语**（`resources/claude_md_optional/plain_vocabulary.md`）：用平实、严谨的词；不自造比喻性名词；少用简写。它的最后是一份**你否决过的词**，放在 `CLAUDE.md` 里面，所以始终会被加载。你每否决一个词，lead（或扁平工位）就把它加进这份清单；teammate 把要加的词发给自己的 lead。
+- **平实用语**（`resources/claude_md_optional/plain_vocabulary.md`）：用平实、严谨的词；不自造比喻性名词；少用简写。它的最后是一份**被否决的词**的名单，放在 `CLAUDE.md` 里面，所以始终会被加载。名单随框架带有一份起始内容，都是实际使用中被用户指出过的词。你每否决一个词，lead（或扁平工位）就加一条；teammate 把要加的词发给自己的 lead。不适用于你项目的可以删。已经有这一段的项目，升级和重新配置都不会改动里面的名单；想要新的起始内容，可以对照 `resources/claude_md_optional/plain_vocabulary.md` 自己抄进去。
 
-之后想加某一段，运行 `reconfigure`（见「之后修改设置」），或在项目目录下手动追加（若 `CLAUDE.md` 里已有它的 `<!-- ATWZ-OPTIONAL:… -->` 标记就跳过）：
+之后想加某一段，运行 `config`（见「之后修改设置」），或在项目目录下手动追加（若 `CLAUDE.md` 里已有它的 `<!-- ATWZ-OPTIONAL:… -->` 标记就跳过）：
 ```bash
 printf '\n' >> CLAUDE.md
 cat _agent_team_work_zone/resources/claude_md_optional/user_message_format.md >> CLAUDE.md

@@ -162,13 +162,20 @@ Before doing anything else:
 2. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
    last checkpoint. It has TWO parts: Part A = a 9-section current-state snapshot (the
    authoritative "where things stand now"); Part B = an append-only work journal with
-   recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read
-   BOTH — Part A in full, plus the most recent Part B entries (and their verbatim tail)
-   to recover recent context and conversation. (Older format with only 9 sections and no
-   Part B is fine — just use the snapshot.) Trust this document — the previous spawn of
-   you wrote it for you.
+   recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read it
+   with the Read tool as follows: read Part A in full; then keep reading until you reach
+   the end of the file, because the newest Part B entries (and their verbatim tail) are
+   at the end — older Part B entries in between may be skimmed. If a notice says only
+   part of the file was shown, continue from the offset it gives. (Older format with
+   only 9 sections and no Part B is fine — just use the snapshot.) Trust this document —
+   the previous spawn of you wrote it for you.
 3. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
-   promises you must honor.
+   promises you must honor. Read it to the end too (same method). Count (a) the entries
+   still marked [open] / [进行中] whose reference date is more than 14 days ago (the
+   reference date is the latest date in the brackets, e.g. a "kept" date, otherwise the
+   entry's own date; an entry marked undated / 无日期 counts as overdue unless its brackets
+   already hold a "kept" date, which then counts as usual), and (b) the
+   entries with no status label at all (an older free-form style).
 4. Optionally read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
    completed.md for additional context if working-context points to them.
 5. If your README.md has an old full rules section (heading matches `## Work Rules` or
@@ -191,7 +198,15 @@ After reading, use the SendMessage tool to send the team lead exactly one line:
 "Resumed from checkpoint at {last_checkpoint_time}. Ready. Model: <model name>, ID: <model ID>"
 Quote the model name and ID exactly as your system prompt states them; if it does not
 state them, write "Model: not stated" — do not guess. If step 5 made a backup, append
-" Rules healed; old section backed up to <backup file>." to that same line.
+" Rules healed; old section backed up to <backup file>." to that same line. If you could
+not read a file to the end, append " Unread: <file>" to that same line. If step 3 found
+overdue entries, append " Overdue commitments: <count> (oldest <date>)" — <date> is the
+date the oldest of them was made (the entry's own date, not a "kept" date), or "undated" / "无日期"
+if that entry has none; if it found
+entries without a status label, append " Unformatted commitments: <count>"; if a count is
+zero, leave that part out. Right after the receipt, if you reported overdue or unformatted
+commitments, send the lead ONE more SendMessage that lists them, one line each, copied
+from commitments.md.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -224,6 +239,10 @@ Binary judgment:
 **Model check (on success)**: the receipt ends with `Model: <name>, ID: <id>`, quoted by the teammate from its own system prompt. Record the ID in Step 4 as `model_resolved`. Compare it with the registry `model` and with the `Model` line of the teammate's README: an alias (`haiku` / `sonnet` / `opus`) matches if the ID contains it (case-insensitive); a specific ID must be equal. On a mismatch, **flag it** in the Step 5 report — do not edit the registry `model` (it records what was requested; an alias may be intentional) and do not edit the teammate's README (rule #1; ask the teammate to correct it at its next /checkpoint). If the receipt says `Model: not stated` or has no ID, leave `model_resolved` unset and report "model unconfirmed". This is a **cross-check, not a guarantee** — the ID is self-reported from the system prompt.
 
 **Rules backup (on success)**: if the receipt also says `Rules healed; old section backed up to <file>`, the teammate's README had an old rules section that was replaced; the backup holds that old section, including any user notes that sat after the rules. Mention it in the Step 5 report so the user can restore anything that was not a rule. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
+
+**Unread files (on success)**: if the receipt carries `Unread: <file>`, the teammate did not finish reading that file. Before you assign any work, ask it to finish reading the file (from the offset the read notice gives) and to confirm.
+
+**Overdue and unformatted commitments (on success)**: if the receipt carries `Overdue commitments: <count> (oldest <date>)` or `Unformatted commitments: <count>`, the teammate sends the list in one more message right after the receipt; read that message and rule on each entry: done, keep open, or void. Send the rulings to the teammate; it updates its own `commitments.md` and quotes your ruling (rule 1: you do not edit its files). "Keep open" is recorded with today's date on the entry, so it is not reported again for 14 days. Unformatted entries get rewritten in the standard format at the teammate's next checkpoint. List the counts in the Step 5 report.
 
 **No receipt after ~10 minutes — find out why, never auto-respawn.** Before spawning, note the time of each Agent call (the "spawn time") to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`). Then, for a teammate with no receipt:
 1. **If the team runs in tmux split panes (best-effort)**: look up its pane — `jq '.members[] | {name, tmuxPaneId, backendType}' ~/.claude/teams/<current session-level team>/config.json` — and read it with `tmux capture-pane -p -t <tmuxPaneId>`. That config file and field are Claude Code internals, not a documented interface: if the file or field is missing or the capture fails, go straight to step 2, and **never treat a failed lookup as evidence about the teammate**. If the pane shows a confirmation prompt, tell the user: "<name> is waiting on a confirmation in its pane — please confirm it there." Do not respawn.
@@ -278,11 +297,15 @@ Team <team_name> reactivated:
 
 ⚠ Model mismatch (only if any): <name>: registry `<model>` / README `<model>` vs reported `<id>`
 ⚠ Rules backup (only if any): <name>: old rules section saved to <file> — check it for your own notes
+⚠ Unread files (only if any): <name>: <file> — asked to finish reading before any work
+⚠ Overdue / unformatted commitments (only if any): <name>: <count> overdue (oldest <date the entry was made> | undated), <count> unformatted — ruled per entry: done / keep open / void
 
 ❌ Failed to reactivate (M):
 - <name3>: <reason>
 
 Status updated in TEAMMATE_INFO.json.
+Note: a teammate gets no checkpoint reminder during its first 15 minutes after reactivation
+(on purpose: right now its whole state is its workstation files); reminders resume after that.
 
 Next steps:
 - For failed teammates, decide: (a) manual debug (check working-context.md for damage),

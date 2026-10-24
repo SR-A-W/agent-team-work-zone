@@ -23,7 +23,7 @@
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh
 #   bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure
 #       (on an existing install: ask the install-time questions again; nothing under
-#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone reconfigure` runs)
+#        _agent_team_work_zone/ is changed — this is what `npx agent-team-work-zone config` runs)
 #
 # Development environment (dogfooding inside the agent-team-work-zone repo):
 #   cd /path/to/agent-team-work-zone
@@ -47,7 +47,7 @@ case "${1:-}" in
     *) echo "Unknown option: $1 (the only option is --reconfigure)" >&2; exit 2 ;;
 esac
 # How to ask the install-time questions again later (printed where a question is skipped).
-RESETUP_CMD="npx agent-team-work-zone reconfigure (source install: bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure)"
+RESETUP_CMD="npx agent-team-work-zone config (source install: bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure)"
 
 echo "=================================================="
 echo "  _agent_team_work_zone bootstrap"
@@ -296,7 +296,8 @@ EOF
         sed "s|{{TEMPLATE_REL}}|${TEMPLATE_ROOT#$PROJECT_ROOT/}|g" "$HOOKS_TEMPLATE" > "$RESOLVED"
         TMP="$(mktemp)"
         jq -s '.[0] * .[1]' "$SETTINGS_JSON" "$RESOLVED" >"$TMP"
-        mv "$TMP" "$SETTINGS_JSON"
+        # cat > (not mv): keep the mode the file was created with (umask), not mktemp's 600.
+        cat "$TMP" > "$SETTINGS_JSON"; rm -f "$TMP"
         rm -f "$RESOLVED"
         echo "  ✓ merged teammate-persistence hooks into $SETTINGS_JSON"
     elif [ ! "$HAS_JQ" -eq 1 ]; then
@@ -418,7 +419,7 @@ if [ -d "$OPTIONAL_DIR" ] && [ -f "$CLAUDE_MD" ]; then
     elif [ "$RUN_KIND" = rerun ]; then
         echo "  ↻ Optional CLAUDE.md sections: only offered on first install. To add them, run: $RESETUP_CMD"
     elif [ "$RUN_KIND" = reconfigure ] && [ ! -t 0 ]; then
-        echo "  ↻ Optional CLAUDE.md sections: not handled (no terminal). To add them, run reconfigure in a terminal."
+        echo "  ↻ Optional CLAUDE.md sections: not handled (no terminal). To add them, run this in a terminal: $RESETUP_CMD"
     else
         for id in user_message_format plain_vocabulary; do
             snippet="$OPTIONAL_DIR/$id.md"
@@ -518,7 +519,7 @@ else
     # the global ~/.claude/settings.json (project/local level is ignored by CC).
     echo "--- Teammate display mode (optional) ---"
     echo ""
-    echo "CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch teammate)."
+    echo "CC v2.1.179+ default is in-process (single terminal; to talk to a teammate, select it in the list below the input box with the up/down arrow keys and press Enter)."
     echo "Inside tmux, choose 'auto' to get a split pane per teammate."
     print_warn "Writes to global ~/.claude/settings.json (affects all your projects)."
     echo ""
@@ -527,7 +528,7 @@ else
         DISPLAY_MODE_IDX=$(choose_option 2 \
             "Display mode (↑↓ to navigate, Enter to confirm, 1-9 to quick-select):" \
             "auto       — split pane per teammate in tmux/iTerm2, single terminal otherwise" \
-            "in-process — always single terminal, Shift+Down to switch (works everywhere)" \
+            "in-process — always single terminal; select a teammate below the input box with ↑↓ and Enter (works everywhere)" \
             "no change  — keep current setting")
         GLOBAL_SETTINGS="$HOME/.claude/settings.json"
         mkdir -p "$HOME/.claude"
@@ -625,14 +626,23 @@ echo "  Bootstrap complete"
 echo "=================================================="
 echo ""
 echo "Next steps:"
-echo "  1. Start a new Claude Code session:"
-echo "       claude -n \"Architect\""
-echo "  2. Run /onboard to create your workstation (agent will ask if you want"
-echo "     a flat workstation or a team lead)"
-echo "  3. For existing sessions, run /sync to pick up new skills"
+if [ "$RUN_KIND" = first ]; then
+    # First install: point first-time users at /quickstart; /onboard is for choosing roles yourself.
+    echo "  1. Start Claude Code in the project root (the directory that contains _agent_team_work_zone/):"
+    echo "       cd \"$PROJECT_ROOT\" && claude"
+    echo "     The first time, choose \"Yes, I trust this folder\" (the highlighted default, \"No, exit\", quits)."
+    echo "  2. First time: type /quickstart (optionally followed by a one-sentence task). It builds a team for you."
+    echo "     Experienced users who want to choose the roles and team themselves: run /onboard instead."
+else
+    echo "  1. Start a new Claude Code session:"
+    echo "       claude -n \"Architect\""
+    echo "  2. Run /onboard to create your workstation (agent will ask if you want"
+    echo "     a flat workstation or a team lead)"
+    echo "  3. For existing sessions, run /sync to pick up new skills"
+fi
 echo ""
 echo "Teammate display mode:"
-echo "  • CC v2.1.179+ default is in-process (single terminal; Shift+Down to switch)."
+echo "  • CC v2.1.179+ default is in-process (single terminal; select a teammate in the list below the input box with the up/down arrow keys and press Enter)."
 echo "  • To change it later, run: $RESETUP_CMD"
 echo ""
 print_warn "Do not directly edit .claude/skills/ or .claude/agents/ —"

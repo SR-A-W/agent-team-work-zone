@@ -57,6 +57,10 @@ Glob `_agent_team_work_zone/<SELF>_team/roundtable/*.md`，读取 frontmatter �
 
 读 `_agent_team_work_zone/<SELF>_team/ACTIVE_JOBS.md`，了解正在运行的长任务（含 tracker cron trigger）。
 
+### 1d. 读各 teammate 的 commitments.md
+
+对 `active_teammates` 里的每个 teammate，把 `_agent_team_work_zone/<SELF>_team/teammates/<name>/commitments.md` 读到结尾。收集所有仍标为 `[进行中]`（英文版 `[open]`）、参照日期已过 14 天的条目——参照日期是方括号里最晚的那个日期（"确认保留"的日期），没有就用条目自己的日期；标为"无日期"（英文版 `undated`）的条目算在内，除非方括号里已有"确认保留"的日期（这时照常从那个日期起算 14 天）。已兑现和作废的跳过。另外，把完全没有状态标签的条目（以前的自由格式）记为"未整理格式"，也列出来：它们可能同样很久了。只读——不改 teammate 的文件（rule 1）。
+
 ## Phase 2: 效率分析
 
 对每个 teammate 做以下判断：
@@ -85,6 +89,14 @@ Glob `_agent_team_work_zone/<SELF>_team/roundtable/*.md`，读取 frontmatter �
 | Tracker | resources/agents/tracker.md | haiku | 闲 | 2h ago | 0 | 0 | 0 | 等待下次 cron |
 | Reviewer | resources/agents/reviewer.md | sonnet | 卡 | ⚠️ 36h ago | 1 | 1 份 IN_PROGRESS | 1 项 | Checkpoint 过期 + 工作无更新 |
 | DevilAdvocate | resources/agents/devil-advocate.md | sonnet | 闲 | 1h ago | 0 | 2 份挑战报告 | 0 | 初始批判已完成 |
+
+## 过期的承诺
+参照日期已过 14 天、仍是"进行中"的条目，以及没有状态标签的条目（取自各 teammate 的 `commitments.md`）。逐条裁定：已兑现、继续保留，或作废——再告诉该 teammate，由它自己改文件并引用你的裁定原话（"继续保留"会在条目上记为确认日期）。
+| Teammate | 承诺（照原文） | 距参照日期天数 |
+|---|---|---|
+| Reviewer | [进行中] 2026-07-30 → lead：<承诺的事> | 66 |
+| Reviewer | （未整理格式）2026-07-30 答应 lead <…> | 66 |
+（没有就写"无"。）
 
 ## 发现的问题
 

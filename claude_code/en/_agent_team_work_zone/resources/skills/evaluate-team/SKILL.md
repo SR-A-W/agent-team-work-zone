@@ -58,6 +58,10 @@ Count:
 
 Read `_agent_team_work_zone/<SELF>_team/ACTIVE_JOBS.md` to understand running long-term tasks (incl. tracker cron triggers).
 
+### 1d. Read each teammate's commitments.md
+
+For each teammate in `active_teammates`, read `_agent_team_work_zone/<SELF>_team/teammates/<name>/commitments.md` to the end. Collect every entry still marked `[open]` (zh `[进行中]`) whose reference date is more than 14 days ago — the reference date is the latest date in the brackets (a "kept" date), otherwise the entry's own date; an `undated` (zh `无日期`) entry counts unless its brackets already hold a "kept" date (then the 14 days count from that date as usual). Skip `done` and `void` entries. Also count the entries with no status label at all (an older free-form style) as "unformatted" and list them too: they may be just as old. Read only — do not edit a teammate's file (rule 1).
+
 ## Phase 2: Efficiency analysis
 
 For each teammate, judge:
@@ -86,6 +90,14 @@ For each teammate, judge:
 | Tracker | resources/agents/tracker.md | haiku | Idle | 2h ago | 0 | 0 | 0 | Awaiting next cron |
 | Reviewer | resources/agents/reviewer.md | sonnet | Stuck | ⚠️ 36h ago | 1 | 1 IN_PROGRESS | 1 | Checkpoint stale + no work update |
 | DevilAdvocate | resources/agents/devil-advocate.md | sonnet | Idle | 1h ago | 0 | 2 challenge reports | 0 | Initial critique done |
+
+## Overdue commitments
+Open entries whose reference date is more than 14 days ago, plus entries without a status label (from each teammate's `commitments.md`). For each, rule: done, keep open, or void — then tell the teammate, which updates its own file and quotes your ruling ("keep open" is recorded as a "kept" date on the entry).
+| Teammate | Commitment (line as written) | Days since reference date |
+|---|---|---|
+| Reviewer | [open] 2026-07-30 → lead: <what was promised> | 66 |
+| Reviewer | (unformatted) 2026-07-30 promised the lead <…> | 66 |
+(If none: "None.")
 
 ## Issues found
 

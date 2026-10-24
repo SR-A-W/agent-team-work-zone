@@ -160,13 +160,20 @@ Before doing anything else:
 2. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/working-context.md — your
    last checkpoint. It has TWO parts: Part A = a 9-section current-state snapshot (the
    authoritative "where things stand now"); Part B = an append-only work journal with
-   recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read
-   BOTH — Part A in full, plus the most recent Part B entries (and their verbatim tail)
-   to recover recent context and conversation. (Older format with only 9 sections and no
-   Part B is fine — just use the snapshot.) Trust this document — the previous spawn of
-   you wrote it for you.
+   recent conversation, verbatim key exchanges, and the last 3-4 dialogue turns. Read it
+   with the Read tool as follows: read Part A in full; then keep reading until you reach
+   the end of the file, because the newest Part B entries (and their verbatim tail) are
+   at the end — older Part B entries in between may be skimmed. If a notice says only
+   part of the file was shown, continue from the offset it gives. (Older format with
+   only 9 sections and no Part B is fine — just use the snapshot.) Trust this document —
+   the previous spawn of you wrote it for you.
 3. Read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/commitments.md — outstanding
-   promises you must honor.
+   promises you must honor. Read it to the end too (same method). Count (a) the entries
+   still marked [open] / [进行中] whose reference date is more than 14 days ago (the
+   reference date is the latest date in the brackets, e.g. a "kept" date, otherwise the
+   entry's own date; an entry marked undated / 无日期 counts as overdue unless its brackets
+   already hold a "kept" date, which then counts as usual), and (b) the
+   entries with no status label at all (an older free-form style).
 4. Optionally read {project_root}/_agent_team_work_zone/{team_name}/teammates/{name}/TODO.md and
    completed.md for additional context if working-context points to them.
 5. If your README.md has an old full rules section (heading matches `## Work Rules` or
@@ -189,7 +196,15 @@ After reading, use the SendMessage tool to send the team lead exactly one line:
 "Resumed from checkpoint at {last_checkpoint_time}. Ready. Model: <model name>, ID: <model ID>"
 Quote the model name and ID exactly as your system prompt states them; if it does not
 state them, write "Model: not stated" — do not guess. If step 5 made a backup, append
-" Rules healed; old section backed up to <backup file>." to that same line.
+" Rules healed; old section backed up to <backup file>." to that same line. If you could
+not read a file to the end, append " Unread: <file>" to that same line. If step 3 found
+overdue entries, append " Overdue commitments: <count> (oldest <date>)" — <date> is the
+date the oldest of them was made (the entry's own date, not a "kept" date), or "undated" / "无日期"
+if that entry has none; if it found
+entries without a status label, append " Unformatted commitments: <count>"; if a count is
+zero, leave that part out. Right after the receipt, if you reported overdue or unformatted
+commitments, send the lead ONE more SendMessage that lists them, one line each, copied
+from commitments.md.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 
 Do NOT start any new work until the team lead messages you with the next task.
@@ -222,6 +237,10 @@ Agent(
 **模型核对（成功时）**：回执末尾是 `Model: <name>, ID: <id>`，由 teammate 从自己的系统提示中原样引用。在 Step 4 把该 ID 记为 `model_resolved`。再与登记表的 `model` 及该 teammate README 的「模型 / Model」行比对：别名（`haiku` / `sonnet` / `opus`）只要 ID 中包含它（不分大小写）即算一致；具体 ID 则须完全相等。不一致时，在 Step 5 汇报里**标出**——不改登记表的 `model`（它记录的是 spawn 时请求的值，用别名可能是有意的），也不改 teammate 的 README（rule #1；请该 teammate 在下次 /checkpoint 时自己改）。若回执写的是 `Model: not stated` 或没有 ID，不写 `model_resolved`，汇报"模型未确认"。这只是**交叉核对，不是保证**——ID 是 teammate 从系统提示里自报的。
 
 **守则备份（成功时）**：若回执还带有 `Rules healed; old section backed up to <file>`，说明该 teammate 的 README 里有旧守则区并已被替换；备份里保存着那段旧内容，包括写在守则后面的用户笔记。在 Step 5 汇报里提一句，方便用户把不属于守则的内容恢复回去。 回执若带有 `ACK <id>`（例如 `ACK R-20261004-1`），把 RULES_LEDGER.md 里对应的行填上。
+
+**没读完的文件（成功时）**：回执里带有 `Unread: <文件>`，说明该 teammate 没把这个文件读完。给它派活之前，先让它（按读取提示给的 offset）把文件读完并确认。
+
+**过期和未整理格式的承诺（成功时）**：回执里带有 `Overdue commitments: <数量> (oldest <日期>)` 或 `Unformatted commitments: <数量>` 时，该 teammate 会在回执之后紧接着另发一条消息列出这些条目；读那条消息，逐条裁定：已兑现、继续保留，或作废。把裁定发给该 teammate，由它自己改 `commitments.md` 并引用你的裁定原话（rule 1：你不改它的文件）。"继续保留"会在条目上记下当天的确认日期，14 天内不会再被报出来。未整理格式的条目，由它在下次 checkpoint 时改成标准格式。在 Step 5 汇报里列出数量。
 
 **约 10 分钟仍无回执——查明原因，绝不自动重派。** spawn 前记下每次 Agent 调用的时间（"本次 spawn 时间"），精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较）。对迟迟没有回执的 teammate：
 1. **若团队在 tmux 分屏中运行（尽力而为）**：查它的分屏——`jq '.members[] | {name, tmuxPaneId, backendType}' ~/.claude/teams/<当前 session 级 team>/config.json`——再用 `tmux capture-pane -p -t <tmuxPaneId>` 读屏。该配置文件和字段是 Claude Code 内部实现，不是公开接口：文件或字段不存在、或读屏失败，就直接进入第 2 步，**绝不把查找失败当成关于该 teammate 的证据**。若屏上是确认界面，告诉用户："<name> 停在它分屏的确认界面上，请到那里确认一下。"不重派。
@@ -276,11 +295,14 @@ Team <team_name> reactivated:
 
 ⚠ Model mismatch（仅当存在时）: <name>: registry `<model>` / README `<model>` vs reported `<id>`
 ⚠ Rules backup（仅当存在时）: <name>: old rules section saved to <file> — 请检查其中是否有你自己的笔记
+⚠ Unread files（仅当存在时）: <name>: <file> — 已让它先读完再派活
+⚠ Overdue / unformatted commitments（仅当存在时）: <name>: 过期 <数量>（最早 <条目作出的日期> | 无日期）、未整理格式 <数量> —— 已逐条裁定：已兑现 / 继续保留 / 作废
 
 ❌ Failed to reactivate (M 个):
 - <name3>: <reason>
 
 Status updated in TEAMMATE_INFO.json.
+注：刚唤醒的成员在唤醒后 15 分钟内不会收到 checkpoint 提醒（这是有意的：此时它的全部状态就是工位文件）；15 分钟后照常提醒。
 
 Next steps:
 - 如果有 failed teammate，请决定是：(a) 手动调试（检查 working-context.md 是否损坏），

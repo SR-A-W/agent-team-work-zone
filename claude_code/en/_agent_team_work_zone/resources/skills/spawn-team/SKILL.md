@@ -199,6 +199,9 @@ When the above is done, use the SendMessage tool to send the lead exactly one li
 Quote the model name and ID exactly as your system prompt states them; if it does not state
 them, write "Model: not stated" — do not guess. If you made a rules backup above, append
 " Rules healed; old section backed up to <backup file>." to that same line.
+Read every file to the end with the Read tool; if a notice says only part of a file was
+shown, keep reading from the offset it gives. If you could not read a file to the end,
+append " Unread: <file>" to that same line.
 (A plain reply will NOT reach the lead — you MUST use SendMessage.)
 ```
 
@@ -317,6 +320,7 @@ Agent(
 
 **Receipts (model check + no auto-respawn)**: note the current time immediately BEFORE each Agent call (the "spawn time") to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`), then wait for each teammate's `Ready. Model: <name>, ID: <id>` receipt.
 - **Model check**: write the ID into that teammate's entry as `model_resolved` (optional field; same validated jq write as 6c, `| .model_resolved = $mid`). Compare it with the registry `model` and the README model line — an alias (`haiku`/`sonnet`/`opus`) matches if the ID contains it, a specific ID must be equal. On a mismatch, **flag it** to the user; edit neither. `Model: not stated` → leave the field unset, report "model unconfirmed". A cross-check, not a guarantee (the ID is self-reported). If the receipt mentions a rules backup, tell the user where it is. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
+- **Unread files**: if a receipt carries `Unread: <file>`, ask the teammate to finish reading that file and confirm before you assign it any work.
 - **No receipt after ~10 minutes**: (1) best-effort, if in tmux split panes: find its `tmuxPaneId` in `~/.claude/teams/<current session-level team>/config.json` and `tmux capture-pane -p -t <id>` — these are Claude Code internals, so if the file/field is missing or the capture fails, skip to (2), and a failed lookup is never evidence about the teammate; a confirmation prompt on screen → ask the user to confirm it there. (2) Check `teammates/<name>/.started`: absent or older than the spawn time → it never started (stuck on a confirmation/permission prompt, or launch failed) — or its step-0 write failed; newer than the spawn time but no receipt → it is working (messages reach it only when its turn ends), wait or check its artifacts. (3) Always tell the user the possible causes; **never respawn automatically** (a same-name respawn while the first is alive yields `<name>-2`). See `/reactivate-team` Step 3.3 for the full procedure.
 
 **After all spawns complete**, output a brief confirmation:

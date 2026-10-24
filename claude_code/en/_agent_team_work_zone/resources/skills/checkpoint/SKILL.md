@@ -109,8 +109,7 @@ Architectural or non-obvious decisions made this session. One line each:
 Things you don't know but need to, or things blocking progress.
 
 ### 7. Commitments to Others
-Promises to the lead or peer teammates that the next spawn of you **must honor**:
-- To {who}: I will {what} by {when, if applicable}.
+See `commitments.md` — it is the authoritative list of your promises to the lead or peer teammates, which the next spawn of you **must honor**. Here, list only the entries added or whose status changed since the last checkpoint (copy their lines from `commitments.md`); if none, write "None".
 
 ### 8. Critical File References
 Files the next spawn of you **must** read to understand current state. List paths only:
@@ -158,6 +157,22 @@ If this checkpoint is because you **just completed a task** (trigger=`task_compl
 ```
 
 `completed.md` is an **append-only log**; never overwrite prior entries.
+
+**`commitments.md`: one line per commitment, starting with its status and date.** It is the authoritative list (Part A section 7 only points to it). Update it in this checkpoint whenever a commitment was added or its status changed:
+
+```
+- [open] 2026-07-30 → lead: <what you promised>
+- [open, kept 2026-10-04 by lead] 2026-07-30 → lead: <what you promised>
+- [done 2026-08-02] 2026-07-30 → lead: <what you promised>
+- [void 2026-10-04, ruled by lead: "<the ruling, quoted verbatim>"] 2026-07-30 → lead: <what you promised>
+- [open] undated → lead: <what you promised>
+```
+
+- There are only three states: open, done, void.
+- **Void needs a ruling**: if a commitment's premise has changed, you propose voiding it and the lead rules — also when the commitment was made to another teammate. Quote the ruling verbatim. You edit the line yourself (it is your file). Never delete a void or done entry; it stays as a record.
+- **Overdue**: an open entry is overdue when its reference date is more than 14 days ago. The reference date is the latest date in the brackets (a "kept" date), otherwise the entry's own date. An `undated` entry is overdue unless its brackets already hold a "kept" date; then the 14 days count from that date as usual. When reactivated you report the overdue entries in your receipt, and the lead rules on each.
+- **Kept open**: when the lead rules "keep open", write `kept <date> by lead` into the brackets (replace an earlier "kept" date); the 14 days then count from that date.
+- Commitments written in an older free-form style: rewrite them in this format the next time you checkpoint. Keep the original date if the text has one; if it has none, write `undated`.
 
 ### Step 5: Git save (only if the project enabled it)
 

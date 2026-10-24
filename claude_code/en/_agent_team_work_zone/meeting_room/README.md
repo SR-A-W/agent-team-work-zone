@@ -94,6 +94,14 @@ priority: HIGH
 
 Once a recipient takes on the task, they set `status` to `IN_PROGRESS` (or add a "started: YYYY-MM-DD HH:MM" note to their checklist row) to signal they have claimed it. Once their part is done, they check off their row and append a timestamp + summary. The last one to finish sets `status` to `RESOLVED`. On the issuer's next `/check-inbox`, step 9 detects `status: RESOLVED` or a fully-checked checklist and archives the file.
 
+## Teams from another repository
+
+A team working in another repository may use this meeting room too. Conventions:
+- File name: `<TeamName>_<Type>_<YYYYMMDD>_<HHMM>_<brief_description>.md`, with the same type prefixes as above.
+- `from:` in the frontmatter is the external team's name.
+- Archiving still belongs to the issuer: the external team moves its own RESOLVED files to `../archive/`.
+- The external team writes only in `meeting_room/` and touches nothing else in this work zone.
+
 ## Notes
 
 - Reports must be self-contained: the reader should not have to dig through logs or other files to understand

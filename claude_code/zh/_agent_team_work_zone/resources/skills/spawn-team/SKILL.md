@@ -195,6 +195,8 @@ README 里没有 <!-- TEAMMATE_RULES:START --> 区块，从该文件复制该区
 "Ready. Model: <model name>, ID: <model ID>"
 模型名和 ID 按你系统提示里的原文照抄；系统提示里没写，就写 "Model: not stated"——不要猜。
 若上面做了守则备份，在同一行末尾加上 " Rules healed; old section backed up to <备份文件>."
+每个文件都用 Read 工具读到结尾；看到只显示了文件一部分的提示，就按提示给的 offset 接着读。
+若有文件没能读完，在同一行末尾加上 " Unread: <文件>"。
 （普通回复到不了 lead——必须用 SendMessage。）
 ```
 
@@ -313,6 +315,7 @@ Agent(
 
 **回执（模型核对 + 不自动重派）**：在每次 Agent 调用**之前**立刻记下当前时间（"本次 spawn 时间"），精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较），然后等每个 teammate 的 `Ready. Model: <name>, ID: <id>` 回执。
 - **模型核对**：把 ID 写进该 teammate 条目的 `model_resolved`（可选字段；用与 6c 相同的带校验 jq 写入，加 `| .model_resolved = $mid`）。再与登记表 `model` 及 README 的模型行比对——别名（`haiku`/`sonnet`/`opus`）只要 ID 包含它即一致，具体 ID 须完全相等。不一致就向用户**标出**，两边都不改。`Model: not stated` → 不写该字段，汇报"模型未确认"。这是交叉核对，不是保证（ID 是自报的）。回执若提到守则备份，告诉用户备份位置。 回执若带有 `ACK <id>`（例如 `ACK R-20261004-1`），把 RULES_LEDGER.md 里对应的行填上。
+- **没读完的文件**：回执里带有 `Unread: <文件>` 时，先让该 teammate 把文件读完并确认，再给它派活。
 - **约 10 分钟仍无回执**：(1) 尽力而为——若在 tmux 分屏中：在 `~/.claude/teams/<当前 session 级 team>/config.json` 里找它的 `tmuxPaneId`，再 `tmux capture-pane -p -t <id>` 读屏；这些是 Claude Code 内部实现，文件/字段不存在或读屏失败就跳到 (2)，查找失败绝不当作关于该 teammate 的证据；屏上是确认界面 → 请用户到那里确认。(2) 查看 `teammates/<name>/.started`：不存在或早于本次 spawn 时间 → 根本没启动（卡在确认/权限界面，或启动失败）——也可能是第 0 步写文件失败；晚于本次 spawn 时间但没回执 → 已在工作（消息只在它的回合结束时送达），继续等或查它的产物。(3) 一律先把可能原因告诉用户；**绝不自动重派**（第一个还活着时重派同名会得到 `<name>-2`）。完整流程见 `/reactivate-team` Step 3.3。
 
 **spawn 完成后**输出简短确认：

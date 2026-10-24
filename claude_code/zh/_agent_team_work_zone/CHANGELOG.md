@@ -4,6 +4,30 @@
 
 ---
 
+## v1.2.0 (2026-10-24)
+
+MINOR（向后兼容）：**`reconfigure` 有了短名 `config`；"平实用语"段落带上一份起始的禁用词名单；读工位文件和处理承诺的规则更清楚；安装脚本修复**。
+
+### 新增
+- **`config`**：`npx agent-team-work-zone config [项目目录]`（或 `atwz config`）是 `reconfigure` 的短名，效果相同。`reconfigure` 仍然可用。源码安装的选项 `bootstrap.sh --reconfigure` 不变。`help` 文字、npm 页面的 README、用户手册、升级指南、模板 README 和安装脚本的提示都改写成 `config`。如果看到 `Unknown command: config`，说明你的 `atwz` 或 npx 缓存的版本较旧：先升级它（`npm i -g agent-team-work-zone@latest`），或改用 `npx agent-team-work-zone@latest config`，或照旧用 `reconfigure`。
+- **可选的"平实用语" `CLAUDE.md` 段落现在带一份起始禁用词名单**：整个说法禁用的自造词组，以及只禁某种用法的普通词，每条写明该怎么写。已经有这一段的项目，升级和运行 `config` 都不会更新名单；新条目请从 `_agent_team_work_zone/resources/claude_md_optional/plain_vocabulary.md` 手动复制。
+
+### 变更
+- **成员把自己的工位文件读到结尾**（派生、唤回、加人时都一样）：只读到一部分时，按提示给出的位置接着读；没读完的文件在回执里写 `Unread: <文件>`，lead 让它读完再派活。
+- **承诺分三种状态：进行中、已兑现、作废。** 作废由成员提出、lead 裁定，条目保留。超过 14 天的进行中条目、没写日期的条目和旧的自由格式条目，会在唤回回执里报出数量；`/evaluate-team` 会列出过期的承诺。
+- **成员守则**：空闲通知里可能带着这一回合的总结，但 lead 不据它行事，所以 lead 需要知道的事（包括问题）都要写进 SendMessage 报告。派生或唤回后 checkpoint 提醒暂停 15 分钟，这一点现在写进了文档。
+- **`meeting_room/README.md`**：新增"来自其他仓库的团队"的约定。
+- idle hook 的一条注释改写，去掉了内部团队名；代码不变。
+
+### 修复
+- 安装脚本里显示方式的说明写的是用 "Shift+Down" 切换成员。同进程显示时，应在输入框下方的成员列表里用上下方向键选中成员、按回车进入；说明已改正。
+- 首次安装时，`.claude/settings.json` 的权限是 600，共用这个项目的其他人读不了。现在是正常权限（默认 umask 下为 644）。
+
+### Migration（v1.1.0 → v1.2.0）
+- `npx agent-team-work-zone@latest upgrade`，或 `bash _agent_team_work_zone/upgrade.sh`。没有用户数据迁移。工作守则有变化，所以各工位 README 里的守则块会被刷新，旧块备份在各自 README 旁边（`README.md.rules.bak.<时间>` / `README.md.teammate_rules.bak.<时间>`）。升级还会刷新 `meeting_room/README.md` 和顶层的 `upgrade.sh`。升级不改动你的 `CLAUDE.md`，所以新的起始禁用词名单不会加进你已有的那一段。升级后重启 Claude Code 会话，并对每个运行中的团队执行 `/reactivate-team`，让成员用上新的守则和 skill。
+
+---
+
 ## v1.1.0 (2026-10-04)
 
 MINOR（向后兼容）：**新增 `reconfigure` 命令，所有提问改成箭头菜单，警告更醒目，推荐的 `CLAUDE.md` 段落默认加入**。

@@ -138,7 +138,9 @@ Rule changes: if <project_root>/_agent_team_work_zone/<SELF>_team/RULES_LEDGER.m
 Ready receipt: when set up, the new teammate uses the SendMessage tool to send the lead exactly
 one line: "Ready. Model: <model name>, ID: <model ID>" — quoting the model name and ID exactly
 as its system prompt states them, or "Model: not stated" if it does not (never guess).
-(A plain reply will NOT reach the lead.)
+It reads every file to the end with the Read tool (if a notice says only part of a file was
+shown, it keeps reading from the offset given) and appends " Unread: <file>" for any file it
+could not finish. (A plain reply will NOT reach the lead.)
 
 Please spawn this new teammate to join the existing team.
 ```

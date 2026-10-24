@@ -152,7 +152,7 @@ The installer puts the skills and agent definitions into `.claude/` and enables 
 Commit `_agent_team_work_zone/` to your project's git repository together with your code, and don't add it to `.gitignore`. What git tracks is the agents' core working memory: role definitions, checkpoints, work journals, discussion notes and the team registry. Runtime-only temporary files are excluded by the work zone's own `.gitignore`.
 
 - **The agents' working memory and logs are version-managed too.** Checkpoints, work journals, discussion notes and decisions are increasingly an important part of a project's development record. Tracking them in git — especially once pushed to GitHub — means the agents' project memory is managed by git: it is backed up, which greatly lowers the risk of losing it, and it can be rolled back, for example when the agents or the project have gone off track.
-- **Easy migration to a new machine.** Clone the project on another machine, run `npx agent-team-work-zone reconfigure` there once from the project directory (installed from source: `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`); it installs the skills and hooks, sets Claude Code up, and asks the install questions again, including the display mode and auto permission mode that are set per machine. Then start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
+- **Easy migration to a new machine.** Clone the project on another machine, run `npx agent-team-work-zone config` there once from the project directory (installed from source: `bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure`); it installs the skills and hooks, sets Claude Code up, and asks the install questions again, including the display mode and auto permission mode that are set per machine. Then start Claude in the project directory, and `/reactivate-team` brings back an agent team with the same roles and the same state.
 - **Multi-developer collaboration.** Each developer can run one or more agent teams in the same project. The teams learn about each other through the work zone, and communicate or leave messages for each other via `git push` / `git pull` (for example through `meeting_room/`).
 
 ```bash
@@ -231,11 +231,11 @@ When a Claude Code session starts in your project, it shows a short notice with 
 To change an earlier choice, after moving the project to another machine, or to add an optional `CLAUDE.md` section you skipped, run from the project directory:
 
 ```bash
-npx agent-team-work-zone reconfigure        # or, with a global install: atwz reconfigure
+npx agent-team-work-zone config        # or, with a global install: atwz config
 bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure   # installed from source
 ```
 
-It asks the install questions again on the version you already have; it does not upgrade or reinstall anything. Details are in the [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md).
+It asks the install questions again on the version you already have; it does not upgrade or reinstall anything. `reconfigure` also works and does the same thing. Details are in the [user manual](claude_code/en/_agent_team_work_zone/docs/user_manual.md).
 
 ---
 

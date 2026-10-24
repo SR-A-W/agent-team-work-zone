@@ -108,8 +108,7 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 你不知道但需要知道的事，或阻塞进度的事。
 
 ### 7. Commitments to Others
-你对 lead 或 peer teammate 的承诺，下一个 spawn 的你**必须兑现**：
-- To {who}: I will {what} by {when, if applicable}.
+见 `commitments.md`——你对 lead 或 peer teammate 的承诺以它为准，下一个 spawn 的你**必须兑现**。这里只列出自上次 checkpoint 以来新增或状态有变的条目（从 `commitments.md` 照抄那一行）；没有就写"无"。
 
 ### 8. Critical File References
 下一个 spawn 的你**必须**读的文件，以理解当前状态。只列路径：
@@ -155,6 +154,22 @@ _Checkpoint trigger: task_completed | idle | manual | lead_request_
 ```
 
 `completed.md` 是 **append-only 日志**，永远不覆盖之前的条目。
+
+**`commitments.md`：每条承诺一行，开头写状态和日期。** 承诺以它为准（Part A 第 7 节只指向它）。本次 checkpoint 中，凡有新增承诺或承诺状态有变，都在这里更新：
+
+```
+- [进行中] 2026-07-30 → lead：<你承诺的事>
+- [进行中，lead 2026-10-04 确认保留] 2026-07-30 → lead：<你承诺的事>
+- [已兑现 2026-08-02] 2026-07-30 → lead：<你承诺的事>
+- [作废 2026-10-04，lead 裁定："<裁定原话>"] 2026-07-30 → lead：<你承诺的事>
+- [进行中] 无日期 → lead：<你承诺的事>
+```
+
+- 只有三种状态：进行中、已兑现、作废。
+- **作废要有裁定**：承诺的前提变了，由你提出作废、lead 裁定——承诺对象是另一名 teammate 时也一样。逐字引用裁定原话。这一行由你自己改（这是你的文件）。作废和已兑现的条目不删，留作记录。
+- **过期**：参照日期距今超过 14 天、仍是"进行中"的条目算过期。参照日期是方括号里最晚的那个日期（"确认保留"的日期），没有就用条目自己的日期。标为"无日期"的条目算过期，除非方括号里已有"确认保留"的日期（这时照常从那个日期起算 14 天）。被唤醒时你在回执里报出过期的条目，由 lead 逐条裁定。
+- **继续保留**：lead 裁定"继续保留"时，在方括号里写上 `lead <日期> 确认保留`（已有的确认日期就替换掉）；14 天从这个日期起算。
+- 以前写成自由格式的承诺：下次 checkpoint 时顺手按这个格式整理。原文里有日期就保留原来的日期；查不到日期的写"无日期"。
 
 ### Step 5：git 保存（仅当项目开启时）
 
