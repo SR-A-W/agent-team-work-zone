@@ -2,6 +2,7 @@
 
 # Agent Team Work Zone
 
+[![npm](https://img.shields.io/badge/npm-agent--team--work--zone-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/package/agent-team-work-zone)
 [![arXiv](https://img.shields.io/badge/arXiv-2607.22917-b31b1b.svg)](https://arxiv.org/abs/2607.22917)
 [![License](https://img.shields.io/badge/License-see%20LICENSE-lightgrey.svg)](./LICENSE)
 [![Developed with](https://img.shields.io/badge/Developed%20with-AT%20WorkZone-6f42c1.svg)](https://github.com/SR-A-W/agent-team-work-zone)
