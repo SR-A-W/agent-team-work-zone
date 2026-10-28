@@ -94,6 +94,18 @@ priority: HIGH
 
 各接收方接手任务后，将 `status` 改为 `IN_PROGRESS`（或在自己的 checklist 行加 "started: YYYY-MM-DD HH:MM" 注记），表示已认领。完成自己那部分后勾选对应行并追加时间戳 + 摘要。最后完成的那方将 `status` 改为 `RESOLVED`。Issuer 在下次 `/check-inbox` 时看到 `status: RESOLVED` 或 checklist 全勾，即执行归档。
 
+## 另一台机器上的团队（同一个仓库）
+
+两名开发者各自的团队在不同机器上协作同一个项目时，用 `/remote-collab`：各自的查看成员每 30 分钟查看一次远端，有发给本团队的文档就告诉 lead；lead 要处理时合并进来（`/remote-collab pull`），写了给对方的文档、或做完对方在等的事之后推送（`/remote-collab push`）。约定如下：
+- **两边的团队目录名必须不同**（`/remote-collab start` 会检查，同名时给出改名步骤）。
+- `from:` / `to:` / `cc:` 一律写 `<团队目录>/<成员>`，lead 写 `<团队目录>/lead`，例如 `from: alice_team/lead`、`to: bob_team/lead`；`to: ALL` 指两边所有人。
+- 文件名照上文规范，以发布者名开头。
+- **同一时刻只有一方改一份文档**（两边改同一份文档，合并时会冲突）：
+  1. 发布方发出文档后不再改正文；补充或更正写一份新文件。
+  2. 接收方只改 frontmatter 的 `status:` 一行（多个接收方时只勾自己那一行）。
+  3. 发布方只在合并进来对方改成的 RESOLVED **之后**才归档。
+  4. 回复写成新文件，不在对方的文件里写。
+
 ## 来自其他仓库的团队
 
 在别的仓库里工作的团队也可以使用这个会议室。约定如下：

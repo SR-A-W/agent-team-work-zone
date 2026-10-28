@@ -182,7 +182,9 @@ Everything above describes **Mode A: periodic snapshot** — a report on every f
 
 **Interval**: 10–30 minutes is typical for Mode B (each check is one short Haiku turn). Go sparser when the outcome is hours away.
 
-**Verified so far / not yet**: in a teammate, the tools `/loop` needs (ScheduleWakeup, CronCreate) are present and `loop` is in its skill list (confirmed in a split-pane teammate, 2026-10-04). That each `/loop` wakeup is delivered back to the teammate itself has **not** yet been verified end-to-end — confirm the first check fires before relying on it.
+The `/remote-collab` watcher (`<slug>-remotewatch`) is one use of Mode B: it checks on a schedule whether the team on another machine has pushed anything new, and when there are documents for this team it also writes a digest file in its own workstation; its check rules are in watcher_rules.md in that skill's directory.
+
+**Verified**: in a teammate, the tools `/loop` needs (ScheduleWakeup, CronCreate) are present and `loop` is in its skill list (confirmed in a split-pane teammate, 2026-10-04). That each `/loop` wakeup is delivered back to the teammate itself is verified too: 6 runs in a row in each display mode (in-process and split-pane) all returned to the teammate itself, which could SendMessage the lead in the woken turn (2026-10-25). Also, a teammate automatically sends the lead an idle notice at the end of every turn, so the lead runs a turn even when nothing was sent; this cannot be turned off, and the lead should treat it as a no-op.
 
 **Cost note — idle checkpoint nudge**: you are a resident teammate with a workstation, so the TeammateIdle hook asks you to `/checkpoint` whenever you go idle and your `working-context.md` is 15+ minutes old — in practice after most checks. Obey it with a minimal checkpoint (Part A only: what you watch, last state seen, stop condition). This costs about one extra short Haiku turn per check; it is the normal behaviour for every teammate and is left as is.
 

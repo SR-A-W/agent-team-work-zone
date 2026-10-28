@@ -185,7 +185,7 @@ Normally you only need to talk to me: tell me what you want done, I split it up,
 Should I start "The planning member writes a one-page project map" now? Just reply run or don't run.
 ```
 
-Reply run or don't run, or just say what you want done. The closing message also explains how to talk to a member directly, how to switch a member to the opus model, how to continue the conversation from the web or your phone, and how to bring the team back after a restart.
+Reply run or don't run, or just say what you want done. The closing message also explains how to talk to a member directly, which model the members use and how to change it, how to continue the conversation from the web or your phone, and how to bring the team back after a restart.
 
 - If the current directory already has a team or workstation, `/quickstart` stops and tells you whether to use `/reactivate-team` or `/onboard`.
 - If it is interrupted (for example, you pressed Esc or Claude Code exited), typing `/quickstart` again continues where it stopped; it does not build the team twice.
@@ -425,6 +425,30 @@ jq '.members[] | {name, tmuxPaneId, backendType}' \
 - **devil-advocate** — adversarial challenge (**opus**, flagship model, no memory)
 - **git-repo-manager** — git management (sonnet)
 
+### Which model teammates use
+
+When a team is built (`/quickstart` or `/onboard`), your subscription tier is detected first. It decides the default teammate model and the maximum number of teammates, written to `model_policy.json` in the team directory. This keeps a new team from using up your usage limits right away.
+
+| Your plan | Teammate model | Max teammates | Model suggested for you (the team lead) | Suggested effort |
+|---|---|---|---|---|
+| Pro | haiku | 2 | sonnet | medium |
+| Max 5x | sonnet | 4 | opus | medium |
+| Max 20x | opus | 5 | opus; fable if you have usage to spare | high |
+| Team / Enterprise | sonnet | 4 | opus | medium |
+| API key or another pay-as-you-go login | sonnet | 5 | no suggestion | no suggestion |
+| Could not tell (including not logged in) | sonnet | 5 | no suggestion | no suggestion |
+
+- **Teammates use your session's effort level**: a teammate's effort level cannot be set on its own at spawn (in-process and split-pane alike), so effort is only a suggestion for you.
+- `/quickstart` does not ask; it uses this table. `/onboard` asks, and also offers a conservative plan that uses less: on Pro the model stays and your effort goes down to low; on Max 5x and Team / Enterprise, teammates on haiku and you on sonnet with low effort; on Max 20x, teammates on sonnet and your effort at medium. You can also choose your own values.
+- The team size limit is a suggestion: when a new teammate would go over it, the team lead tells you and asks you to confirm; it does not refuse.
+- Teammates do not use fable by default: a teammate session on Fable may need pay-as-you-go usage, which shows a consent prompt; with no answer in 5 minutes the turn is dropped and the teammate is stuck. If you name fable for a teammate, that is done, after the team lead mentions this risk.
+- How the tier is detected: from the login method and subscription type that `claude auth status` reports; telling Max 5x from Max 20x needs one undocumented Claude Code internal field, and when it cannot be read, Max 5x is assumed.
+- **How to switch a teammate's model**: tell the team lead in one sentence, for example "switch <teammate name> to opus" or "use sonnet for future teammates". It has the teammate save its progress first and then restarts it on the new model; its work records are kept. Naming one teammate changes only that one; "future teammates" or "all teammates" also changes `model_policy.json`.
+- When you bring the team back with `/reactivate-team` after a restart, each teammate starts with the model recorded for it in the registry; a later change to `model_policy.json` does not switch existing teammates.
+- **Your own model and effort**: skills cannot change the settings of your current session; the closing message only gives one suggestion (and only when your current settings differ from it). To switch, type `/model <model name>` or `/effort <level>`, or start next time with `claude --model <model name> --effort <level>`. Note that `/model` and `/effort` also save the choice as the default for new sessions (except `/effort max`, which applies to the current session only). Teammates spawned or re-spawned afterwards use the same effort level: with in-process display, teammates already working also follow the change; with split panes, a teammate already working follows it only after being re-spawned (for example with /reactivate-team <teammate name>).
+- Teams built before this change have no `model_policy.json`: teammates keep using sonnet.
+- The tracker (scheduled watcher) keeps using haiku as its own definition says.
+
 ### Automatic checkpoint reminder
 
 When a teammate is about to go idle and has not run `/checkpoint` for 15 minutes or more, it is reminded to run it before going idle. A teammate that was just spawned or reactivated is not reminded during its first 15 minutes (on purpose: at that moment its whole state is its workstation files); after that the reminder works as usual. So when you test the reminder after a reactivation, wait at least 15 minutes.
@@ -476,6 +500,31 @@ cd /path/to/your/project && bash _agent_team_work_zone/resources/scripts/atwz_gi
 It waits while another git operation is running (it never deletes `.git/index.lock`), waits at most 3 minutes, and then gives up with exit code 75. Commit mode uses this lock automatically.
 
 **Requirements:** git 2.5 or later. The scripts are written for bash 3.2 (macOS) and Linux; macOS compatibility was checked by reading the code, not by running it on macOS.
+
+### Working with a team on another machine
+
+When two developers work on the same project with their teams on different machines, the two teams can exchange documents in `meeting_room/` through the same git remote (for example the same repository on GitHub). Tell the team lead "work with the team on the other machine", and it runs `/remote-collab start`.
+
+**Preconditions**:
+- `_agent_team_work_zone/` is tracked by git (not excluded by `.gitignore`), the current branch has an upstream, and `git fetch` / `git push` work;
+- the two sides' team names differ. When two people each run `/quickstart` on the same project, the team name comes from the project name and is almost certainly the same; `start` checks this and, when they collide, gives renaming steps for the side that starts later;
+- both sides run the same framework version (`start` reminds you when they differ; otherwise merging conflicts across the framework files);
+- the current workstation is a team workstation. A single-person workstation cannot have teammates, so `start` recommends `/promote-to-team` first; without upgrading, only manual pull / push is available.
+
+**How it works**:
+- There are two ways of checking; at `start` the team lead asks you (together with the way of pushing), and the first is used if you do not choose:
+  - **Watcher mode** (default): the team gets one more member, the watcher `<slug>-remotewatch` (haiku). By default it checks the remote every 30 minutes and only looks, never changes anything. When there are documents for this team, it puts them together in a digest file and tells the team lead; who to assign them to and how urgent they are are only its suggestions, and the team lead decides; merging and assigning work stay with the team lead. When the other side has handled one of ours or pushed only code, it says so in a line or two; with no updates it stays quiet. Every 12 checks the team lead spawns it again, without asking you.
+  - **Background-script mode**: no resident teammate; the team lead starts a script in the background that checks every 50 minutes by default and uses nothing while there are no updates; when there are updates the script exits and wakes the team lead, and a one-off haiku subagent writes the digest. It has to be started again after the session ends (a team workstation resumes it when you run `/reactivate-team`). When the team lead leaves with `/exit`, Claude Code first asks you to choose one of three: the default "Exit and stop tasks" also ends the background check; with "Move to background and exit", the background check keeps running outside the session but no longer wakes anyone, and the next time `/remote-collab start` or `/reactivate-team` starts the background check, it clears the old one first, with nothing to do by hand. A single-person workstation can use it without upgrading.
+- When the team lead is ready to handle them, it runs `/remote-collab pull` to merge them in, and after writing a document for the other side or finishing something they are waiting for, it runs `/remote-collab push`. `/remote-collab status` shows the state; "stop working together" runs `/remote-collab stop`.
+- In cross-machine documents, senders and recipients are written `<team dir>/<teammate>`, for example `to: bob_team/lead`; only one side edits a document at a time (see the "Teams on another machine" section of `meeting_room/README.md`).
+
+**Choosing the interval** (watcher mode): 30 minutes is recommended. The scheduled loop uses a cron expression underneath, which fires evenly only for minute counts that divide 60 (15, 20, 30) or whole hours; a number like 50 minutes becomes once an hour. The 1-hour prompt cache applies to the team lead itself, teammates shown in split panes, and in-process teammates set to the 1-hour cache; 30 minutes is within it, so every check hits it, and the cached part is billed at a tenth (Haiku) or a twentieth (Opus, Sonnet). Teammates shown in process get only a 5-minute cache by default; at `start` you are asked whether to change it to 1 hour (written to this machine's `.claude/settings.local.json`). It can be shorter (20 or 15 minutes), at the cost of waking the team lead proportionally more often; stretching it to 60 minutes or more to save usage is not recommended: 60 minutes sits right at the edge of the cache expiry, and longer means every check pays full price to process the whole context again, which costs more. To really save usage, choose background-script mode.
+
+**A push sends the whole branch**: git cannot push just one directory, so a push sends every commit on the local branch that is not pushed yet, including your teammates' and your own code commits. That is why `start` asks you to choose one of two ways: you approve each push (the default), or pushing is fully automatic; if you do not choose, each push needs your approval. Later, say "make pushing automatic" or "ask me before each push" to change it.
+
+**When there is a conflict**: on a merge conflict, the script backs out with `git merge --abort`, the working tree is as before the merge, and the team lead tells you which files conflict and lets you decide; nothing is resolved automatically or stashed. When uncommitted local changes fall on files that the merge brings in, git refuses to merge and keeps the changes as they are; commit them first, or merge after the teammates finish. This is the only exception to rule 10's "no non-fast-forward merges": only `/remote-collab` merges create merge commits.
+
+**Cost** (the numbers below are converted at API list prices and not measured, except the token counts marked "measured"; subscription users pay nothing extra, the calls only count against usage limits, and the converted amounts serve only to compare the items with each other): watcher mode moves the scheduled checks to a Haiku watcher, so the check output stays with the watcher and does not enter the team lead's context; but this does not guarantee a lower cost for the team lead, which depends on what you compare it with. The watcher's context starts at about 70,000–80,000 tokens; a check with no updates adds about 1,100, and a digest of one document about 8,000–15,000 (measured); once a Haiku prompt passes 100,000 tokens the price per token is 5 times higher, so every 12 checks (about 6 hours at a 30-minute interval), or after writing a digest once 6 checks are done, the watcher asks the team lead to spawn it again, without asking you. The idle notice the watcher sends after each check wakes the team lead once, even with no updates; one notice together with the team lead's reply is about 300–350 tokens, about 110,000 a week at a 30-minute interval (measured), which makes its context compaction come sooner, and a little more with a haiku team lead. Background-script mode costs nothing while idle, and a one-off subagent writes the digest when there are updates; it has to be started again after the session ends. The team lead's session must stay open for scheduled checks to happen; after a restart, `/reactivate-team` resumes them automatically when it restores the team.
 
 ### Changing rules for a running team
 

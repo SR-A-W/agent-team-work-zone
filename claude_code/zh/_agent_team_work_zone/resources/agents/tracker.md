@@ -182,7 +182,9 @@ Desktop 会解析这条指令并直接创建任务，跳过 GUI 表单。
 
 **间隔**：模式 B 一般 10–30 分钟（每次检查只是一个很短的 Haiku 回合）。结果还要几小时才会出来时，放得更稀。
 
-**已验证 / 尚未验证**：在 teammate 里，`/loop` 依赖的工具（ScheduleWakeup、CronCreate）都存在，`loop` 也在它的 skill 列表里（已在分屏模式的 teammate 里实测确认，2026-10-04）。"每次 `/loop` 唤醒确实回到该 teammate 本人"**尚未**端到端验证——依赖它之前，先确认第一次检查真的触发了。
+`/remote-collab` 的查看成员（`<slug>-remotewatch`）是模式 B 的一个用法：它定时查看另一台机器上的团队有没有推来新东西，有发给本团队的文档时还会在自己工位写摘要文件；检查规则见该技能目录里的 watcher_rules.md。
+
+**已验证**：在 teammate 里，`/loop` 依赖的工具（ScheduleWakeup、CronCreate）都存在，`loop` 也在它的 skill 列表里（已在分屏模式的 teammate 里实测确认，2026-10-04）。"每次 `/loop` 唤醒确实回到该 teammate 本人"也已验证：同进程和分窗格两种显示方式各连续跑了 6 次，每次都回到该 teammate 本人，并能在唤醒的回合里给 lead 发 SendMessage（2026-10-25）。另外，teammate 每轮结束都会自动给 lead 发一条空闲通知，lead 会因此跑一个回合，即使这一轮没发消息；这关不掉，lead 应把它当空操作。
 
 **成本说明——空闲时的 checkpoint 提醒**：你是带工位的常驻 teammate，所以每当你进入空闲、而 `working-context.md` 已超过 15 分钟没更新时，TeammateIdle hook 会要求你 `/checkpoint`——实际上大多数检查之后都会触发。照做，做一次最小的 checkpoint（只写 Part A：盯什么、最近看到的状态、停止条件）。这大约让每次检查多出一个很短的 Haiku 回合；这是所有 teammate 的常规行为，保持不变。
 

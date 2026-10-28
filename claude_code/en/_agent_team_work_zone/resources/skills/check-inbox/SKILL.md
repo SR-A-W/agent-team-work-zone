@@ -58,7 +58,7 @@ For each file, determine ownership:
 | RESOLVED | from=`<SELF>` | any | ➡️ enter step 9 (issuer archival queue) |
 | RESOLVED | from=other | any | 📋 done, awaiting issuer archival — read-only, do not archive |
 
-**Team version special**: for roundtable files, `from` and `to` are `<team>/<role>` format (e.g. `architect_team/tracker`); `architect_team/lead` equals `<SELF>` when `<SELF>` is that team's lead.
+**Team version special**: for roundtable files, `from` and `to` are `<team>/<role>` format (e.g. `architect_team/tracker`); `architect_team/lead` equals `<SELF>` when `<SELF>` is that team's lead. meeting_room files use this form too (when a team on another machine works with this one through `/remote-collab`, every cross-machine document is written this way): `<this team dir>/lead` equals this team's lead, and `<this team dir>/<teammate>` equals that teammate; a flat workstation uses `<workstation dir>` for itself.
 
 ### 4. Sort in chronological order
 

@@ -80,7 +80,7 @@ _agent_team_work_zone/<team_name>/TEAMMATE_INFO.json
 |---|---|---|
 | `name` | string | Teammate 的全局唯一名字，**必须形如 `<slug>-<role>`**：`slug` = team 工位名去 `_team`、单 token（无连字符），`role` 可含连字符。例 `architect-reviewer`、`architect-plan-a-author`。idle checkpoint hook 靠 `${name%%-*}_team` 从 name 反推工位，故 slug 必须无连字符。存量旧名（如 `Fixer`）容忍，新建一律用 `<slug>-<role>` |
 | `role_source` | object | 角色定义来源，见下方 |
-| `model` | string | 使用的模型：`sonnet` / `haiku` / `opus` 或具体 ID |
+| `model` | string | 使用的模型：`sonnet` / `haiku` / `opus` / `fable`（`fable` 只在用户点名时用）或具体 ID |
 | `plan_mode_gating` | boolean | Spawn 时是否启用 plan-mode gating |
 | `scope` | string | 作用域的简要描述（纯供人类参考，不是机器解析字段）。**自由文本字段不得含 ASCII 双引号 `"`**——它会破坏 JSON；需要引号时用 「」/『』/中文引号（对 zh/ja team 零表达损失）。同理保持简短（稳定的作用域范围描述），不要塞进逐条进度叙述（那属于 `working-context.md`，Markdown、坏了也无害） |
 | `spawned_at` | ISO8601 string | 最初 spawn 时间 |

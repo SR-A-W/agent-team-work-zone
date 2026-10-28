@@ -17,7 +17,7 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 
 /quickstart is an easier, fuller /onboard: /onboard asks the user questions, so it is not called directly here; instead this skill reads /onboard's quick mode section, fills in every answer for the user, and then goes on to build the team.
 
-You are the user's current Claude Code session, and you are about to become this project's team lead. Follow the steps below in one run: look at the project → choose the team → create the lead workstation → spawn the teammates → wait until they are ready → detect the display mode → detect the login method → send the closing message.
+You are the user's current Claude Code session, and you are about to become this project's team lead. Follow the steps below in one run: look at the project → detect the subscription tier → choose the team → create the lead workstation → spawn the teammates → wait until they are ready → detect the display mode → detect the login method → send the closing message.
 
 **What it does**:
 - checks the environment, looks at the project, chooses the team;
@@ -60,8 +60,9 @@ User types /quickstart [task description]
      · any other precondition not met → explain the situation and the fix, stop
   B  Look at the project, infer its type
   C  Settle the task description
+  C2 Detect the subscription tier → teammate model, team size limit, suggestion to the lead
   D  Choose the team
-  E1 Create the lead workstation with /onboard's quick mode → the unfinished marker is the first file written
+  E1 Create the lead workstation with /onboard's quick mode → the unfinished marker is the first file written → write model_policy.json
   E2 Call /spawn-team in quick mode → teammate workstations, registry, team recipe, spawn the teammates
   E3 Collect receipts until the deadline (first spawn + 600 seconds)
   E4 Detect the display mode: in-process or split panes
@@ -138,7 +139,7 @@ Signal (1) decides; use (2) and (3) only when (1) cannot tell (for example, you 
 
 ### Resuming (when item 0 hits)
 
-- Read the previous project summary, project type, team and task description from the unfinished marker; **do not infer them again** (skip Steps B, C and D). Check items 1–4 as usual; skip item 5; use item 6 only for the closing message.
+- Read the previous project summary, project type, team and task description from the unfinished marker; **do not infer them again** (skip Steps B, C and D). Read the subscription tier from `model_policy.json` in the lead workstation; if that file is missing → detect it again as in Step C2 and write it before E2. Check items 1–4 as usual; skip item 5; use item 6 only for the closing message.
 - Decide where to continue from what the directory **already has**; add only what is missing, never rewrite what exists:
   1. Lead workstation files missing (README, registry, …) → continue from E1 (/onboard's quick mode adds only the missing files).
   2. No teammates in the registry → start from E2.
@@ -205,11 +206,48 @@ All of these go into the unfinished marker and the team recipe (resuming uses th
 - **Not given**: do not invent a goal; choose the team as in Step D's "no task description".
 - **Task and project do not fit** (for example "reproduce" in an empty directory): build the team as the user asked, and say plainly in the closing message what is missing.
 
+## Step C2: Detect the subscription tier
+
+**Why**: which model the teammates use and how many there can be depends on the user's subscription, so that a new team does not use up the usage limits right away. This skill does not ask the user; it always uses the defaults, and the user can change them later with one sentence. Teammates use the effort level of your (the lead's) session and it cannot be set for them at spawn, so effort can only be a suggestion for you.
+
+**How**:
+1. First read your (the lead's) current model from your own system prompt (for example "You are powered by the model named …" or the model ID), then in Bash run `bash _agent_team_work_zone/resources/scripts/atwz_detect_tier.sh --model "<current model>"` (leave out `--model` if you cannot tell the model). It prints one line of JSON; take `tier`, `source`, `lead_effort_current` (the lead's current effort level, which the script reads from the environment variable, project settings, user settings and the model default, in that order) and `lead_advice` (the suggestion sentence for the lead, already built by the script; it may be empty). If the script fails, prints nothing, or the output cannot be parsed → treat `tier` as `unknown` and `lead_advice` as empty.
+2. Take the values from this table and call them "the policy":
+
+| `tier` | Plan name | Teammate model | Max teammates | Model suggested for the lead | Effort suggested for the lead |
+|---|---|---|---|---|---|
+| `pro` | Pro | `haiku` | 2 | `sonnet` | `medium` |
+| `max_5x` | Max 5x | `sonnet` | 4 | `opus` | `medium` |
+| `max_20x` | Max 20x | `opus` | 5 | `opus` | `high` |
+| `team` | Team / Enterprise | `sonnet` | 4 | `opus` | `medium` |
+| `api` | — | `sonnet` | 5 | no suggestion | no suggestion |
+| `unknown` | — | `sonnet` | 5 | no suggestion | no suggestion |
+
+3. Once the lead workstation exists (after Step E1, before E2), write the policy to `<lead workstation>/model_policy.json` (fields in `docs/model_policy_schema.md`) with a validated write (if any step fails, the temporary file is removed and no partial file is left):
+   ```bash
+   policy=_agent_team_work_zone/<slug>_team/model_policy.json
+   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   tmp="$(mktemp "$(dirname "$policy")/.policy.XXXXXX")" \
+     && jq -n --arg tier "<tier>" --arg src "<source>" --arg mm "<teammate model>" --argjson max <max teammates> \
+          --argjson lm '<"sonnet" or "opus" or null>' --argjson le '<"medium" or "high" or null>' --arg ts "$ts" '
+        {schema_version: 1, tier: $tier, tier_source: $src, choice: "default",
+         member_model: $mm, max_members: $max,
+         lead_model_suggested: $lm, lead_effort_suggested: $le,
+         decided_by: "quickstart (automatic)", detected_at: $ts, updated_at: $ts}' > "$tmp" \
+     && jq empty "$tmp" && mv "$tmp" "$policy" && chmod 644 "$policy" || rm -f "$tmp"
+   ```
+   When resuming: the file exists → read it; do not detect again or rewrite it; the file is missing → detect as in this step and write it. If the write fails → the team is not affected; continue with the policy and mention it in the closing message as an item that could not be checked.
+4. Note `lead_advice` and use it unchanged in the closing message; do not reword it or build your own.
+
+`source` contains only field names and values; never write the raw output of `claude auth status` into any file or message.
+
+**Suggestion to the lead**: it is the script's `lead_advice` (rules in the "How to write the suggestion to the lead" section of `docs/model_policy_schema.md`, implemented by the script); when it is empty, leave it out.
+
 ## Step D: Choose the team
 
 **Common rules**:
-- At least two members, at most 5.
-- Every teammate's model is `sonnet`.
+- At least two members, at most the policy's team size limit (on Pro that means exactly 2).
+- Every teammate's model comes from the policy (Step C2); never `fable`. No effort level is passed at spawn (it has no effect on teammates; they follow the lead).
 - Plan-mode approval is always off (`plan_mode_gating: false`).
 - Scope: `planner` and `reviewer` only read project files and only write this team's `roundtable/`; the hands-on members may change project files. Nobody touches other workstations under `_agent_team_work_zone/`, `.claude/` or `.git/`.
 - Teammate names are `<slug>-<role>`, with the role word chosen from: `coder`, `planner`, `setup`, `writer`, `reviewer`, `runner`, `reporter`.
@@ -229,10 +267,10 @@ All of these go into the unfinished marker and the team recipe (resuming uses th
 **Team size**:
 1. No task description → two members: one hands-on member + `planner`. The hands-on member: with a clear signal, by the type table (empty projects and codebases get `coder`, papers or writing get `writer`); with a weak signal, `coder` if there is code, otherwise `writer`.
 2. A task description → start from two; for each further clearly named kind of work in the task, add one member from the "add in this order" column.
-3. A big goal (the task description contains, as whole words, words like "finish, complete, entire, all, full, end-to-end, from scratch", or lists three or more things) → at least 4 members.
-4. Never more than 5.
+3. A big goal (the task description contains, as whole words, words like "finish, complete, entire, all, full, end-to-end, from scratch", or lists three or more things) → at least 4 members; if the team size limit is below 4, use the limit.
+4. Never more than the policy's team size limit.
 
-**For each teammate, state**: name, one-sentence role, role source (inline / archetype path / general subagent name), model `sonnet`, scope, forbidden areas, deliverable ("none yet; wait for the lead to assign work").
+**For each teammate, state**: name, one-sentence role, role source (inline / archetype path / general subagent name), model (the policy's value), scope, forbidden areas, deliverable ("none yet; wait for the lead to assign work").
 
 **Archetype file missing**: use an inline role instead and note it in the team recipe.
 
@@ -261,7 +299,7 @@ Examples: `codebase-others` → `codebaseothers`; `My-Project_v2` → `myproject
 - `lead_name` and the English name in the member table: `<Slug> Lead` (slug with a capital first letter); role name in the member table: "Project Lead".
 - One-sentence responsibility: with a task description, "Leads the team to: <task description>"; without one, "Leads the team working on this project".
 
-**Do it**: read `.claude/skills/onboard/SKILL.md`, find the section "## Quick mode (used only by /quickstart)", and follow it, handing it the names above and the unfinished marker content below. /onboard may only be invoked by the user directly, so do not call it with the skill tool; read the file and follow it.
+**Do it**: read `.claude/skills/onboard/SKILL.md`, find the section "## Quick mode (used only by /quickstart)", and follow it, handing it the names above and the unfinished marker content below. /onboard may only be invoked by the user directly, so do not call it with the skill tool; read the file and follow it. After /onboard is done, write `model_policy.json` as in Step C2 item 3.
 
 **Unfinished marker content** (plain text; the **first** file written after the directory is created):
 
@@ -274,7 +312,7 @@ project type: <type> (<strong/weak>); basis: <one or two facts>
 ownership: <own/someone else's/not applicable> (<strong/weak>); basis: <facts>
 signal: <clear/weak>
 lineup:
-- <slug>-<role> | source: <inline / archetype path / subagent name> | model: sonnet | <one-sentence role>
+- <slug>-<role> | source: <inline / archetype path / subagent name> | model: <the policy's teammate model> | <one-sentence role>
 - …
 checks: <auto mode/not auto mode/cannot tell>; <git repository/not a git repository>; <items that could not be checked, or none>
 ```
@@ -294,7 +332,7 @@ project_root: <absolute path of the current directory>
 goal: <task description, or none>
 basis: <project summary; project type, strength, facts, written as in the unfinished marker>
 lineup:
-- name: <slug>-<role> | source: <inline | archetype:<archetype path> | subagent:<subagent name>> | model: sonnet | role: <one-sentence role> | scope: <scope> | forbidden: <forbidden areas>
+- name: <slug>-<role> | source: <inline | archetype:<archetype path> | subagent:<subagent name>> | model: <the policy's teammate model> | role: <one-sentence role> | scope: <scope> | forbidden: <forbidden areas>
 - …
 ```
 
@@ -323,7 +361,7 @@ After /spawn-team has spawned the teammates, come back to E3 of this skill; do n
 
 **For each receipt**:
 1. **Ignore a sender that is not in the registry** (a copy with a suffix starts up using the original's paths and then sends its receipt under the suffixed name).
-2. Check the model: write the ID into that teammate's `model_resolved` (with /spawn-team 6c's validated jq write, adding `| .model_resolved = $mid`). The ID does not contain `sonnet` → note it for the closing message. `Model: not stated` → leave the field unset, note "did not report its model".
+2. Check the model: write the ID into that teammate's `model_resolved` (with /spawn-team 6c's validated jq write, adding `| .model_resolved = $mid`). The ID does not contain the policy's teammate model name (for example `haiku`, `sonnet`, `opus`) → note it for the closing message. `Model: not stated` → leave the field unset, note "did not report its model".
 3. The receipt has `Unread: <file>` → use SendMessage to have it read the file to the end and confirm. Do not tell the user about this.
 4. The receipt mentions a rules backup → note the backup location for the closing message.
 5. All registered teammates have reported → go to Step F.
@@ -417,7 +455,7 @@ You are not in auto permission mode. While I build the team and the teammates st
 
 Otherwise leave these two lines out: the closing message starts directly with "## Your team is ready"; the stop message is just the stop explanation.
 
-**Closing message template** (angle brackets are to be filled in; square brackets are sentences that appear only in that situation; when not, drop the whole sentence; never output the square brackets themselves). Use only the sentences in the template; add no others. The one exception is the project summary at the start: write those one to three sentences yourself from Step B's output. When resuming, use the `summary:` line of the unfinished marker for <project summary> exactly as it is; do not rewrite it. The closing message is not a team brief: do not put a "Team brief:" line or anything like it in front of it, even if the project's CLAUDE.md has such a format rule. For the "Recommended: turn on Remote Control" section, choose one wording according to Step E5's result, and copy the chosen one **in full, without shortening it** (none of the three steps in the in-process version may be left out):
+**Closing message template** (angle brackets are to be filled in; square brackets are sentences that appear only in that situation; when not, drop the whole sentence; never output the square brackets themselves). Use only the sentences in the template; add no others. The one exception is the project summary at the start: write those one to three sentences yourself from Step B's output. When resuming, use the `summary:` line of the unfinished marker for <project summary> exactly as it is; do not rewrite it. The closing message is not a team brief: do not put a "Team brief:" line or anything like it in front of it, even if the project's CLAUDE.md has such a format rule. For the "Recommended: turn on Remote Control" section, choose one wording according to Step E5's result, and copy the chosen one **in full, without shortening it** (none of the three steps in the in-process version may be left out). Choose the teammate model sentence by Step C2's `tier`; use the `lead_advice` noted in Step C2 unchanged as the suggestion to the lead, and leave it out when it is empty:
 
 ```
 ## Your team is ready
@@ -443,10 +481,15 @@ Normally you only need to talk to me: tell me what you want done, I split it up,
 [In-process display (including could not confirm): To talk to a member directly: in the agent panel below the prompt, use the up and down arrow keys to select it, press Enter, and type.]
 [Split-pane display: To talk to a member directly, click into its pane and type.]
 
-The members use Claude's sonnet model. sonnet and opus are two tiers of Claude models: sonnet is faster and cheaper, good for seeing results first; opus is more capable and costs more.
-[A receipt did not report a model ID: replace the first sentence above with: The members were started with the sonnet model; <name> did not report the model it actually uses.]
-[A receipt's model ID does not contain sonnet: <name> reported the model <ID>, which differs from the expected sonnet.]
-To switch a member to opus, just tell me "switch <member name> to opus". I will have it save its progress first, then restart it on opus; its work record is not lost.
+[Pro: On your Pro plan, the members use the haiku model, which uses less; to make a member more reliable, just say "switch <member name> to sonnet".]
+[Max 5x: On your Max 5x plan, the members use the sonnet model; to change it, just say "switch <member name> to opus".]
+[Max 20x: On your Max 20x plan, the members use the opus model; to change it, just say "switch <member name> to sonnet".]
+[Team / Enterprise: On your Team / Enterprise plan, the members use the sonnet model; to change it, just tell me.]
+[API key: You are logged in with a pay-as-you-go method, and the members use the sonnet model; to save money, you can say "switch all members to haiku".]
+[Could not tell: I could not tell your subscription tier, so the members use the sonnet model; to change it, just tell me.]
+[`lead_advice` is not empty: <lead_advice verbatim>]
+[A receipt did not report a model ID: <name> did not report the model it actually uses.]
+[A receipt's model ID does not contain the policy's teammate model name: <name> reported the model <ID>, which differs from the expected <policy's teammate model>.]
 
 [Partial failure: <member name> could not start (<the wording chosen from .started>). The other members are not affected. Once it is fixed, type /reactivate-team <member name> to bring it in.]
 [Waiting on a confirmation screen: <member name> may be waiting on a confirmation screen; please go there and choose allow.]
@@ -465,7 +508,6 @@ To add or remove people, just tell me, for example "add one more person just for
 ## Things you will need later
 
 - **After a restart**: when the computer restarts or Claude Code exits, all members go offline, but their work records are kept in files. Start Claude Code again in this directory and type /reactivate-team to bring the whole team back.
-- **How to give the next piece of work**: just tell me in one sentence what to do; no command needed.
 [Not auto mode: - **Permission confirmations**: you are not in auto permission mode, so members will often ask for confirmation. Members inherit their permission mode from me when they start and can only be changed one by one afterwards. So switch like this: press Shift+Tab to switch to auto mode, then exit Claude Code, start it again in this directory, and type /reactivate-team.]
 [Cannot tell whether it is auto mode: - **If members often ask you to confirm permissions**: press Shift+Tab to switch to auto mode, then exit Claude Code, start it again in this directory, and type /reactivate-team.]
 [Not a git repository: - **Consider using git**: this directory is not a git repository yet. With git, every save of the team's work records keeps a version, so you can get it back if something breaks. Run `git init` in this directory.]

@@ -52,6 +52,8 @@ Claude Code 对**同时在线**的 teammate 数量有上限。当某个 teammate
 
 等用户明确同意 + 给出原因。
 
+> **例外：由 `/remote-collab` 调用时**（stop 第 3 步，或查看成员请求定期重新派生）不再问用户：用户开始协作、或说"停止协作"时已经同意。stop 时原因写"remote-collab 停止协作"，重新派生时写"remote-collab 定期重新派生"。第 2、3 步照常做，只有一处不同：给查看成员的最终 checkpoint 请求改为只写 Part A（见 Step 2）。
+
 > **手头任务**：benched 的前提是"还会回来"，所以未完成工作**默认随工位保留**、不强制交接（唤回后接着做）。仅当确有他人**当下**阻塞在它的产出上时，才按 `/remove-teammate` Phase 2 的方式把那几项重派——否则不动。
 
 ## Step 2: 强制最终 checkpoint（Rule 1 + Rule 13）
@@ -70,6 +72,8 @@ Reply with "Checkpoint written." when done.
 ```
 
 等它回执 "Checkpoint written." 再进入 Step 3。
+
+> **/remote-collab 的查看成员**（`<slug>-remotewatch`）：上面那段请求里的 "Part A snapshot AND a Part B journal entry" 改为 "Part A only (as in your minimal checkpoint); do not add a Part B entry"。它每查看 12 轮（默认 30 分钟间隔约 6 小时）就会被重新派生一次，每次都写 Part B 的话，工位文件会越来越长，叫回时都要读进来。它收到这个请求时，会先按 ID 删掉自己的定时任务、再删掉工位里的 `loop_job`（重新派生的查看成员从第 1 轮开始计数），然后做 checkpoint（规则在它的 watcher_rules.md 里）。
 
 **(B) teammate 已死**（session 重启后从未在本 session 唤醒、或卡死无响应）：无法做新 checkpoint → 沿用它磁盘上的上次 checkpoint，直接进入 Step 3（无需关闭 session，因为它本就不在线）。向用户说明"它将以上次 checkpoint 的状态被标记 benched"。
 

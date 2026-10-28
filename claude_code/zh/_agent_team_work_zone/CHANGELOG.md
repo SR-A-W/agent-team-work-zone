@@ -4,6 +4,26 @@
 
 ---
 
+## v1.3.0 (2026-10-28)
+
+MINOR（向后兼容）：**成员模型按你的订阅来定；新技能 `/remote-collab` 让两台机器上的两个团队通过 git 和会议室协作同一个仓库**。
+
+### 新增
+- **成员模型按你的订阅来定。** `/quickstart` 和 `/onboard` 用新脚本 `resources/scripts/atwz_detect_tier.sh` 判断你的订阅档位（Pro、Max 5x、Max 20x、Team / Enterprise、API key，或判断不出），把结果写进 `<团队目录>/model_policy.json`：成员默认模型（Pro 用 haiku；Max 5x 用 sonnet；Max 20x 用 opus；Team / Enterprise、API key 和判断不出用 sonnet）和成员人数上限（Pro 2 人，Max 5x 4 人，Team / Enterprise 4 人，其余 5 人）。`/spawn-team`、`/add-teammate` 从这里取默认值；你在对话里点名的模型永远优先，重新派生的成员沿用登记表里的模型。成员默认永远不用 `fable`：Fable 可能按量付费，成员会话会因此停在同意提示上。技能改不了 lead 自己的模型和思考强度，所以当 lead 当前的设置和建议不同时，结束消息里加一句建议（例如 Pro 时"建议输入 /effort medium"）。`/quickstart` 不问人，直接用默认值；`/onboard` 让你在默认、更省额度、自己指定三种里选。文件说明见 `docs/model_policy_schema.md`。成员的思考强度跟着 lead：Agent 工具的 `effort` 参数对成员不起作用（两种显示方式都实测过），所以只能通过 lead 自己的思考强度来改：`/effort` 或 `claude --effort`。
+- **`/remote-collab`**：两名开发者的 Claude 团队在不同机器上，通过 git 和会议室协作同一个仓库。五个子命令：`start`、`pull`、`push`、`stop`、`status`。`start` 先检查前提（工作区已被 git 跟踪、有远端和上游分支、两边团队名不同、两边框架 `VERSION` 相同），再用一条消息问你两件事：怎么查看对方的更新，以及推送方式（推送会推整个分支，包括代码；每次推送前列出要推的提交、等你批准，这是默认；或由 lead 在需要时直接推送）。查看方式有两种，都只 fetch、不动你的工作目录：(1) 默认，一名 haiku 查看成员 `<slug>-remotewatch` 每 30 分钟查看一次；(2) 后台脚本轮询，默认每 50 分钟查看一次，没有常驻成员，没有更新时不花用量，有更新时脚本退出、唤起 lead，由一次性 haiku 子代理写摘要；单人工位不升级也能用这一种。对方发来给本团队的文档时，写一份摘要文件（派给谁、急不急只作建议，由 lead 决定），给 lead 的消息不超过 5 行；对方只推了代码时只说一行。查看成员和子代理都不合并、不派活。查看成员的检查规则单独放在 `resources/skills/remote-collab/watcher_rules.md`；每轮只运行一次脚本：`check` 的新参数 `--journal` 往它的 working-context.md 写一行工作记录（替换上一行，文件不变长），`--loop-job` 记下它已查看的轮数，到 `--respawn-after`（默认 12 轮，30 分钟间隔约 6 小时）时、或本轮有文档且已到一半时，输出 `respawn_due`；查看成员这时请 lead 重新派生它，lead 不问你，按配置里查看成员的名字运行 `/bench-teammate` 和 `/remote-collab start`（由 `/remote-collab` 调用时 `/bench-teammate` 也不再问你），这样查看成员的上下文大多在 10 万 token 以下（超过后 Haiku 单价变为 5 倍）。后台脚本方式用新的 `watch`、`watch-stop` 子命令。成员同进程显示、Claude Code 版本够时，`start` 还会问是否在本机的 `.claude/settings.local.json` 里设 `subagentPromptCacheTtl: "1h"`（同进程成员的提示缓存默认只有 5 分钟，每轮都不命中）。会话重启后，`/reactivate-team` 恢复团队时会自动接着定时查看（两种方式都会）。合并和推送只由 lead 做：不能快进时产生一个合并提交；有冲突一律退回并告诉你；不 stash。查看成员方式下，没有更新时 lead 也会每次查看被唤醒一次：查看成员每一轮结束都会给 lead 发空闲通知，这个关不掉；lead 收到时什么都不做，但这一回合仍有开销，这些空闲通知也会留在 lead 的上下文里，长期开着会让 lead 更早触发上下文压缩（实测：一条空闲通知连同 lead 的回话约 300–350 token，默认 30 分钟间隔一周约 11 万 token；估算：lead 用 Opus 时按 API 牌价约每天 1–1.5 美元。默认 30 分钟，因为定时循环底层是 cron，只有整除 60 的分钟数能均匀触发，30 分钟又在 1 小时的提示缓存之内）。后台脚本方式空闲时没有这些开销。尚未在两台真实机器之间实测，也没有在 macOS 的 bash 3.2 下实测（`atwz_detect_tier.sh` 同样如此）。
+
+### 变更
+- **`/check-inbox`**：会议室文档的 `from`、`to`、`cc` 也认 `<团队目录>/<成员>` 写法（例如 `alice_team/lead`），和团队 roundtable 里一样。
+- **工作守则第 10 条**加一个例外：`/remote-collab` 的 pull 步骤可以用 `git merge --no-edit` 产生合并提交；有冲突一律 `git merge --abort` 并告诉用户。除此之外仍不做非快进合并。
+- **`meeting_room/README.md`**：新增一节，写同一仓库、另一台机器上的团队怎么用会议室：名字写 `<团队目录>/<成员>`，两边团队名必须不同，一份文档同一时刻只有一方在改（发布方发出后不再改它，只在 pull 进对方的 RESOLVED 之后才归档）。
+- **`resources/agents/tracker.md`**：盯守告警模式写明"每次 `/loop` 唤醒都回到该成员本人"已经验证，并说明 `/remote-collab` 的查看成员是这种模式的一个用法。
+- **`/quickstart` 和 `/onboard` 的结束消息**：交代按你的订阅给成员定了什么模型、怎么用一句话改（"把 <成员名> 换成 sonnet"），需要时再加一句对 lead 自己的模型和思考强度的建议。`/quickstart` 去掉"下一件活怎么派"一条，它和前一段重复。
+
+### Migration（v1.2.1 → v1.3.0）
+- `npx agent-team-work-zone@latest upgrade`，或 `bash _agent_team_work_zone/upgrade.sh`。没有用户数据迁移。新技能 `/remote-collab` 会和其他技能一起装进 `.claude/skills/`。已有团队没有 `model_policy.json`，成员默认仍用 sonnet；想用按你订阅档位的默认值，可以让 lead 判断档位并写这个文件（`/onboard` 里"选定成员模型"一步）。工作守则第 10 条有变化（加了 `/remote-collab` 的例外），所以各工位 README 里的守则块会被整体替换，旧块备份在各自 README 旁边（`README.md.rules.bak.<时间>` / `README.md.teammate_rules.bak.<时间>`）。升级还会刷新 `meeting_room/README.md`，并在 `_agent_team_work_zone/.gitignore` 末尾补上缺少的新规则：成员模型策略文件的临时文件，以及 `/remote-collab` 的运行时文件（状态、已查看记录、摘要、查看成员的定时任务、后台脚本的 pid 文件、临时文件），这些文件每次查看都会变；你自己写的行不改。升级后重启 Claude Code 会话，并对每个运行中的团队执行 `/reactivate-team`，让它们加载新增和改过的技能，成员用上新的守则。
+
+---
+
 ## v1.2.1 (2026-10-24)
 
 PATCH（向后兼容）：**`/quickstart` 的结束消息说明分窗格的成员怎样接入远程控制**。

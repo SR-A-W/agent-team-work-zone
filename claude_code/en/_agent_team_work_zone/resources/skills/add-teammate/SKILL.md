@@ -44,7 +44,7 @@ Consult:
 
 - **name**: <slug>-<role> (**must** be `<slug>-<role>` format: slug = this team's workstation name minus `_team`, a single token with no hyphen; role may contain hyphens. E.g. `architect-reviewer`. Globally unique)
 - **Role source**: <subagent name / role_archetype path / original>
-- **Model**: <haiku / sonnet / opus>
+- **Model**: <haiku / sonnet / opus / fable> (by default `member_model` from this team's `model_policy.json`; sonnet without that file; what the user names wins; `fable` only when the user names it, and first tell the user: a teammate session on Fable may need pay-as-you-go usage, which shows a consent prompt; with no answer in 5 minutes the turn is dropped and the teammate is stuck)
 - **Plan-mode gating**: <YES / NO>
 - **Scope**: <concrete files/directories it can touch>
 - **Forbidden**: <can't touch>
@@ -53,6 +53,8 @@ Consult:
 
 Do you agree to add this teammate?
 ```
+
+**Team size limit by subscription**: when `model_policy.json` has `max_members` and adding this teammate goes over it, add one sentence to the proposal: "for your subscription I suggest at most <n> teammates; more of them use up your limits faster", and ask the user to confirm; if they confirm, go ahead; never refuse outright.
 
 Proceed to Phase 4 only after explicit user consent.
 
@@ -85,7 +87,7 @@ Append an entry to the `active_teammates` array in `_agent_team_work_zone/<SELF>
     "type": "archetype" | "subagent" | "tier2" | "inline",
     "path": "..." // or subagent_name or inline_description
   },
-  "model": "<haiku|sonnet|opus>",
+  "model": "<haiku|sonnet|opus|fable>",
   "plan_mode_gating": <true|false>,
   "scope": "<scope summary>",
   "spawned_at": "<ISO8601 current time>",
@@ -171,7 +173,7 @@ This lets subsequent `/evaluate-team` or next `/spawn-team` see the complete tea
 
 ## Phase 7: Send spawn prompt
 
-In the next message send the Phase 5 prompt; Claude Code's built-in mechanism recognizes and spawns.
+In the next message send the Phase 5 prompt; Claude Code's built-in mechanism recognizes and spawns. When spawning with the Agent tool, pass the proposal's model as `model`; do not pass `effort` (it has no effect on teammates, whose effort level follows the lead).
 
 ```
 ✅ teammate workstation skeleton created (5 files)
@@ -181,7 +183,7 @@ Next: send spawn prompt to Claude Code agent-team mechanism
 ```
 
 **After the spawn — receipt (same handling as `/spawn-team` 6e)**: the spawn time is the time you noted immediately BEFORE spawning to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`); wait for `Ready. Model: <name>, ID: <id>`.
-- **Model check**: write the ID into the new entry as `model_resolved` (optional field; validated jq write as in 4b, `| .model_resolved = $mid` on the matching entry). Compare with the registry `model` and the README model line (alias matches if the ID contains it; a specific ID must be equal); on a mismatch **flag it** to the user, edit neither. `Model: not stated` → leave it unset, report "model unconfirmed". A cross-check, not a guarantee.
+- **Model check**: write the ID into the new entry as `model_resolved` (optional field; validated jq write as in 4b, `| .model_resolved = $mid` on the matching entry). Compare with the registry `model` and the README model line (an alias `haiku`/`sonnet`/`opus`/`fable` matches if the ID contains it; a specific ID must be equal); on a mismatch **flag it** to the user, edit neither. `Model: not stated` → leave it unset, report "model unconfirmed". A cross-check, not a guarantee.
 - **No receipt after ~10 minutes**: (1) best-effort tmux pane check (`tmuxPaneId` in `~/.claude/teams/<current session-level team>/config.json` → `tmux capture-pane -p -t <id>`; these are Claude Code internals — on any failure skip to (2), and a failed lookup is never evidence); a confirmation prompt on screen → ask the user to confirm it there. (2) `teammates/<name>/.started` absent or older than the spawn time → never started (or its step-0 write failed); newer but no receipt → working (messages reach it only when its turn ends), wait or check its artifacts. (3) Tell the user the possible causes; **never respawn automatically**. Full procedure: `/reactivate-team` Step 3.3.
 
 ## Notes

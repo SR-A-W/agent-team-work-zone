@@ -154,7 +154,8 @@ _agent_team_work_zone/
 │   │   ├── evaluate-team/SKILL.md
 │   │   ├── add-teammate/SKILL.md
 │   │   ├── remove-teammate/SKILL.md
-│   │   └── bench-teammate/SKILL.md
+│   │   ├── bench-teammate/SKILL.md
+│   │   └── remote-collab/SKILL.md
 │   ├── agents/                ← 通用 subagent 权威源（由 bootstrap 同步到 .claude/agents/）
 │   │   ├── git-repo-manager.md
 │   │   ├── tracker.md
@@ -301,6 +302,7 @@ priority: HIGH | MEDIUM | LOW
   - 提交前先看 `git diff --cached --stat`；提交一律按显式路径：`git commit -m "…" -- <路径>…`
   - 禁用 `git add -A` / `git add .` / `git commit -a`（会把别人的改动带进你的提交）
   - 禁用 `git stash`、`git pull --rebase`、非快进 merge（stash 会收起别人未提交的文件；rebase 或合并失败后的中止、重置会把它们回退）；拉取用 `git pull --ff-only`
+  - 例外：`/remote-collab` 的 pull 步骤（由它自带的脚本执行）可以用 `git merge --no-edit <远端>/<分支>` 产生合并提交，用来合并另一台机器推上来的内容；有冲突一律 `git merge --abort` 退回并报告用户，不自动解决冲突，不 stash。除此之外仍不做非快进合并。
   - 不删除真实存在的 `.git/index.lock`（那是别人的 git 操作正在进行）；若它一直不消失、且没有 git 进程在运行，告诉 lead，不要自己删
   - 在共享 checkout 里提交、合并、拉取时，优先用 `cd "<项目根目录>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`，其中 `<项目根目录>` 是包含 `_agent_team_work_zone/` 的那个目录的绝对路径（你的 spawn prompt 里给了）；这样在任何工作目录下都能用，项目只是某个更大仓库的子目录时也不例外
 - **违反此条的代价**：被动对象在下次 `/sync` 时会发现自己的工位被改动过却不知道是谁、为什么——这会破坏工作连续性和信任
@@ -454,6 +456,7 @@ date: 2026-04-11 15:30
 | add-teammate | `/add-teammate` | team lead 自主 | 在现有 team 中增加一个 teammate |
 | remove-teammate | `/remove-teammate` | team lead 自主 | 让某个 teammate 下岗：优雅交接 + 归档产出 |
 | bench-teammate | `/bench-teammate <name>` | team lead 自主 | 把某个 teammate 临时下线（benched）：最终 checkpoint + 关 session 腾名额，保留全量档案；日后 `/reactivate-team <name>` 唤回 |
+| remote-collab | `/remote-collab start\|pull\|push\|stop\|status` | team lead（或扁平工位）按用户要求 | 和另一台机器上的团队通过同一个 git 远端协作：一名 Haiku 查看成员定时查看远端，有发给本团队的文档才告诉 lead；lead 合并、推送；冲突一律退回并报告用户 |
 | broadcast-rule | `/broadcast-rule` | team lead 自主（用户同意该规则变更后） | 把一条规则变更发给每个在线 teammate，记进本团队常设的 `RULES_LEDGER.md` 并跟踪确认；不在线的 teammate 在被唤回时补上 |
 
 **重要**：`/evaluate-team`、`/add-teammate`、`/remove-teammate`、`/bench-teammate`、`/broadcast-rule` 只在 **team lead 上下文**中有效。若当前是扁平工位误调用，skill 会立即报警并拒绝执行。

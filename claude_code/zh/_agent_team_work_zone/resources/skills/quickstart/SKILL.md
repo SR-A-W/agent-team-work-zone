@@ -14,7 +14,7 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 
 /quickstart 是傻瓜版、增强版的 /onboard：/onboard 会向用户提问，所以这里不直接调用它，而是读 /onboard 的快速模式一节，替用户填好所有答案，再接着把团队建好。
 
-你是用户当前这个 Claude Code 会话，接下来要成为这个项目的团队负责人（lead）。按下面的步骤，一次跑完：看项目 → 定阵容 → 建 lead 工位 → 派生成员 → 等成员就绪 → 判断显示方式 → 判断登录方式 → 发结束消息。
+你是用户当前这个 Claude Code 会话，接下来要成为这个项目的团队负责人（lead）。按下面的步骤，一次跑完：看项目 → 判断订阅档位 → 定阵容 → 建 lead 工位 → 派生成员 → 等成员就绪 → 判断显示方式 → 判断登录方式 → 发结束消息。
 
 **做什么**：
 - 检查环境、看项目、定阵容；
@@ -57,8 +57,9 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
      · 其他前提不满足 → 说明情况和改法，停下
   B  看项目、推断类型
   C  整理任务描述
+  C2 判断订阅档位 → 定成员模型、人数上限、给 lead 的建议
   D  定阵容
-  E1 按 /onboard 的快速模式建 lead 工位 → 建好目录后第一个写未完成标记
+  E1 按 /onboard 的快速模式建 lead 工位 → 建好目录后第一个写未完成标记 → 写 model_policy.json
   E2 按快速模式调用 /spawn-team → 建成员工位、写登记表、写阵容记录、派生成员
   E3 收回执，到截止时间为止（首次派生 + 600 秒）
   E4 判断显示方式：同进程还是分窗格
@@ -135,7 +136,7 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 
 ### 续做（第 0 项命中时）
 
-- 从未完成标记里读出上次的项目简介、项目类型、阵容、任务描述，**不重新推断**（Step B、C、D 跳过）。第 1–4 项照常检查；第 5 项跳过；第 6 项只用于结束消息。
+- 从未完成标记里读出上次的项目简介、项目类型、阵容、任务描述，**不重新推断**（Step B、C、D 跳过）。订阅档位读 lead 工位里的 `model_policy.json`；没有这个文件 → 照 Step C2 重新判断，在 E2 之前写入。第 1–4 项照常检查；第 5 项跳过；第 6 项只用于结束消息。
 - 按目录里**已有**的东西决定从哪一步接着做，只补缺的，不重写已有的：
   1. 缺 lead 工位的文件（README、登记表等）→ 从 E1 接着做（/onboard 快速模式只补缺的文件）。
   2. 登记表里没有成员 → 从 E2 开始。
@@ -202,11 +203,48 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 - **没有**：不编造目标；阵容按 Step D 的"没有任务描述"组建。
 - **任务和项目对不上**（例如空目录里说"复现"）：照用户的话组建，结束消息里如实说缺什么。
 
+## Step C2: 判断订阅档位
+
+**为什么**：成员用什么模型、能有几个人，按用户的订阅来定，免得一上来就把额度用光。本技能不问用户，一律用默认值；用户以后说一句就能改。成员的思考强度跟着你（lead）这个会话，派生时没法单独设，所以思考强度只能作为对你的建议。
+
+**怎么做**：
+1. 先从你自己的系统提示里读出你（lead）当前的模型（例如"You are powered by the model named …"或模型 ID），然后在 Bash 里运行 `bash _agent_team_work_zone/resources/scripts/atwz_detect_tier.sh --model "<当前模型>"`（读不到模型就不加 `--model`）。它输出一行 JSON，取 `tier`、`source`、`lead_effort_current`（lead 当前的思考强度，脚本按环境变量、项目设置、用户设置、模型默认依次读出）和 `lead_advice`（脚本拼好的给 lead 的建议句，可能为空）。脚本出错、没有输出或解析不出 → `tier` 按 `unknown`，`lead_advice` 按空。
+2. 按下表取值，记为"策略"：
+
+| `tier` | 档位名 | 成员模型 | 成员人数上限 | 给 lead 的模型建议 | 给 lead 的思考强度建议 |
+|---|---|---|---|---|---|
+| `pro` | Pro | `haiku` | 2 | `sonnet` | `medium` |
+| `max_5x` | Max 5x | `sonnet` | 4 | `opus` | `medium` |
+| `max_20x` | Max 20x | `opus` | 5 | `opus` | `high` |
+| `team` | Team / Enterprise | `sonnet` | 4 | `opus` | `medium` |
+| `api` | — | `sonnet` | 5 | 不建议 | 不建议 |
+| `unknown` | — | `sonnet` | 5 | 不建议 | 不建议 |
+
+3. 建好 lead 工位后（Step E1 之后、E2 之前），把策略写进 `<lead 工位>/model_policy.json`（字段见 `docs/model_policy_schema.md`），用带校验的写法（任一步失败都删掉临时文件、不留半个文件）：
+   ```bash
+   policy=_agent_team_work_zone/<slug>_team/model_policy.json
+   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   tmp="$(mktemp "$(dirname "$policy")/.policy.XXXXXX")" \
+     && jq -n --arg tier "<tier>" --arg src "<source>" --arg mm "<成员模型>" --argjson max <人数上限> \
+          --argjson lm '<"sonnet" 或 "opus" 或 null>' --argjson le '<"medium" 或 "high" 或 null>' --arg ts "$ts" '
+        {schema_version: 1, tier: $tier, tier_source: $src, choice: "default",
+         member_model: $mm, max_members: $max,
+         lead_model_suggested: $lm, lead_effort_suggested: $le,
+         decided_by: "quickstart (automatic)", detected_at: $ts, updated_at: $ts}' > "$tmp" \
+     && jq empty "$tmp" && mv "$tmp" "$policy" && chmod 644 "$policy" || rm -f "$tmp"
+   ```
+   续做时：文件已在 → 直接读它，不重新判断、不重写；文件不在 → 照本步重新判断并写入。写入失败 → 不影响团队，照策略继续，结束消息里按"有未能检查的项"说一句。
+4. 记下 `lead_advice`，原样用在结束消息里；不要改写，也不要自己另拼。
+
+`source` 只含字段名和取值；不要把 `claude auth status` 的原始输出写进任何文件或消息。
+
+**给 lead 的建议**：就是脚本输出的 `lead_advice`（规则见 `docs/model_policy_schema.md` 的"给 lead 的建议怎么写"一节，由脚本实现）；为空就不写。
+
 ## Step D: 定阵容
 
 **共同原则**：
-- 至少两人，上限 5 人。
-- 成员模型一律 `sonnet`。
+- 至少两人，最多按策略的成员人数上限（Pro 时就是固定 2 人）。
+- 成员模型一律用策略里的值（Step C2）；永远不用 `fable`。派生时不传思考强度（对成员不起作用，成员跟着 lead）。
 - 计划模式审批一律关闭（`plan_mode_gating: false`）。
 - 范围：`planner` 和 `reviewer` 只读项目文件，只写本团队的 `roundtable/`；动手的人可以改项目文件。所有人都不碰 `_agent_team_work_zone/` 下别人的工位、`.claude/`、`.git/`。
 - 成员名 `<slug>-<角色>`，角色词从这几个里选：`coder`、`planner`、`setup`、`writer`、`reviewer`、`runner`、`reporter`。
@@ -226,10 +264,10 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 **规模**：
 1. 没有任务描述 → 两人：动手一人 + `planner`。动手的人：信号明确时按类型表（空项目和代码库是 `coder`，论文或写作是 `writer`）；信号弱时有代码就是 `coder`，否则是 `writer`。
 2. 有任务描述 → 两人起；任务里每多一类明确的工作，按"依次加"一栏加一人。
-3. 目标大（任务描述里按整词出现"写完、做完、整个、全部、完整、端到端、从零"这类词，或列出三件以上的事）→ 至少 4 人。
-4. 无论如何不超过 5 人。
+3. 目标大（任务描述里按整词出现"写完、做完、整个、全部、完整、端到端、从零"这类词，或列出三件以上的事）→ 至少 4 人；人数上限小于 4 时取上限。
+4. 无论如何不超过策略的成员人数上限。
 
-**每个成员写清**：成员名、角色一句话、角色来源（inline / 原型路径 / 通用子代理名）、模型 `sonnet`、范围、禁区、交付物（"暂无，等 lead 派活"）。
+**每个成员写清**：成员名、角色一句话、角色来源（inline / 原型路径 / 通用子代理名）、模型（策略里的值）、范围、禁区、交付物（"暂无，等 lead 派活"）。
 
 **原型文件不存在时**：改用 inline 角色，阵容记录里注明。
 
@@ -258,7 +296,7 @@ allowed-tools: Read Write Edit Glob Grep Bash Agent SendMessage ToolSearch TaskS
 - `lead_name` 和成员表里的英文名：`<Slug> Lead`（slug 首字母大写）；中文名："项目主管"。
 - 一句话职责：有任务描述时 "带领团队完成：<任务描述>"；没有时 "带领团队推进本项目"。
 
-**执行**：读 `.claude/skills/onboard/SKILL.md`，找到"## 快速模式（只由 /quickstart 使用）"一节，照它执行，把上面的名字和下面的未完成标记内容交给它。/onboard 只允许用户直接调用，所以不要用技能工具调用它，而是读文件照做。
+**执行**：读 `.claude/skills/onboard/SKILL.md`，找到"## 快速模式（只由 /quickstart 使用）"一节，照它执行，把上面的名字和下面的未完成标记内容交给它。/onboard 只允许用户直接调用，所以不要用技能工具调用它，而是读文件照做。/onboard 做完后，按 Step C2 第 3 条写 `model_policy.json`。
 
 **未完成标记的内容**（纯文本，建好目录后**第一个**写）：
 
@@ -271,7 +309,7 @@ project type: <类型>（<强/弱>）；依据：<一两条事实>
 ownership: <自己的/别人的/不适用>（<强/弱>）；依据：<事实>
 signal: <明确/弱>
 lineup:
-- <slug>-<角色> | 来源：<inline / 原型路径 / 子代理名> | 模型：sonnet | <角色一句话>
+- <slug>-<角色> | 来源：<inline / 原型路径 / 子代理名> | 模型：<策略的成员模型> | <角色一句话>
 - …
 checks: <自动模式/非自动模式/看不出>；<是/不是 git 仓库>；<未能检查的项，或 none>
 ```
@@ -291,7 +329,7 @@ project_root: <当前目录的绝对路径>
 goal: <任务描述，或 none>
 basis: <项目简介；项目类型、强弱、依据，按未完成标记里的写法>
 lineup:
-- name: <slug>-<角色> | source: <inline | archetype:<原型路径> | subagent:<子代理名>> | model: sonnet | role: <角色一句话> | scope: <范围> | forbidden: <禁区>
+- name: <slug>-<角色> | source: <inline | archetype:<原型路径> | subagent:<子代理名>> | model: <策略的成员模型> | role: <角色一句话> | scope: <范围> | forbidden: <禁区>
 - …
 ```
 
@@ -320,7 +358,7 @@ lineup:
 
 **每收到一个回执**：
 1. **发件人不在登记表里的，忽略**（带后缀的副本会用原件的路径完成启动，再用后缀名发回执）。
-2. 核对模型：把 ID 写进该成员条目的 `model_resolved`（用 /spawn-team 6c 的带校验 jq 写入，加 `| .model_resolved = $mid`）。ID 不含 `sonnet` → 记下，留给结束消息。`Model: not stated` → 不写该字段，记下"没有报告模型"。
+2. 核对模型：把 ID 写进该成员条目的 `model_resolved`（用 /spawn-team 6c 的带校验 jq 写入，加 `| .model_resolved = $mid`）。ID 不含策略的成员模型名（例如 `haiku`、`sonnet`、`opus`）→ 记下，留给结束消息。`Model: not stated` → 不写该字段，记下"没有报告模型"。
 3. 回执带 `Unread: <文件>` → 用 SendMessage 让它把文件读完并确认。这件事不告诉用户。
 4. 回执提到守则备份 → 记下备份位置，留给结束消息。
 5. 所有登记的成员都到齐 → 进入 Step F。
@@ -414,7 +452,7 @@ printenv ANTHROPIC_BASE_URL
 
 否则不加这两行：结束消息直接从"## 团队已经组建好了"开始；停止消息直接是停止说明。
 
-**结束消息模板**（尖括号是要填的内容；方括号是按情形出现的句子，不出现时整句去掉，方括号本身不输出）。只用模板里的句子，不另加句子；唯一例外是开头的项目简介，那一到三句按 Step B 的输出自己写。续做时，<项目简介> 原样用未完成标记里 `summary:` 那一行，不重写。结束消息不是队内简报：不要在前面加"队内简报："之类的开头，即使项目 CLAUDE.md 里有这类格式规则。"建议开启远程控制"那一节按 Step E5 的结果选其中一种写法，选中的那种**整段照抄，不得删节**（同进程版的三步一步都不能少）：
+**结束消息模板**（尖括号是要填的内容；方括号是按情形出现的句子，不出现时整句去掉，方括号本身不输出）。只用模板里的句子，不另加句子；唯一例外是开头的项目简介，那一到三句按 Step B 的输出自己写。续做时，<项目简介> 原样用未完成标记里 `summary:` 那一行，不重写。结束消息不是队内简报：不要在前面加"队内简报："之类的开头，即使项目 CLAUDE.md 里有这类格式规则。"建议开启远程控制"那一节按 Step E5 的结果选其中一种写法，选中的那种**整段照抄，不得删节**（同进程版的三步一步都不能少）。成员模型那一句按 Step C2 的 `tier` 选；给 lead 的建议原样用 Step C2 记下的 `lead_advice`，为空时不写：
 
 ```
 ## 团队已经组建好了
@@ -440,10 +478,15 @@ printenv ANTHROPIC_BASE_URL
 [同进程显示（含没能确认）时：想直接和某个成员说话：在输入框下方的成员列表里用上下方向键选中它，按回车进入，直接输入。]
 [分窗格显示时：想直接和某个成员说话，点进它的窗格直接输入。]
 
-成员用的是 Claude 的 sonnet 模型。sonnet 和 opus 是 Claude 的两档模型：sonnet 速度快、费用低，适合先看效果；opus 能力更强、费用更高。
-[有回执没报模型 ID 时，上一句的第一句改为：成员是按 sonnet 模型启动的，<名字> 没有报告它实际用的模型。]
-[有回执的模型 ID 不含 sonnet 时：<名字> 报告的模型是 <ID>，和预期的 sonnet 不一致。]
-想把某个成员换成 opus，跟我说一句"把 <成员名> 换成 opus"。我会让它先保存进度，再用 opus 重新启动它，它的工作记录不会丢。
+[Pro 时：按你的 Pro 订阅，成员用 haiku 模型，比较省额度；想让某个成员更稳，说一句"把 <成员名> 换成 sonnet"。]
+[Max 5x 时：按你的 Max 5x 订阅，成员用 sonnet 模型；想换，说一句"把 <成员名> 换成 opus"。]
+[Max 20x 时：按你的 Max 20x 订阅，成员用 opus 模型；想换，说一句"把 <成员名> 换成 sonnet"。]
+[Team / Enterprise 时：按你的 Team / Enterprise 订阅，成员用 sonnet 模型；想换，跟我说一句。]
+[API key 时：你用的是按用量计费的登录方式，成员用 sonnet 模型；想省钱，可以说"把成员都换成 haiku"。]
+[探测不到时：没能判断你的订阅档位，成员按 sonnet 模型；想换，跟我说一句。]
+[`lead_advice` 不为空时：<lead_advice 原文>]
+[有回执没报模型 ID 时：<名字> 没有报告它实际用的模型。]
+[有回执的模型 ID 不含策略的成员模型名时：<名字> 报告的模型是 <ID>，和预期的 <策略的成员模型> 不一致。]
 
 [部分失败时：<成员名> 没能启动（<按 .started 选的说法>）。其他成员不受影响。修好后输入 /reactivate-team <成员名> 就能补上。]
 [停在确认界面时：<成员名> 可能停在一个确认界面上，请到它那里选允许。]
@@ -462,7 +505,6 @@ printenv ANTHROPIC_BASE_URL
 ## 以后会用到的几件事
 
 - **重启以后**：电脑重启或 Claude Code 退出后，成员会全部下线，但他们的工作记录都在文件里。在这个目录重新启动 Claude Code，输入 /reactivate-team，就能把整个团队唤回来。
-- **下一件活怎么派**：直接用一句话告诉我要做什么，不需要任何命令。
 [非自动模式时：- **权限确认**：你现在不是自动权限模式，成员做事时会频繁弹出确认。成员的权限模式是在启动时从我这里继承的，之后只能逐个改。所以要这样换：按 Shift+Tab 切到自动模式，然后退出 Claude Code，在这个目录重新启动，再输入 /reactivate-team。]
 [看不出是不是自动模式时：- **如果成员频繁请你确认权限**：按 Shift+Tab 切到自动模式，然后退出 Claude Code，在这个目录重新启动，再输入 /reactivate-team。]
 [不是 git 仓库时：- **建议用 git**：这个目录还不是 git 仓库。用 git 管理后，团队的工作记录每次保存都能留下版本，改坏了可以找回。在这个目录运行 `git init` 即可。]

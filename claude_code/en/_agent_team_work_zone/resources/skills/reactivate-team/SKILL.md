@@ -97,7 +97,7 @@ Path: `_agent_team_work_zone/<your_team>/TEAMMATE_INFO.json`
 
 **No-arg invocation**: from `active_teammates`, filter the **wake set** = `status ∈ {active, idle}` (**excluding `benched`**; `failed_to_reactivate` is the user's call to retry, not auto-included by default):
 - File does not exist → tell the user "This team has never spawned a teammate (TEAMMATE_INFO.json does not exist)"; exit
-- File exists but the wake set is empty → tell the user "No active teammates to restore (all may be offboarded or benched)"; if benched exist, append a read-only FYI (see Step 2), then exit
+- File exists but the wake set is empty → wake no teammate: skip Steps 2–4, but **still do Step 4b and Step 5** (in background-script mode there is no watcher, and when every other teammate is benched, only Step 4b restarts the background check). The Step 5 report says "No active teammates to restore (all may be offboarded or benched)", appends a read-only FYI if benched exist (see Step 2), then gives the result of Step 4b or why it did not resume; leave that line out when Step 4b had nothing to do
 - Wake set non-empty → continue
 
 **`/reactivate-team <name>` named invocation**: locate `<name>` directly in `active_teammates` (whatever its status — active / idle / benched / failed_to_reactivate); not found → tell the user that name isn't in active_teammates (may be offboarded); exit. The wake set = just this one.
@@ -116,6 +116,7 @@ Teammates to restore (status ∈ active/idle): N
    - Originally spawned: <spawned_at>
    - Last checkpoint: <"how long ago" computed from working-context.md mtime (authoritative); show the file's `_Last updated:` header timestamp as the human-readable value | "never checkpointed" (no working-context.md)>
    - Previously revived: <revived_count> times
+   (for the /remote-collab watcher, add after its name: "(the /remote-collab watcher; scheduled checks resume automatically after it is restored)")
 
 2. <name>
    ...
@@ -226,6 +227,8 @@ Agent(
 # Also do not pass mode: a teammate's permission mode can't be set per-teammate at spawn; it inherits the lead's current mode (for auto, put the lead in auto / set permissions.defaultMode:"auto").
 ```
 
+**The model comes from the registry only**: re-spawning does not read `model_policy.json`, so existing teammates are not switched when the policy changes; no `effort` is passed either (it has no effect on teammates, whose effort level follows the lead). When the user asks in the conversation to switch a model, first change the registry as in the "Switching a teammate's model or effort" part of the lead README, then spawn.
+
 **subagent_type selection rules**:
 - `role_source.type == "subagent"` → `subagent_type: role_source.subagent_name` (reference generic subagent)
 - `role_source.type == "archetype"` or `"tier2"` or `"inline"` → `subagent_type: "general-purpose"` (generic agent; role is injected via spawn prompt)
@@ -236,7 +239,7 @@ Binary judgment:
 - **Success**: received that teammate's SendMessage receipt in the current session (containing "Resumed from checkpoint at X. Ready.") → mark success
 - **Failure / unknown**: no SendMessage receipt received (including timeout) → follow "No receipt after ~10 minutes" below, then warn the user and let the user decide (retry spawn / check working-context.md for damage / or /remove-teammate); **do not assume success**
 
-**Model check (on success)**: the receipt ends with `Model: <name>, ID: <id>`, quoted by the teammate from its own system prompt. Record the ID in Step 4 as `model_resolved`. Compare it with the registry `model` and with the `Model` line of the teammate's README: an alias (`haiku` / `sonnet` / `opus`) matches if the ID contains it (case-insensitive); a specific ID must be equal. On a mismatch, **flag it** in the Step 5 report — do not edit the registry `model` (it records what was requested; an alias may be intentional) and do not edit the teammate's README (rule #1; ask the teammate to correct it at its next /checkpoint). If the receipt says `Model: not stated` or has no ID, leave `model_resolved` unset and report "model unconfirmed". This is a **cross-check, not a guarantee** — the ID is self-reported from the system prompt.
+**Model check (on success)**: the receipt ends with `Model: <name>, ID: <id>`, quoted by the teammate from its own system prompt. Record the ID in Step 4 as `model_resolved`. Compare it with the registry `model` and with the `Model` line of the teammate's README: an alias (`haiku` / `sonnet` / `opus` / `fable`) matches if the ID contains it (case-insensitive); a specific ID must be equal. On a mismatch, **flag it** in the Step 5 report — do not edit the registry `model` (it records what was requested; an alias may be intentional) and do not edit the teammate's README (rule #1; ask the teammate to correct it at its next /checkpoint). If the receipt says `Model: not stated` or has no ID, leave `model_resolved` unset and report "model unconfirmed". This is a **cross-check, not a guarantee** — the ID is self-reported from the system prompt.
 
 **Rules backup (on success)**: if the receipt also says `Rules healed; old section backed up to <file>`, the teammate's README had an old rules section that was replaced; the backup holds that old section, including any user notes that sat after the rules. Mention it in the Step 5 report so the user can restore anything that was not a rule. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
 
@@ -284,6 +287,25 @@ tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
 ```
 If the receipt gave a model ID, add `--arg mid "<ID>"` and `| .model_resolved = $mid` inside the same `if .name == $name then … end` branch.
 
+### Step 4b: Resume remote collaboration
+
+Do this only for a **no-argument call** (also when the wake set is empty, see Step 1); skip it for `/reactivate-team <name>` (`/remote-collab start` brings the watcher back with a single-name call and then sends the start message itself, so it is not sent twice). In Step 2 the watcher's entry already carries the note "scheduled checks resume automatically after it is restored", so the user's confirmation in Step 2 covers this step too; do not ask again.
+
+Decide in this order:
+
+1. `<team dir>/remote_collab.json` does not exist → skip this step. It exists but fails `jq empty` → skip this step, and add a line to Step 5: "remote_collab.json could not be parsed; scheduled checks did not resume".
+2. `stopped_at` is not null → skip (the user stopped working together; the watcher is then benched, and a no-argument call does not wake it anyway).
+2b. `watch_mode` is `"script"` (background-script mode) → no teammate is involved; skip items 3–6 below: do items 3 and 4 of the `/remote-collab start` precondition checks; if both pass → start a round of the background watch as in the "Background-script mode" section of `/remote-collab` (watch-stop first, then watch), and add a line to Step 5: "remote collaboration: background check started again (every <script_interval>)"; if either fails → do not start it, and give the reason in Step 5. Item 7 still applies. No `watch_mode`, or `"teammate"` → the existing checks below.
+3. `watcher` is null (manual mode) → skip.
+4. Look up the `watcher` name in the registry:
+   - Not in the registry → skip, and add a line to Step 5: "the watcher in the configuration is not in the registry; to resume scheduled checks, run /remote-collab start".
+   - Brought back by this run's Step 3 (receipt arrived) → go on to item 5.
+   - This run failed to bring it back (`failed_to_reactivate`) → do not retry; Step 5 lists it under failures as usual, plus a line "scheduled checks did not resume".
+   - `status` is benched (benched although `stopped_at` is null: usually the lead took it offline because its context was too long and the session ended before it was spawned again) → do not bring it back (a no-argument call never wakes benched teammates), and add a line to Step 5: "The watcher is temporarily offline, but working together has not stopped; to resume scheduled checks, say 'resume remote collaboration' and I will run /remote-collab start."
+5. Do items 3 and 4 of the `/remote-collab start` precondition checks (fetch works; nobody else changed a team directory with our name on the remote). If either fails → do not send the start message; tell the user why in Step 5 (when item 4 fails, say that the renaming steps are in item 4 of `/remote-collab` start).
+6. Both pass → send the watcher the start message from the "Spawn the watcher" section of `/remote-collab` (the interval is `interval` in the configuration), and wait for its line about the first check.
+7. Do not rewrite the configuration, do not ask for push permission again, do not change the lead README (only `/remote-collab start` does these); leave `started_at` in the configuration as it is.
+
 ### Step 5: Report to user
 
 Output summary:
@@ -304,6 +326,7 @@ Team <team_name> reactivated:
 - <name3>: <reason>
 
 Status updated in TEAMMATE_INFO.json.
+Remote collaboration (only when Step 4b ran or has a notice): scheduled checks resumed (every <interval>), first check: <result> | background check started again (every <script_interval>) | <why they did not resume>
 Note: a teammate gets no checkpoint reminder during its first 15 minutes after reactivation
 (on purpose: right now its whole state is its workstation files); reminders resume after that.
 

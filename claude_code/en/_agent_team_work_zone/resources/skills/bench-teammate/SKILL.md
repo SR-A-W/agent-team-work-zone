@@ -53,6 +53,8 @@ Bench reason (one line)? Confirm bench?
 
 Wait for explicit consent + a reason.
 
+> **Exception: when called by `/remote-collab`** (step 3 of stop, or the watcher's request to be spawned again on schedule), do not ask the user: the user already agreed when starting to work together, or by saying "stop working together". The reason is "remote-collab stopped working together" for stop, and "remote-collab scheduled respawn" for the respawn. Steps 2 and 3 are done as usual, with one difference: the final checkpoint request to the watcher asks for Part A only (see Step 2).
+
 > **Current tasks**: benching presumes "will come back", so unfinished work **stays with the workstation by default** — no forced handoff (it resumes when woken). Only when others are **currently** blocked on its output do you reassign those items, à la `/remove-teammate` Phase 2 — otherwise leave them be.
 
 ## Step 2: Force a final checkpoint (Rule 1 + Rule 13)
@@ -71,6 +73,8 @@ Reply with "Checkpoint written." when done.
 ```
 
 Wait for its "Checkpoint written." receipt before Step 3.
+
+> **The /remote-collab watcher** (`<slug>-remotewatch`): in the request above, replace "Part A snapshot AND a Part B journal entry" with "Part A only (as in your minimal checkpoint); do not add a Part B entry". It is spawned again every 12 checks (about 6 hours at the default 30-minute interval), and a Part B entry each time would keep growing its workstation file, which it reads in again on every restore. On this request it first deletes its own scheduled task by ID, then deletes `loop_job` in its workstation (so that the respawned watcher counts rounds from 1), then checkpoints (the rule is in its watcher_rules.md).
 
 **(B) Teammate already dead** (never woken this session after a restart, or stuck/unresponsive): no new checkpoint possible → use its last on-disk checkpoint and go straight to Step 3 (no session to close, since it isn't online). Tell the user "it will be marked benched at the state of its last checkpoint".
 

@@ -43,7 +43,7 @@ allowed-tools: Read Write Edit Glob Grep
 
 - **name**: <slug>-<role>（**必须** `<slug>-<role>` 格式：slug = 本 team 工位名去 `_team`、单 token 无连字符；role 可含连字符。例 `architect-reviewer`。全局唯一）
 - **角色来源**: <subagent 名 / role_archetype 路径 / 原创>
-- **模型**: <haiku / sonnet / opus>
+- **模型**: <haiku / sonnet / opus / fable>（默认取本团队 `model_policy.json` 的 `member_model`，没有这个文件就用 sonnet；用户点名的优先；`fable` 只在用户点名时用，先提醒用户：成员会话用 Fable 可能要按量付费，那时会弹同意提示，5 分钟无人应答这一回合就作废，成员会卡住）
 - **Plan-mode gating**: <YES / NO>
 - **作用域**: <具体可碰的文件/目录>
 - **禁区**: <不能碰的>
@@ -52,6 +52,8 @@ allowed-tools: Read Write Edit Glob Grep
 
 你同意加入这个 teammate 吗？
 ```
+
+**按订阅的人数上限**：`model_policy.json` 有 `max_members`，且加上这个人后成员数超过它时，在提案里多说一句"按你的订阅，建议最多 <n> 名成员，人多了额度用得快"，请用户确认；用户确认就照做，不硬性拒绝。
 
 等用户明确同意后进入 Phase 4。
 
@@ -84,7 +86,7 @@ allowed-tools: Read Write Edit Glob Grep
     "type": "archetype" | "subagent" | "tier2" | "inline",
     "path": "..." // 或 subagent_name 或 inline_description
   },
-  "model": "<haiku|sonnet|opus>",
+  "model": "<haiku|sonnet|opus|fable>",
   "plan_mode_gating": <true|false>,
   "scope": "<作用域简述>",
   "spawned_at": "<ISO8601 当前时间>",
@@ -167,7 +169,7 @@ completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维
 
 ## Phase 7: 发送 spawn prompt
 
-在下一条消息把 Phase 5 的 prompt 发出，Claude Code 内置机制识别并 spawn。
+在下一条消息把 Phase 5 的 prompt 发出，Claude Code 内置机制识别并 spawn。用 Agent 工具派生时，`model` 传提案里的模型；不传 `effort`（它对成员不起作用，成员的思考强度跟着 lead）。
 
 ```
 ✅ teammate 工位骨架已创建（5 文件）
@@ -177,7 +179,7 @@ completed/TODO/commitments 5 个文件已由 lead 初始化）。按 Rule 13 维
 ```
 
 **spawn 之后——回执（处理方式同 `/spawn-team` 6e）**：本次 spawn 时间即你在 spawn **之前**立刻记下的时间，精确到秒（例如 `date -u +%s`；与 `.started` 的 mtime `stat -c %Y` 比较）；等待 `Ready. Model: <name>, ID: <id>`。
-- **模型核对**：把 ID 写进新条目的 `model_resolved`（可选字段；按 4b 的带校验 jq 写入，在匹配条目上加 `| .model_resolved = $mid`）。与登记表 `model` 及 README 的模型行比对（别名只要 ID 包含它即一致；具体 ID 须完全相等）；不一致就向用户**标出**，两边都不改。`Model: not stated` → 不写该字段，汇报"模型未确认"。这是交叉核对，不是保证。
+- **模型核对**：把 ID 写进新条目的 `model_resolved`（可选字段；按 4b 的带校验 jq 写入，在匹配条目上加 `| .model_resolved = $mid`）。与登记表 `model` 及 README 的模型行比对（别名 `haiku`/`sonnet`/`opus`/`fable` 只要 ID 包含它即一致；具体 ID 须完全相等）；不一致就向用户**标出**，两边都不改。`Model: not stated` → 不写该字段，汇报"模型未确认"。这是交叉核对，不是保证。
 - **约 10 分钟仍无回执**：(1) 尽力而为的 tmux 读屏（在 `~/.claude/teams/<当前 session 级 team>/config.json` 找 `tmuxPaneId` → `tmux capture-pane -p -t <id>`；这些是 Claude Code 内部实现——任何一步失败都跳到 (2)，查找失败绝不当作证据）；屏上是确认界面 → 请用户到那里确认。(2) `teammates/<name>/.started` 不存在或早于本次 spawn 时间 → 根本没启动（或第 0 步写文件失败）；晚于但没回执 → 已在工作（消息只在它的回合结束时送达），继续等或查它的产物。(3) 把可能原因告诉用户；**绝不自动重派**。完整流程见 `/reactivate-team` Step 3.3。
 
 ## 注意事项

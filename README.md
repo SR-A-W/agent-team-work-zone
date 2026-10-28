@@ -181,7 +181,7 @@ Then type `/quickstart`, optionally followed by a one-sentence task description:
 /quickstart help me reproduce the experiments in this github repo
 ```
 
-It asks you no questions: it looks at the project, chooses the team, creates the lead and the teammates, and waits until they are all ready. Then it tells you who is on the team, how to use it, and proposes a small first task that takes about 20 minutes. The teammates wait for your go-ahead; nothing starts on its own.
+It asks you no questions: it looks at the project, chooses the team, creates the lead and the teammates, and waits until they are all ready. Then it tells you who is on the team, how to use it, and proposes a small first task that takes about 20 minutes. The teammates wait for your go-ahead; nothing starts on its own. The teammates' model is chosen automatically from your subscription tier (Pro uses haiku, Max 5x sonnet, Max 20x opus), and at the end it gives you, as the lead, a one-line suggestion on your own model and effort level.
 
 #### Once you are familiar: choose the roles and team yourself
 
@@ -262,6 +262,7 @@ It asks the install questions again on the version you already have; it does not
 | `/sync` | Recover role context after compaction and check inboxes |
 | `/handoff` | Transfer task context from one agent to another |
 | `/promote-to-team` | Upgrade a flat workstation to team lead |
+| `/remote-collab` | Two developers, each with a team on their own machine, work together through git and the meeting room; a watcher checks the remote on a schedule |
 
 ### Automatic skills (agents call these — you usually don't need to invoke them)
 

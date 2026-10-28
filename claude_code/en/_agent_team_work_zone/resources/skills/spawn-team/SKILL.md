@@ -79,6 +79,8 @@ Consult the following resources:
 
 Based on Phase 2 decomposition, **assemble a 3–5 person team** (at least 2 in quick mode; **max 5**—more causes coordination cost to explode; if more than 5 are needed, explain why).
 
+**Team size limit by subscription**: when `model_policy.json` has `max_members` and the lineup (existing teammates included) goes over it, tell the user in Phase 5 "for your subscription I suggest at most <n> teammates; more of them use up your limits faster" and ask them to confirm; if they confirm, go ahead; never refuse outright.
+
 For each teammate output:
 - **Role name** (`name`, **must be of the form `<slug>-<role>`, globally unique**):
   - `slug` = this team's workstation name minus the `_team` suffix, a **single token** (no `-`/`_`). E.g. team workstation `architect_team` → slug `architect`.
@@ -90,7 +92,7 @@ For each teammate output:
   - Reference a role archetype (fill the archetype markdown content into the spawn prompt, add project-specific details)
   - Reference a team Tier 2 archive
   - Fully original inline persona
-- **Model choice**: `haiku` (fast/cheap, good for mechanical polling, small edits) / `sonnet` (default, good for most coding/review) / `opus` (expensive, good for deep-reasoning architectural design)
+- **Model choice**: by default, `member_model` from this team's `<SELF>_team/model_policy.json`; without that file (an older team), `sonnet`. Choices: `haiku` (fast/cheap, good for mechanical polling, small edits) / `sonnet` (good for most coding/review) / `opus` (expensive, good for deep-reasoning architectural design) / `fable` (only when the user names it; first tell the user: a teammate session on Fable may need pay-as-you-go usage, which shows a consent prompt; with no answer in 5 minutes the turn is dropped and the teammate is stuck). What the user names in the conversation always wins. **No `effort` is passed**: it has no effect on teammates, whose effort level follows the lead's current session
 - **Plan-mode gating**: YES means the teammate enters read-only plan mode first and submits a plan for lead approval before implementing; NO means direct execution
 - **Scope**: which files/directories it can touch; **forbidden** list
 - **Deliverables**: what this teammate must produce at the end (code / report / config / test results …)
@@ -126,7 +128,7 @@ Show the full proposal to the user:
 ## Lineup (N members)
 
 ### Teammate 1: <nickname> — <source: subagent_name / role_archetype/xxx.md>
-- Model: sonnet
+- Model: <teammate model from model_policy.json; sonnet if there is none>
 - Plan-mode gating: YES  (reason: ...)
 - Scope: ...
 - Forbidden: ...
@@ -235,7 +237,7 @@ Each new teammate's entry:
 {
   "name": "<teammate-name>",
   "role_source": { "type": "...", "path": "..." },
-  "model": "<haiku|sonnet|opus>",
+  "model": "<haiku|sonnet|opus|fable>",
   "plan_mode_gating": <true|false>,
   "scope": "<scope summary>",
   "spawned_at": "<ISO8601 current time>",
@@ -307,7 +309,7 @@ Call the Agent tool for each teammate:
 Agent(
     description="Spawn <name>: <one-line role>",
     subagent_type="<see selection rules below>",
-    model="<haiku|sonnet|opus>",   # from Phase 3 decision
+    model="<haiku|sonnet|opus|fable>",   # from Phase 3 decision
     name="<slug>-<role>",          # ← required; without this it's just a subagent; must be <slug>-<role>, matching the workstation directory name
     prompt="<prompt prepared for this teammate in 6a>"
 )
@@ -322,7 +324,7 @@ Agent(
 **Spawn order**: follow execution dependencies — teammates that can run in parallel may be spawned together in a single message with multiple Agent calls; those with ordering dependencies spawn sequentially.
 
 **Receipts (model check + no auto-respawn)**: note the current time immediately BEFORE each Agent call (the "spawn time") to the second (e.g. `date -u +%s`; compare it with the `.started` mtime, `stat -c %Y`), then wait for each teammate's `Ready. Model: <name>, ID: <id>` receipt.
-- **Model check**: write the ID into that teammate's entry as `model_resolved` (optional field; same validated jq write as 6c, `| .model_resolved = $mid`). Compare it with the registry `model` and the README model line — an alias (`haiku`/`sonnet`/`opus`) matches if the ID contains it, a specific ID must be equal. On a mismatch, **flag it** to the user; edit neither. `Model: not stated` → leave the field unset, report "model unconfirmed". A cross-check, not a guarantee (the ID is self-reported). If the receipt mentions a rules backup, tell the user where it is. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
+- **Model check**: write the ID into that teammate's entry as `model_resolved` (optional field; same validated jq write as 6c, `| .model_resolved = $mid`). Compare it with the registry `model` and the README model line — an alias (`haiku`/`sonnet`/`opus`/`fable`) matches if the ID contains it, a specific ID must be equal. On a mismatch, **flag it** to the user; edit neither. `Model: not stated` → leave the field unset, report "model unconfirmed". A cross-check, not a guarantee (the ID is self-reported). If the receipt mentions a rules backup, tell the user where it is. If the receipt carries `ACK <id>` (for example `ACK R-20261004-1`), fill those rows in RULES_LEDGER.md.
 - **Unread files**: if a receipt carries `Unread: <file>`, ask the teammate to finish reading that file and confirm before you assign it any work.
 - **No receipt after ~10 minutes**: (1) best-effort, if in tmux split panes: find its `tmuxPaneId` in `~/.claude/teams/<current session-level team>/config.json` and `tmux capture-pane -p -t <id>` — these are Claude Code internals, so if the file/field is missing or the capture fails, skip to (2), and a failed lookup is never evidence about the teammate; a confirmation prompt on screen → ask the user to confirm it there. (2) Check `teammates/<name>/.started`: absent or older than the spawn time → it never started (stuck on a confirmation/permission prompt, or launch failed) — or its step-0 write failed; newer than the spawn time but no receipt → it is working (messages reach it only when its turn ends), wait or check its artifacts. (3) Always tell the user the possible causes; **never respawn automatically** (a same-name respawn while the first is alive yields `<name>-2`). See `/reactivate-team` Step 3.3 for the full procedure.
 
@@ -378,7 +380,7 @@ project_root: <absolute path of the project root>
 goal: <task description, or none>
 basis: <project summary; project type, strength, facts>
 lineup:
-- name: <slug>-<role> | source: <inline | archetype:<archetype path> | subagent:<subagent name>> | model: sonnet | role: <one-sentence role> | scope: <scope> | forbidden: <forbidden areas>
+- name: <slug>-<role> | source: <inline | archetype:<archetype path> | subagent:<subagent name>> | model: <haiku|sonnet|opus> | role: <one-sentence role> | scope: <scope> | forbidden: <forbidden areas>
 - …
 ```
 
@@ -391,7 +393,7 @@ Any item missing → do not ask the user; stop and return to /quickstart, which 
 | `## Identity precheck` | Do it. `### Currently a flat workstation` under it should not be reached in quick mode; if it is, stop and return to /quickstart |
 | `## Phase 1: Task context collection` | Skip the follow-up questions; use the `goal` passed in |
 | `## Phase 2: Task decomposition` | With no task, write only "awaiting assignment"; with a task, do it without showing it to the user |
-| `## Phase 3: Lineup proposal` | Use the `lineup` passed in; still check the naming rules; at least 2 members; `plan_mode_gating` is always false |
+| `## Phase 3: Lineup proposal` | Use the `lineup` passed in; still check the naming rules; at least 2 members; `plan_mode_gating` is always false; the model comes from the `model` passed in, and `model_policy.json` is not read again; skip the team size limit note (/quickstart already sized the team to the limit) |
 | `## Phase 4: Adversarial check (optional but recommended)` | Skip |
 | `## Phase 5: Display lineup to user + collect feedback` | Skip |
 | `### 6a. Prepare a spawn prompt for each teammate` | **Do it; do not skip.** Use the `project_root` passed in for `<project_root>`; the goal in "Current task" is "None yet. After sending your ready receipt, wait for the lead to assign work; do not start any work on your own." |

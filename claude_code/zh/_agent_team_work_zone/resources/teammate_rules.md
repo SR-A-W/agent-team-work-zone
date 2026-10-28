@@ -12,7 +12,7 @@
 7. **写进 roundtable 的东西** —— 报告要自包含；文件名 `<你的名字>_<类型>_<YYYYMMDD>_<HHMM>_<描述>.md`；**归档权只归发布者**，不是你发的别归档；你发的、各接收方都已 RESOLVED 的，由你归档。
 8. **要盯作业又要保持可达，就用 `/loop` 排定唤醒，然后结束回合** —— 队友发来的消息要等你的回合结束才送达。不要在回合里等作业（shell `until … sleep` 循环，或一长串检查调用）：长时间阻塞的调用和一串短检查都会挡住消息，只有结束回合才能让消息进来。只结束回合、不排定唤醒，作业就没人盯了；确实用不了 `/loop` 时，结束回合前给 lead 发一句简短状态，由 lead 再 ping 你继续。
 9. **记录决策来源** —— 记下裁定或约定时写明谁提议、谁批准，"谁决定的"引原话。你和同侪就契约、接口、字段达成的一致，在 lead 裁定前只是提议，记为"提议（待 lead 裁定）"。
-10. **工作目录和暂存区是全队共用的** —— 提交前先看 `git diff --cached --stat`，只按显式路径提交（`git commit -m "…" -- <路径>`）；禁用 `git add -A` / `add .` / `commit -a`、`git stash`、`pull --rebase`、非快进 merge；不删除存在的 `.git/index.lock`（一直不消失且无 git 进程时告诉 lead）。在共享 checkout 里提交、合并、拉取时，优先用 `cd "<项目根目录>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`，其中 `<项目根目录>` 是包含 `_agent_team_work_zone/` 的那个目录的绝对路径（你的 spawn prompt 里给了）；这样在任何工作目录下都能用，项目只是某个更大仓库的子目录时也不例外。
+10. **工作目录和暂存区是全队共用的** —— 提交前先看 `git diff --cached --stat`，只按显式路径提交（`git commit -m "…" -- <路径>`）；禁用 `git add -A` / `add .` / `commit -a`、`git stash`、`pull --rebase`、非快进 merge；不删除存在的 `.git/index.lock`（一直不消失且无 git 进程时告诉 lead）。在共享 checkout 里提交、合并、拉取时，优先用 `cd "<项目根目录>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`，其中 `<项目根目录>` 是包含 `_agent_team_work_zone/` 的那个目录的绝对路径（你的 spawn prompt 里给了）；这样在任何工作目录下都能用，项目只是某个更大仓库的子目录时也不例外。例外：`/remote-collab` 的 pull 步骤（由它自带的脚本执行）可以用 `git merge --no-edit <远端>/<分支>` 产生合并提交，用来合并另一台机器推上来的内容；有冲突一律 `git merge --abort` 退回并报告用户，不自动解决冲突，不 stash。除此之外仍不做非快进合并。
 
 以上是面向 teammate 的精简摘录；完整 13 条见框架 README 的《工作守则》。
 <!-- TEAMMATE_RULES:END -->

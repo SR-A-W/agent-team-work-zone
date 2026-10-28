@@ -57,7 +57,7 @@ allowed-tools: Read Glob Grep Bash Edit Write
 | RESOLVED | from=`<SELF>` | 任意 | ➡️ 进入步骤 9（issuer 归档队列）|
 | RESOLVED | from=他人 | 任意 | 📋 已完成，等 issuer 归档——只读，不归档 |
 
-**团队版特殊**：对 roundtable 文件，`from` 和 `to` 是 `<team>/<role>` 格式（例如 `architect_team/tracker`）；其中 `architect_team/lead` 等价于 `<SELF>` 当 `<SELF>` 是该 team 的 lead 时。
+**团队版特殊**：对 roundtable 文件，`from` 和 `to` 是 `<team>/<role>` 格式（例如 `architect_team/tracker`）；其中 `architect_team/lead` 等价于 `<SELF>` 当 `<SELF>` 是该 team 的 lead 时。meeting_room 文件也认这种写法（另一台机器上的团队用 `/remote-collab` 协作时，跨机器的文档一律这样写）：`<本团队目录>/lead` 等价于本团队的 lead，`<本团队目录>/<成员>` 等价于该成员；扁平工位用 `<工位目录>` 指自己。
 
 ### 4. 按时间顺序排序
 

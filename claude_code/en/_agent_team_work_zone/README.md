@@ -154,7 +154,8 @@ _agent_team_work_zone/
 │   │   ├── evaluate-team/SKILL.md
 │   │   ├── add-teammate/SKILL.md
 │   │   ├── remove-teammate/SKILL.md
-│   │   └── bench-teammate/SKILL.md
+│   │   ├── bench-teammate/SKILL.md
+│   │   └── remote-collab/SKILL.md
 │   ├── agents/                ← source of truth for general-purpose subagents (synced by bootstrap to .claude/agents/)
 │   │   ├── git-repo-manager.md
 │   │   ├── tracker.md
@@ -301,6 +302,7 @@ Each agent only does what falls within its own responsibilities; no overstepping
   - Check `git diff --cached --stat` before committing; always commit by explicit path: `git commit -m "…" -- <path>…`
   - Never `git add -A` / `git add .` / `git commit -a` (they sweep others' changes into your commit)
   - Never `git stash`, `git pull --rebase`, or a non-fast-forward merge (a stash hides other agents' uncommitted files; aborting or resetting a failed rebase or merge reverts them); pull with `git pull --ff-only`
+  - Exception: the pull step of `/remote-collab` (run by its own script) may create a merge commit with `git merge --no-edit <remote>/<branch>` to merge in what another machine pushed; any conflict is backed out with `git merge --abort` and reported to the user, never resolved automatically, never stashed. Apart from this, still no non-fast-forward merges.
   - Never delete an existing `.git/index.lock` (another agent's git operation is in progress); if it persists and no git process is running, tell the lead — do not remove it yourself
   - For commits, merges and pulls in the shared checkout, prefer `cd "<project root>" && bash _agent_team_work_zone/resources/scripts/atwz_git_lock.sh run -- git …`, where `<project root>` is the absolute directory that contains `_agent_team_work_zone/` (your spawn prompt gives it); this works from any working directory, even when the project is a subdirectory of a larger repository
 - **Cost of violating this rule**: The affected agent discovers on their next `/sync` that their workstation was modified without knowing by whom or why — this breaks continuity and trust.
@@ -454,6 +456,7 @@ After installation, they can be triggered in a conversation via `/skill_name`. S
 | add-teammate | `/add-teammate` | team lead autonomously | Add a teammate to an existing team |
 | remove-teammate | `/remove-teammate` | team lead autonomously | Retire a teammate: graceful handoff + archive their output |
 | bench-teammate | `/bench-teammate <name>` | team lead autonomously | Temporarily take a teammate offline (benched): final checkpoint + close session to free a slot, keep full record; wake later with `/reactivate-team <name>` |
+| remote-collab | `/remote-collab start\|pull\|push\|stop\|status` | team lead (or a flat workstation) when the user asks | Work with a team on another machine through the same git remote: a Haiku watcher checks the remote on a schedule and tells the lead only about documents for this team; the lead merges and pushes; any conflict is backed out and reported to the user |
 | broadcast-rule | `/broadcast-rule` | team lead autonomously (after the user agrees to the rule change) | Send a rule change to every live teammate, record it in the team's standing `RULES_LEDGER.md` and track acknowledgements; teammates who are offline pick it up when they are reactivated |
 
 **Important**: `/evaluate-team`, `/add-teammate`, `/remove-teammate`, `/bench-teammate`, and `/broadcast-rule` are only valid in **team-lead context**. If mistakenly invoked from a flat workstation, the skill will immediately alert and refuse to execute.

@@ -94,6 +94,18 @@ priority: HIGH
 
 Once a recipient takes on the task, they set `status` to `IN_PROGRESS` (or add a "started: YYYY-MM-DD HH:MM" note to their checklist row) to signal they have claimed it. Once their part is done, they check off their row and append a timestamp + summary. The last one to finish sets `status` to `RESOLVED`. On the issuer's next `/check-inbox`, step 9 detects `status: RESOLVED` or a fully-checked checklist and archives the file.
 
+## Teams on another machine (same repository)
+
+When two developers work on the same project with their teams on different machines, use `/remote-collab`: each side's watcher checks the remote every 30 minutes and tells its lead about documents addressed to its team; the lead merges them in when it is ready to handle them (`/remote-collab pull`), and pushes after writing a document for the other side or finishing something the other side is waiting for (`/remote-collab push`). Conventions:
+- **The two sides' team directory names must differ** (`/remote-collab start` checks this and gives renaming steps when they are the same).
+- `from:` / `to:` / `cc:` are always `<team dir>/<teammate>`, and the lead is `<team dir>/lead`, for example `from: alice_team/lead`, `to: bob_team/lead`; `to: ALL` means everyone on both sides.
+- File names follow the rules above and start with the issuer's name.
+- **Only one side edits a document at a time** (when both sides edit the same document, merging conflicts):
+  1. After publishing a document, the issuer no longer edits its body; additions or corrections go in a new file.
+  2. A recipient changes only the `status:` line of the frontmatter (with several recipients, only its own checklist line).
+  3. The issuer archives only **after** merging in the other side's change to RESOLVED.
+  4. Replies are new files, never written into the other side's file.
+
 ## Teams from another repository
 
 A team working in another repository may use this meeting room too. Conventions:

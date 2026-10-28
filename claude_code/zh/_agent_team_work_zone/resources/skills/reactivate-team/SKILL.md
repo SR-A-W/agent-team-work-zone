@@ -96,7 +96,7 @@ working-context.md 是两段式：Part A = 9 节当前态快照；Part B = 追�
 
 **无参调用**：从 `active_teammates` 里筛出**待唤醒集** = `status ∈ {active, idle}`（**排除 `benched`**；`failed_to_reactivate` 由用户决定是否重试，默认不自动纳入）：
 - 文件不存在 → 告知用户"本 team 从未 spawn 过 teammate（TEAMMATE_INFO.json 不存在）"，退出
-- 文件存在但待唤醒集为空 → 告知用户"没有需要恢复的 active teammate（可能都 offboarded 或 benched 了）"；若存在 benched，附一行只读 FYI（见 Step 2）后退出
+- 文件存在但待唤醒集为空 → 不唤醒任何成员：跳过 Step 2–4，但**仍做 Step 4b 和 Step 5**（后台脚本方式没有查看成员，其余成员又都 benched 时，后台查看要靠 Step 4b 重新启动）。Step 5 的汇报写"没有需要恢复的 active teammate（可能都 offboarded 或 benched 了）"，若存在 benched 附一行只读 FYI（见 Step 2），再写 Step 4b 的结果或没接上的原因；Step 4b 没有要做的就不写这一行
 - 待唤醒集非空 → 继续
 
 **`/reactivate-team <name>` 指定调用**：直接在 `active_teammates` 里定位该 `<name>`（无论其 status 是 active / idle / benched / failed_to_reactivate）；找不到 → 告知用户该 name 不在 active_teammates（可能已 offboarded），退出。待唤醒集 = 仅这一个。
@@ -115,6 +115,7 @@ Team: <team_name>
    - 最初 spawn 时间: <spawned_at>
    - 最后 checkpoint 时间: <取 working-context.md 的 mtime 算"距今多久"（权威值）；并把文件内 `_Last updated:` 头部时间戳作为人读值展示 | "从未 checkpoint"（无 working-context.md）>
    - 之前被 revive 过: <revived_count> 次
+   （是 /remote-collab 的查看成员时，名字后面加注："（/remote-collab 的查看成员；恢复后会自动接着定时查看）"）
 
 2. <name>
    ...
@@ -224,6 +225,8 @@ Agent(
 # 也不传 mode：teammate 权限模式无法在 spawn 时单设，继承 lead 当时的模式（要 auto 就让 lead 处于 auto / 设 permissions.defaultMode:"auto"）。
 ```
 
+**模型只按登记表**：重新派生不读 `model_policy.json`，已有成员不会因为策略改了而被换掉；也不传 `effort`（它对成员不起作用，成员的思考强度跟着 lead）。用户在对话里点名要换模型的，先按 lead README 里"给成员换模型或思考强度"一段改登记表，再派生。
+
 **subagent_type 选择规则**：
 - `role_source.type == "subagent"` → `subagent_type: role_source.subagent_name`（引用通用 subagent）
 - `role_source.type == "archetype"` 或 `"tier2"` 或 `"inline"` → `subagent_type: "general-purpose"`（通用 agent，具体角色靠 spawn prompt 注入）
@@ -234,7 +237,7 @@ Agent(
 - **成功**：在本 session 收到该 teammate 的 SendMessage 回执（内容含 "Resumed from checkpoint at X. Ready."）→ 标记成功
 - **失败/状态未知**：未收到 SendMessage 回执（含超时）→ 先按下方「约 10 分钟仍无回执」排查，再告警给用户，由用户决定（重试 spawn / 检查 working-context.md 是否损坏 / 或 /remove-teammate 移除）；**不假定成功**
 
-**模型核对（成功时）**：回执末尾是 `Model: <name>, ID: <id>`，由 teammate 从自己的系统提示中原样引用。在 Step 4 把该 ID 记为 `model_resolved`。再与登记表的 `model` 及该 teammate README 的「模型 / Model」行比对：别名（`haiku` / `sonnet` / `opus`）只要 ID 中包含它（不分大小写）即算一致；具体 ID 则须完全相等。不一致时，在 Step 5 汇报里**标出**——不改登记表的 `model`（它记录的是 spawn 时请求的值，用别名可能是有意的），也不改 teammate 的 README（rule #1；请该 teammate 在下次 /checkpoint 时自己改）。若回执写的是 `Model: not stated` 或没有 ID，不写 `model_resolved`，汇报"模型未确认"。这只是**交叉核对，不是保证**——ID 是 teammate 从系统提示里自报的。
+**模型核对（成功时）**：回执末尾是 `Model: <name>, ID: <id>`，由 teammate 从自己的系统提示中原样引用。在 Step 4 把该 ID 记为 `model_resolved`。再与登记表的 `model` 及该 teammate README 的「模型 / Model」行比对：别名（`haiku` / `sonnet` / `opus` / `fable`）只要 ID 中包含它（不分大小写）即算一致；具体 ID 则须完全相等。不一致时，在 Step 5 汇报里**标出**——不改登记表的 `model`（它记录的是 spawn 时请求的值，用别名可能是有意的），也不改 teammate 的 README（rule #1；请该 teammate 在下次 /checkpoint 时自己改）。若回执写的是 `Model: not stated` 或没有 ID，不写 `model_resolved`，汇报"模型未确认"。这只是**交叉核对，不是保证**——ID 是 teammate 从系统提示里自报的。
 
 **守则备份（成功时）**：若回执还带有 `Rules healed; old section backed up to <file>`，说明该 teammate 的 README 里有旧守则区并已被替换；备份里保存着那段旧内容，包括写在守则后面的用户笔记。在 Step 5 汇报里提一句，方便用户把不属于守则的内容恢复回去。 回执若带有 `ACK <id>`（例如 `ACK R-20261004-1`），把 RULES_LEDGER.md 里对应的行填上。
 
@@ -282,6 +285,25 @@ tmp="$(mktemp "$(dirname "$info")/.info.XXXXXX")" && cp -p "$info" "$tmp" \
 ```
 若回执给出了模型 ID，再加 `--arg mid "<ID>"`，并在同一个 `if .name == $name then … end` 分支里加 `| .model_resolved = $mid`。
 
+### Step 4b: 接着远程协作
+
+只在**无参调用**时做（待唤醒集为空时也做，见 Step 1）；`/reactivate-team <name>` 单独唤回时跳过本步（`/remote-collab start` 会用单独唤回叫回查看成员，再自己发"开始"消息，这样不会发两遍）。Step 2 清单里查看成员那一项已加注"恢复后会自动接着定时查看"，用户在 Step 2 的确认也覆盖本步，不另外再问。
+
+按顺序判断：
+
+1. `<团队目录>/remote_collab.json` 不存在 → 跳过本步。存在但 `jq empty` 不过 → 跳过本步，Step 5 加一行"remote_collab.json 解析失败，定时查看没有接上"。
+2. `stopped_at` 不为 null → 跳过（用户停过协作；查看成员这时已是 benched，无参调用本来就不唤醒它）。
+2b. `watch_mode` 为 `"script"`（后台脚本方式）→ 不涉及成员，不走下面第 3–6 条：照 `/remote-collab start` 前提检查的第 3、4 条做；都过 → 按 `/remote-collab` 的"后台脚本方式"一节启动一轮后台 watch（先 watch-stop 再 watch），Step 5 加一行"远程协作：后台查看已重新启动（每 <script_interval>）"；任一条不过 → 不启动，把原因写进 Step 5。第 7 条照样适用。没有 `watch_mode`，或为 `"teammate"` → 照下面原有的判断。
+3. `watcher` 为 null（手动模式）→ 跳过。
+4. 在登记表里找 `watcher` 那个名字：
+   - 不在登记表 → 跳过，Step 5 加一行"配置里的查看成员不在登记表，要接着定时查看请运行 /remote-collab start"。
+   - 本次 Step 3 成功叫回（回执已到）→ 进入第 5 条。
+   - 本次叫回失败（`failed_to_reactivate`）→ 不重试；Step 5 照常列在失败里，并加一行"定时查看没有接上"。
+   - `status` 是 benched（`stopped_at` 为 null 却是 benched：通常是 lead 为上下文过长让它临时下线、还没重新派生，会话就断了）→ 不唤回（无参调用绝不唤醒 benched），Step 5 加一行："查看成员处于临时下线，但协作没有停止；要接着定时查看，就说'接着远程协作'，我会运行 /remote-collab start。"
+5. 照 `/remote-collab start` 前提检查的第 3、4 条做（能 fetch；远端没有别人改同名团队目录）。任一条不过 → 不发"开始"消息，Step 5 把原因告诉用户（第 4 条不过时，说明改名步骤在 `/remote-collab` 的 start 第 4 条里）。
+6. 都过 → 给查看成员发 `/remote-collab` 里"派生查看成员"一节的那条"开始"消息（间隔取配置里的 `interval`），等它回第一次查看的那一行。
+7. 不重写配置、不再问推送许可、不改 lead README（这些只有 `/remote-collab start` 才做）；配置里的 `started_at` 不动。
+
 ### Step 5: 汇报给用户
 
 输出 summary：
@@ -302,6 +324,7 @@ Team <team_name> reactivated:
 - <name3>: <reason>
 
 Status updated in TEAMMATE_INFO.json.
+远程协作（仅当 Step 4b 做了或要提示时）: 已接着定时查看（每 <间隔>），第一次查看：<结果> | 后台查看已重新启动（每 <script_interval>） | <没接上的原因>
 注：刚唤醒的成员在唤醒后 15 分钟内不会收到 checkpoint 提醒（这是有意的：此时它的全部状态就是工位文件）；15 分钟后照常提醒。
 
 Next steps:

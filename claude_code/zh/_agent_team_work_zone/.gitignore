@@ -12,6 +12,20 @@
 *_team/teammates/*/.checkpoint_nudge_count
 *_team/TEAMMATE_INFO.json.bak
 *_team/.info.??????
+*_team/.policy.??????
+# /remote-collab 的运行时状态：每次查看、合并、推送都会变，入 git 只会制造提交和冲突。
+*_team/.remote_collab_state
+*/.remote_collab_state
+*_team/teammates/*/remote_seen
+*_team/teammates/*/digests/
+*_team/teammates/*/loop_job
+*_team/.remote_seen
+*/.remote_seen
+*_team/.remote_collab_watch.pid
+*/.remote_collab_watch.pid
+*_team/digests/
+*/digests/
+*/.rc.??????
 **/.README.md.??????
 # 改写 VERSION 或 settings.conf 时被中断而留下的临时文件。
 /.VERSION.??????

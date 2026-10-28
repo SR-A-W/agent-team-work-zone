@@ -180,7 +180,7 @@ claude
 /quickstart 帮我复现这个 github repo 中的实验
 ```
 
-它不向你提问，自己看项目、定阵容、建好 lead 和成员，等所有人就绪后，告诉你团队有谁、怎么用，并提议一个 20 分钟左右能做完的第一个小任务。成员等你点头才开工，不会自己开始。
+它不向你提问，自己看项目、定阵容、建好 lead 和成员，等所有人就绪后，告诉你团队有谁、怎么用，并提议一个 20 分钟左右能做完的第一个小任务。成员等你点头才开工，不会自己开始。成员的模型按你的订阅档位自动选（Pro 用 haiku，Max 5x 用 sonnet，Max 20x 用 opus），结束时还会给你这个 lead 一句关于模型和思考强度的建议。
 
 #### 熟悉以后：自己定角色和阵容
 
@@ -261,6 +261,7 @@ bash _agent_team_work_zone/resources/scripts/bootstrap.sh --reconfigure   # 从�
 | `/sync` | 压缩后恢复角色上下文并检查 inbox |
 | `/handoff` | 把任务上下文从一个 agent 转交给另一个 |
 | `/promote-to-team` | 把扁平工位升级为 team lead |
+| `/remote-collab` | 两名开发者各在自己机器上的团队，通过 git 和会议室协作；一名查看成员定时查看远端 |
 
 ### Agent 自动调用的 Skills(你通常不需要主动调用)
 

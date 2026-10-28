@@ -80,7 +80,7 @@ E.g. `_agent_team_work_zone/architect_team/TEAMMATE_INFO.json`.
 |---|---|---|
 | `name` | string | Teammate's globally unique name, **which must be of the form `<slug>-<role>`**: `slug` = the team workstation name minus `_team`, a single token (no hyphen); `role` may contain hyphens. E.g. `architect-reviewer`, `architect-plan-a-author`. The idle checkpoint hook derives the workstation back from the name via `${name%%-*}_team`, so the slug must have no hyphen. Legacy names (e.g. `Fixer`) are tolerated; new ones must always use `<slug>-<role>` |
 | `role_source` | object | Role definition source; see below |
-| `model` | string | Model used: `sonnet` / `haiku` / `opus` or specific ID |
+| `model` | string | Model used: `sonnet` / `haiku` / `opus` / `fable` (`fable` only when the user names it) or specific ID |
 | `plan_mode_gating` | boolean | Whether plan-mode gating was enabled at spawn |
 | `scope` | string | Brief scope description (human reference only; not machine-parsed). **Free-text fields must not contain an ASCII double quote `"`** — it breaks the JSON; when you need quotation use 「」/『』/curly quotes (zero expressive loss for zh/ja teams). Likewise keep it short (a stable scope-range description); do not stuff progress prose into it (that belongs in `working-context.md` — Markdown, harmless if broken) |
 | `spawned_at` | ISO8601 string | Initial spawn time |
